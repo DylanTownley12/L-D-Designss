@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>L&D Designs — Premium Web Design Agency</title>
+<meta name="description" content="Premium websites that convert visitors into paying clients. Based in the North West."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#06060F;--surface:#0D0D1C;--card:#11111F;--border:#1E1E32;
+  --accent:#4F6EFF;--accent-lo:rgba(79,110,255,0.15);--accent-glow:rgba(79,110,255,0.4);
+  --mid:#7B93FF;--white:#F0F0FA;--muted:#7777AA;--dim:#44445A;
+  --green:#2ECFAA;--gold:#D4A85A;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:'Clash Display',sans-serif;line-height:1.05;letter-spacing:-0.03em}
+a{text-decoration:none;color:inherit}
+button{cursor:pointer;font-family:'DM Sans',sans-serif}
+::selection{background:var(--accent);color:#fff}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+@keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+
+.shimmer-text{background:linear-gradient(90deg,var(--white) 0%,var(--mid) 40%,var(--white) 60%,var(--white) 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 4s linear infinite}
+.blink{animation:blink 1s step-end infinite;color:var(--accent)}
+.ticker-anim{animation:ticker 30s linear infinite}
+.ticker-anim:hover{animation-play-state:paused}
+.grad-btn{background:linear-gradient(135deg,var(--accent),var(--mid));transition:all .3s ease;border:none;color:#fff;cursor:pointer}
+.grad-btn:hover{transform:translateY(-2px);box-shadow:0 8px 40px var(--accent-glow)}
+.fade{opacity:0;transform:translateY(32px);transition:opacity .7s ease,transform .7s ease}
+.fade.visible{opacity:1;transform:translateY(0)}
+.fade.d1{transition-delay:.1s}.fade.d2{transition-delay:.2s}.fade.d3{transition-delay:.3s}.fade.d4{transition-delay:.4s}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;height:68px;padding:0 clamp(1rem,5vw,3rem);display:flex;align-items:center;justify-content:space-between;background:transparent;border-bottom:1px solid transparent;transition:all .4s}
+nav.sc{background:rgba(6,6,15,.9);backdrop-filter:blur(20px);border-bottom-color:var(--border)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--mid));display:flex;align-items:center;justify-content:center;font-family:'Clash Display',sans-serif;font-weight:700;font-size:13px;color:#fff}
+.logo-text{font-family:'Clash Display',sans-serif;font-weight:700;font-size:17px;letter-spacing:-.02em}
+.nav-links{display:flex;gap:2.5rem;align-items:center}
+.nav-link{font-size:14px;font-weight:500;color:var(--muted);position:relative;transition:color .2s}
+.nav-link::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:2px;background:var(--accent);transition:width .3s;border-radius:2px}
+.nav-link:hover{color:var(--white)}
+.nav-link:hover::after{width:100%}
+.nav-cta{padding:10px 24px;border-radius:40px;font-weight:600;font-size:14px}
+.mob-menu{display:none;position:fixed;top:68px;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:199;padding:1rem 1.5rem;flex-direction:column;gap:1rem;animation:slideDown .2s ease}
+.mob-menu.open{display:flex}
+.mob-link{color:var(--muted);font-size:15px;font-weight:500}
+.hamburger{display:none;background:none;border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:16px}
+
+/* HERO */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:clamp(6rem,12vw,8rem) clamp(1rem,6vw,3rem) 4rem;position:relative;overflow:hidden}
+.hero-glow1{position:absolute;top:10%;left:20%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,var(--accent-lo) 0%,transparent 70%);animation:pulse 8s ease-in-out infinite;pointer-events:none}
+.hero-glow2{position:absolute;bottom:15%;right:15%;width:350px;height:350px;border-radius:50%;background:radial-gradient(circle,rgba(123,147,255,.1) 0%,transparent 70%);animation:pulse 10s ease-in-out infinite 2s;pointer-events:none}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:radial-gradient(ellipse 80% 70% at 50% 50%,black 20%,transparent 100%);pointer-events:none;opacity:.55}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:40px;border:1px solid var(--border);background:var(--accent-lo);font-size:12px;color:var(--mid);font-weight:500;letter-spacing:.06em;margin-bottom:2rem;backdrop-filter:blur(10px)}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s ease-in-out infinite}
+.hero h1{font-size:clamp(3rem,9vw,7rem);color:var(--white);max-width:940px;position:relative;z-index:1}
+.hero-sub{color:var(--muted);font-size:clamp(1rem,2vw,1.18rem);max-width:520px;margin:1.75rem auto 0;font-weight:300;line-height:1.8;position:relative;z-index:1}
+.hero-btns{display:flex;gap:1rem;margin-top:2.5rem;flex-wrap:wrap;justify-content:center;position:relative;z-index:1}
+.btn-primary{padding:15px 34px;border-radius:50px;border:1px solid rgba(255,255,255,.15);color:#fff;font-family:'Clash Display',sans-serif;font-weight:600;font-size:15px;display:inline-flex;align-items:center;gap:8px;transition:all .3s}
+.btn-secondary{padding:15px 34px;border-radius:50px;border:1px solid var(--border);color:var(--white);font-family:'Clash Display',sans-serif;font-weight:600;font-size:15px;background:rgba(255,255,255,.04);backdrop-filter:blur(10px);transition:all .25s;display:inline-block}
+.btn-secondary:hover{background:rgba(255,255,255,.08)}
+.hero-stats{display:flex;gap:3rem;margin-top:4rem;flex-wrap:wrap;justify-content:center;position:relative;z-index:1}
+.stat-num{font-family:'Clash Display',sans-serif;font-weight:700;font-size:clamp(1.8rem,4vw,2.4rem);background:linear-gradient(135deg,var(--white),var(--mid));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-lbl{color:var(--dim);font-size:12px;font-weight:500;letter-spacing:.06em;margin-top:4px}
+.scroll-cue{margin-top:3rem;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--dim);font-size:12px;position:relative;z-index:1}
+.scroll-line{width:1px;height:40px;background:linear-gradient(to bottom,var(--dim),transparent)}
+
+/* TICKER */
+.ticker-wrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:13px 0;overflow:hidden;background:rgba(79,110,255,.04)}
+.ticker-inner{display:inline-block;white-space:nowrap}
+.ticker-item{display:inline-block;margin-right:2.5rem;color:var(--muted);font-size:12px;font-weight:500;letter-spacing:.08em}
+.ticker-dot{color:var(--accent);margin-right:1rem}
+
+/* SECTIONS */
+section{padding:clamp(5rem,10vw,9rem) clamp(1rem,6vw,4rem)}
+.inner{max-width:1200px;margin:0 auto}
+.section-label{color:var(--accent);font-size:12px;font-weight:600;letter-spacing:.1em;margin-bottom:10px}
+.section-title{font-size:clamp(2.2rem,5vw,3.8rem);color:var(--white)}
+
+/* WORK */
+#work{background:var(--bg)}
+.work-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:3rem;flex-wrap:wrap;gap:1.5rem}
+.work-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.work-card{border-radius:20px;border:1px solid var(--border);overflow:hidden;cursor:pointer;transition:transform .35s,border-color .35s,box-shadow .35s}
+.work-card:hover{transform:translateY(-5px);border-color:rgba(79,110,255,.4);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.browser-bar{background:#1a1a2a;padding:10px 14px;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%}
+.url-bar{flex:1;background:rgba(255,255,255,.05);border-radius:4px;height:20px;margin-left:8px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:rgba(255,255,255,.3)}
+.card-body{padding:1.25rem 1.5rem}
+.card-cat{color:var(--dim);font-size:11px;font-weight:500;letter-spacing:.08em;margin-bottom:4px;text-transform:uppercase}
+.card-name{font-family:'Clash Display',sans-serif;font-weight:700;font-size:1.3rem;color:var(--white)}
+.card-tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.card-tag{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:500}
+.card-desc{color:var(--muted);font-size:13px;line-height:1.65;margin-top:6px}
+.card-stats{display:flex;gap:1.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.s-val{font-family:'Clash Display',sans-serif;font-weight:700;font-size:1.1rem}
+.s-lbl{color:var(--dim);font-size:10px}
+.card-link{margin-top:.75rem;font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px}
+
+/* PREVIEW PANELS */
+.prev{overflow:hidden;position:relative}
+.p-apex{background:#080815;padding:1.5rem;height:220px}
+.p-fashion{background:#0F0A04;padding:1.5rem;height:220px}
+.p-barber{background:#040F0D;padding:1.5rem;height:220px}
+.p-energy{background:#070F04;padding:1.5rem;height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+.mini-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mini-card{background:rgba(255,255,255,.04);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)}
+.mc-lbl{color:rgba(255,255,255,.4);font-size:10px;margin-bottom:4px}
+.mc-val{font-family:'Clash Display',sans-serif;font-weight:700;font-size:16px;color:#fff}
+.mc-chg{font-size:11px;margin-top:2px;color:var(--green)}
+.chart{margin-top:10px;height:60px;background:rgba(79,110,255,.08);border-radius:8px;border:1px solid rgba(79,110,255,.15);display:flex;align-items:flex-end;padding:8px;gap:2px;overflow:hidden}
+.bar{flex:1;background:linear-gradient(to top,#4F6EFF,#7B93FF);border-radius:2px;opacity:.8}
+
+/* SERVICES */
+#services{background:linear-gradient(180deg,var(--bg) 0%,var(--surface) 100%)}
+.svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:3rem}
+.svc-card{padding:clamp(1.25rem,3vw,1.75rem);border-radius:16px;border:1px solid var(--border);background:var(--card);transition:all .3s;position:relative;overflow:hidden;cursor:default}
+.svc-card:hover{transform:translateY(-3px);box-shadow:0 20px 40px rgba(0,0,0,.4)}
+.svc-glow{position:absolute;top:0;right:0;width:150px;height:150px;border-radius:0 0 0 100%;opacity:0;transition:opacity .4s;pointer-events:none}
+.svc-card:hover .svc-glow{opacity:1}
+.svc-icon{font-size:1.6rem;margin-bottom:.75rem;opacity:.6;transition:all .3s}
+.svc-card:hover .svc-icon{opacity:1}
+.svc-title{font-family:'Clash Display',sans-serif;font-weight:600;font-size:1.05rem;color:var(--white);margin-bottom:8px}
+.svc-desc{color:var(--muted);font-size:13px;line-height:1.65}
+.span2{grid-column:span 2}
+
+/* PRICING */
+#pricing{background:var(--bg)}
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:3rem;align-items:start}
+.price-card{border:1px solid var(--border);border-radius:20px;background:var(--card);transition:all .3s;position:relative;overflow:hidden}
+.price-card:hover{transform:translateY(-6px);box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.price-card.popular{border-color:rgba(79,110,255,.5);box-shadow:0 0 40px var(--accent-lo)}
+.price-tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);padding:4px 16px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.06em;white-space:nowrap;color:#fff}
+.price-body{padding:clamp(1.5rem,3vw,2rem)}
+.price-name{font-size:13px;font-weight:600;letter-spacing:.04em;margin-bottom:8px}
+.price-amount{font-family:'Clash Display',sans-serif;font-weight:700;font-size:clamp(2rem,4vw,2.6rem);color:var(--white)}
+.price-period{color:var(--dim);font-size:13px;margin-left:6px}
+.price-desc{color:var(--muted);font-size:13px;line-height:1.7;margin:1rem 0 1.5rem;min-height:52px}
+.price-feats{display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.75rem}
+.price-feat{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--white)}
+.check{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px}
+.price-btn{width:100%;padding:13px;border-radius:12px;font-family:'Clash Display',sans-serif;font-weight:600;font-size:15px;transition:all .25s;cursor:pointer}
+.guarantee{text-align:center;margin-top:2rem;display:flex;align-items:center;justify-content:center;gap:.75rem;color:var(--muted);font-size:13px}
+
+/* TESTIMONIALS */
+#testimonials{background:linear-gradient(180deg,var(--surface) 0%,var(--bg) 100%)}
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:3rem}
+.testi-card{padding:1.75rem;border-radius:18px;border:1px solid var(--border);background:var(--card);transition:transform .35s,border-color .35s}
+.testi-card:hover{transform:translateY(-5px);border-color:rgba(79,110,255,.3)}
+.testi-q{font-size:24px;font-family:serif;margin-bottom:.75rem}
+.testi-text{color:var(--white);font-size:14px;line-height:1.8;margin-bottom:1.25rem;font-style:italic}
+.testi-footer{display:flex;align-items:center;gap:10px;padding-top:1rem;border-top:1px solid var(--border)}
+.testi-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Clash Display',sans-serif;font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
+.testi-name{color:var(--white);font-weight:600;font-size:13px}
+.testi-role{color:var(--muted);font-size:11px}
+.stars{margin-left:auto;color:#FFBD2E;font-size:12px}
+
+/* PROCESS */
+#process{background:var(--bg)}
+.process-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-top:3.5rem}
+.proc-card{padding:1.75rem;border-radius:16px;border:1px solid var(--border);background:var(--card);position:relative}
+.proc-num{font-family:'Clash Display',sans-serif;font-weight:700;font-size:3rem;color:rgba(79,110,255,.15);margin-bottom:.5rem;line-height:1}
+.proc-title{font-family:'Clash Display',sans-serif;font-weight:600;font-size:1.05rem;color:var(--white);margin-bottom:8px}
+.proc-desc{color:var(--muted);font-size:13px;line-height:1.7}
+.proc-arrow{position:absolute;top:50%;right:-1rem;width:20px;height:20px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px;z-index:1;transform:translateY(-50%)}
+
+/* CTA */
+#cta{padding:clamp(5rem,10vw,9rem) clamp(1rem,6vw,4rem);background:linear-gradient(180deg,var(--bg) 0%,#050510 100%)}
+.cta-inner{max-width:700px;margin:0 auto;text-align:center}
+.cta-title{font-size:clamp(2.5rem,6vw,4.5rem);color:var(--white);margin-bottom:1.25rem}
+.grad-text{background:linear-gradient(135deg,var(--accent),var(--mid));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.cta-sub{color:var(--muted);font-size:16px;line-height:1.8;margin-bottom:2.5rem;max-width:460px;margin-left:auto;margin-right:auto}
+.cta-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.wa-btn{padding:16px 38px;border-radius:50px;background:#25D366;color:#fff;font-family:'Clash Display',sans-serif;font-weight:700;font-size:16px;border:none;cursor:pointer;transition:all .25s;display:inline-flex;align-items:center;gap:10px;text-decoration:none}
+.wa-btn:hover{background:#1ebe5b;transform:translateY(-2px);box-shadow:0 8px 30px rgba(37,211,102,.3)}
+
+/* WHATSAPP FLOAT */
+.wa-float{position:fixed;bottom:2rem;right:2rem;z-index:300;width:56px;height:56px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 20px rgba(37,211,102,.4);transition:all .3s;text-decoration:none}
+.wa-float:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(37,211,102,.6)}
+
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:2.5rem clamp(1rem,5vw,4rem);background:var(--bg)}
+.foot-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.5rem}
+.foot-logo{display:flex;align-items:center;gap:10px}
+.foot-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--mid));display:flex;align-items:center;justify-content:center;font-family:'Clash Display',sans-serif;font-weight:700;font-size:12px;color:#fff}
+.foot-copy{color:var(--dim);font-size:13px}
+.foot-links{display:flex;gap:1.5rem}
+.foot-link{color:var(--dim);font-size:13px;transition:color .2s}
+.foot-link:hover{color:var(--white)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal-box{background:var(--card);border:1px solid var(--border);border-radius:24px;max-width:540px;width:90%;padding:2rem;transform:scale(.94);transition:transform .25s;max-height:90vh;overflow-y:auto}
+.modal-bg.open .modal-box{transform:scale(1)}
+.modal-title{font-family:'Clash Display',sans-serif;font-weight:700;font-size:1.5rem;color:var(--white)}
+.modal-sub{color:var(--muted);font-size:13px;margin-top:4px}
+.modal-close{width:34px;height:34px;border-radius:50%;background:var(--border);border:none;color:var(--white);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+.form-input{width:100%;padding:13px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;color:var(--white);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;margin-bottom:.75rem}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--dim)}
+.form-input option{background:var(--card)}
+.form-submit{width:100%;padding:14px;border-radius:12px;font-family:'Clash Display',sans-serif;font-weight:700;font-size:16px;margin-top:.25rem}
+.success-icon{width:64px;height:64px;border-radius:50%;background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;font-size:28px}
+
+@media(max-width:768px){
+  .nav-links{display:none!important}
+  .hamburger{display:block}
+  .work-grid{grid-template-columns:1fr}
+  .svc-grid{grid-template-columns:1fr}
+  .span2{grid-column:span 1}
+  .price-grid{grid-template-columns:1fr}
+  .testi-grid{grid-template-columns:1fr}
+  .process-grid{grid-template-columns:1fr 1fr}
+  .form-row{grid-template-columns:1fr}
+  .proc-arrow{display:none}
+}
+@media(max-width:480px){
+  .process-grid{grid-template-columns:1fr}
+  .hero-stats{gap:1.5rem}
+}
+</style>
+</head>
+<body>
+
+<!-- WHATSAPP FLOAT BUTTON -->
+<a href="https://wa.me/447504683058" target="_blank" class="wa-float" title="Chat on WhatsApp">💬</a>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="logo">
+    <div class="logo-icon">L&D</div>
+    <span class="logo-text">L&D Designs</span>
+  </div>
+  <div class="nav-links">
+    <a onclick="scrollToSection('work')" class="nav-link" style="cursor:pointer">Work</a>
+    <a onclick="scrollToSection('services')" class="nav-link" style="cursor:pointer">Services</a>
+    <a onclick="scrollToSection('pricing')" class="nav-link" style="cursor:pointer">Pricing</a>
+    <a onclick="scrollToSection('process')" class="nav-link" style="cursor:pointer">Process</a>
+    <button class="grad-btn nav-cta" onclick="openModal()">Start a Project →</button>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()">☰</button>
+</nav>
+<div class="mob-menu" id="mob-menu">
+  <a onclick="scrollToSection('work');closeMenu()" class="mob-link" style="cursor:pointer">Work</a>
+  <a onclick="scrollToSection('services');closeMenu()" class="mob-link" style="cursor:pointer">Services</a>
+  <a onclick="scrollToSection('pricing');closeMenu()" class="mob-link" style="cursor:pointer">Pricing</a>
+  <a onclick="scrollToSection('process');closeMenu()" class="mob-link" style="cursor:pointer">Process</a>
+  <button class="grad-btn nav-cta" style="border-radius:12px;padding:12px" onclick="closeMenu();openModal()">Start a Project →</button>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow1"></div>
+  <div class="hero-glow2"></div>
+  <div class="hero-grid"></div>
+  <div class="badge fade"><span class="badge-dot"></span>ACCEPTING NEW CLIENTS — 2026</div>
+  <h1 class="fade d1">We Build Websites<br/>That Win Customers<br/>for <span class="shimmer-text" id="typed"></span><span class="blink">|</span></h1>
+  <p class="hero-sub fade d2">Premium, bespoke websites that look incredible and actually bring in new business. No templates. No fluff. Just results.</p>
+  <div class="hero-btns fade d3">
+    <button class="btn-primary grad-btn" onclick="openModal()">
+      Get a Free Quote
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <a onclick="scrollToSection('work')" class="btn-secondary" style="cursor:pointer">See Our Work ↓</a>
+  </div>
+  <div class="hero-stats fade d4">
+    <div style="text-align:center"><div class="stat-num">15+</div><div class="stat-lbl">PROJECTS DELIVERED</div></div>
+    <div style="text-align:center"><div class="stat-num">100%</div><div class="stat-lbl">CLIENT SATISFACTION</div></div>
+    <div style="text-align:center"><div class="stat-num">24H</div><div class="stat-lbl">AVERAGE TURNAROUND</div></div>
+  </div>
+  <div class="scroll-cue fade"><span>scroll to explore</span><div class="scroll-line"></div></div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-inner ticker-anim">
+    <span class="ticker-item"><span class="ticker-dot">◆</span>WEB DESIGN</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>BRAND IDENTITY</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>SEO</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>UI/UX</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>E-COMMERCE</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>MOTION DESIGN</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>CONVERSION OPTIMISATION</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>DIGITAL STRATEGY</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>WEB DESIGN</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>BRAND IDENTITY</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>SEO</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>UI/UX</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>E-COMMERCE</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>MOTION DESIGN</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>CONVERSION OPTIMISATION</span>
+    <span class="ticker-item"><span class="ticker-dot">◆</span>DIGITAL STRATEGY</span>
+  </div>
+</div>
+
+<!-- WORK -->
+<section id="work">
+  <div class="inner">
+    <div class="work-header fade">
+      <div><div class="section-label">REAL CLIENT RESULTS</div><h2 class="section-title">Work That<br/>Speaks for Itself</h2></div>
+      <p style="color:var(--muted);max-width:340px;line-height:1.7;font-size:14px">Click any project to see the full breakdown and results we delivered.</p>
+    </div>
+    <div class="work-grid">
+
+      <!-- Apex -->
+      <div class="work-card fade d1" style="background:#080815" onclick="openCase(0)">
+        <div class="browser-bar"><div class="dot" style="background:#FF5F56"></div><div class="dot" style="background:#FFBD2E"></div><div class="dot" style="background:#27C93F"></div><div class="url-bar">lddesigns.co.uk/work/apexfinancial</div></div>
+        <div class="prev p-apex">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <div style="font-family:'Clash Display',sans-serif;font-weight:700;font-size:18px;color:#fff">Apex <span style="color:#4F6EFF">Finance</span></div>
+            <div style="display:flex;gap:6px"><div style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);font-size:11px">Dashboard</div><div style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);font-size:11px">Markets</div></div>
+          </div>
+          <div class="mini-cards">
+            <div class="mini-card"><div class="mc-lbl">AUM</div><div class="mc-val">£840K</div><div class="mc-chg">↑8.2%</div></div>
+            <div class="mini-card"><div class="mc-lbl">WIN RATE</div><div class="mc-val">87%</div><div class="mc-chg">↑2.4%</div></div>
+            <div class="mini-card"><div class="mc-lbl">AVG RETURN</div><div class="mc-val">£6.4K</div><div class="mc-chg">↑5.1%</div></div>
+          </div>
+          <div class="chart"><div class="bar" style="height:30%"></div><div class="bar" style="height:50%"></div><div class="bar" style="height:40%"></div><div class="bar" style="height:70%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:80%"></div><div class="bar" style="height:65%"></div><div class="bar" style="height:90%"></div><div class="bar" style="height:72%"></div><div class="bar" style="height:85%"></div><div class="bar" style="height:78%"></div><div class="bar" style="height:95%"></div></div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div><div class="card-cat">Fintech Dashboard</div><div class="card-name">Apex Financial</div></div>
+            <div class="card-tags"><span class="card-tag" style="background:rgba(79,110,255,.1);border:1px solid rgba(79,110,255,.2);color:#4F6EFF">React</span><span class="card-tag" style="background:rgba(79,110,255,.1);border:1px solid rgba(79,110,255,.2);color:#4F6EFF">Framer</span></div>
+          </div>
+          <p class="card-desc">Full redesign for a Manchester investment firm. Cleaner site helped increase enquiries and reduce bounce rate in the first 3 months.</p>
+          <div class="card-stats"><div><div class="s-val" style="color:#4F6EFF">↑65%</div><div class="s-lbl">More Enquiries</div></div><div><div class="s-val" style="color:#4F6EFF">↓34%</div><div class="s-lbl">Bounce Rate</div></div><div><div class="s-val" style="color:#4F6EFF">4.8★</div><div class="s-lbl">Google Rating</div></div></div>
+          <div class="card-link" style="color:#4F6EFF">View Case Study <span>→</span></div>
+        </div>
+      </div>
+
+      <!-- Barber -->
+      <div class="work-card fade d2" style="background:#040F0D" onclick="openCase(1)">
+        <div class="browser-bar"><div class="dot" style="background:#FF5F56"></div><div class="dot" style="background:#FFBD2E"></div><div class="dot" style="background:#27C93F"></div><div class="url-bar">lddesigns.co.uk/work/northcutbarbers</div></div>
+        <div class="prev p-barber">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+            <div style="color:rgba(255,255,255,.9);font-weight:600;font-size:14px">Book Your Cut</div>
+            <div style="background:rgba(46,207,170,.15);color:#2ECFAA;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid rgba(46,207,170,.3)">3 slots left</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;border:1px solid rgba(255,255,255,.05)"><div style="color:#2ECFAA;font-size:11px;font-weight:600;min-width:38px">10:00</div><div style="flex:1"><div style="color:#F0F0FA;font-size:12px;font-weight:500">Fade & Lineup</div><div style="color:#7777AA;font-size:11px">£18</div></div><div style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(46,207,170,.15);color:#2ECFAA;border:1px solid rgba(46,207,170,.3)">Available</div></div>
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;border:1px solid rgba(255,255,255,.05)"><div style="color:#2ECFAA;font-size:11px;font-weight:600;min-width:38px">11:30</div><div style="flex:1"><div style="color:#F0F0FA;font-size:12px;font-weight:500">Skin Fade</div><div style="color:#7777AA;font-size:11px">£22</div></div><div style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(46,207,170,.15);color:#2ECFAA;border:1px solid rgba(46,207,170,.3)">Available</div></div>
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;border:1px solid rgba(255,255,255,.05)"><div style="color:#2ECFAA;font-size:11px;font-weight:600;min-width:38px">13:00</div><div style="flex:1"><div style="color:#F0F0FA;font-size:12px;font-weight:500">Cut & Beard</div><div style="color:#7777AA;font-size:11px">£28</div></div><div style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.1)">Booked</div></div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div><div class="card-cat">Local Business</div><div class="card-name">NorthCut Barbers</div></div>
+            <div class="card-tags"><span class="card-tag" style="background:rgba(46,207,170,.1);border:1px solid rgba(46,207,170,.2);color:#2ECFAA">Next.js</span><span class="card-tag" style="background:rgba(46,207,170,.1);border:1px solid rgba(46,207,170,.2);color:#2ECFAA">SEO</span></div>
+          </div>
+          <p class="card-desc">Modern booking site for a Salford barber. Online bookings increased significantly in the first 6 weeks — owner stopped relying on Instagram DMs.</p>
+          <div class="card-stats"><div><div class="s-val" style="color:#2ECFAA">↑54%</div><div class="s-lbl">More Bookings</div></div><div><div class="s-val" style="color:#2ECFAA">↓28%</div><div class="s-lbl">No-Shows</div></div><div><div class="s-val" style="color:#2ECFAA">5★</div><div class="s-lbl">Google Rating</div></div></div>
+          <div class="card-link" style="color:#2ECFAA">View Case Study <span>→</span></div>
+        </div>
+      </div>
+
+      <!-- Fashion -->
+      <div class="work-card fade d3" style="background:#0F0A04" onclick="openCase(2)">
+        <div class="browser-bar"><div class="dot" style="background:#FF5F56"></div><div class="dot" style="background:#FFBD2E"></div><div class="dot" style="background:#27C93F"></div><div class="url-bar">lddesigns.co.uk/work/maisonlumiere</div></div>
+        <div class="prev p-fashion">
+          <div style="display:flex;gap:10px;height:100%">
+            <div style="flex:1.2;background:rgba(212,168,90,.08);border-radius:10px;border:1px solid rgba(212,168,90,.15);display:flex;flex-direction:column;justify-content:flex-end;padding:1rem"><div style="width:100%;height:90px;background:rgba(212,168,90,.12);border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:center"><div style="width:40px;height:56px;background:rgba(212,168,90,.3);border-radius:4px"></div></div><div style="color:rgba(255,255,255,.8);font-size:13px;font-weight:600">Lumière Noir</div><div style="color:#D4A85A;font-size:12px">£ 185</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="background:rgba(255,255,255,.03);border-radius:8px;border:1px solid rgba(212,168,90,.1);padding:8px 10px;display:flex;justify-content:space-between;align-items:center"><div style="color:rgba(255,255,255,.7);font-size:11px">Silk Blouse</div><div style="color:#D4A85A;font-size:12px;font-weight:600">£ 120</div></div><div style="background:rgba(255,255,255,.03);border-radius:8px;border:1px solid rgba(212,168,90,.1);padding:8px 10px;display:flex;justify-content:space-between;align-items:center"><div style="color:rgba(255,255,255,.7);font-size:11px">Cashmere Scarf</div><div style="color:#D4A85A;font-size:12px;font-weight:600">£ 95</div></div><div style="background:rgba(255,255,255,.03);border-radius:8px;border:1px solid rgba(212,168,90,.1);padding:8px 10px;display:flex;justify-content:space-between;align-items:center"><div style="color:rgba(255,255,255,.7);font-size:11px">Leather Bag</div><div style="color:#D4A85A;font-size:12px;font-weight:600">£ 210</div></div><div style="background:#D4A85A;border-radius:8px;padding:8px;text-align:center;color:#000;font-weight:700;font-size:12px">Add to Bag</div></div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div><div class="card-cat">Luxury E-Commerce</div><div class="card-name">Maison Lumière</div></div>
+            <div class="card-tags"><span class="card-tag" style="background:rgba(212,168,90,.1);border:1px solid rgba(212,168,90,.2);color:#D4A85A">Shopify</span></div>
+          </div>
+          <p class="card-desc">Bespoke Shopify store for a boutique fashion brand. Cleaner product pages and faster checkout led to a strong uplift in average order value.</p>
+          <div class="card-stats"><div><div class="s-val" style="color:#D4A85A">↑28%</div><div class="s-lbl">Avg Order Value</div></div><div><div class="s-val" style="color:#D4A85A">2.1×</div><div class="s-lbl">Social Traffic</div></div><div><div class="s-val" style="color:#D4A85A">↓40%</div><div class="s-lbl">Bounce Rate</div></div></div>
+          <div class="card-link" style="color:#D4A85A">View Case Study <span>→</span></div>
+        </div>
+      </div>
+
+      <!-- Energy -->
+      <div class="work-card fade d4" style="background:#070F04" onclick="openCase(3)">
+        <div class="browser-bar"><div class="dot" style="background:#FF5F56"></div><div class="dot" style="background:#FFBD2E"></div><div class="dot" style="background:#27C93F"></div><div class="url-bar">lddesigns.co.uk/work/voltaenergy</div></div>
+        <div class="prev p-energy">
+          <div style="font-family:'Clash Display',sans-serif;font-weight:700;font-size:32px;color:#fff;letter-spacing:-.04em">VOLTA<span style="color:#7AE03A">.</span></div>
+          <div style="color:rgba(255,255,255,.4);font-size:12px;letter-spacing:.12em">CLEAN ENERGY SYSTEMS</div>
+          <div style="display:flex;gap:8px"><div style="padding:5px 12px;border-radius:6px;border:1px solid rgba(122,224,58,.2);color:#7AE03A;font-size:11px;background:rgba(122,224,58,.07)">Solar</div><div style="padding:5px 12px;border-radius:6px;border:1px solid rgba(122,224,58,.2);color:#7AE03A;font-size:11px;background:rgba(122,224,58,.07)">Wind</div><div style="padding:5px 12px;border-radius:6px;border:1px solid rgba(122,224,58,.2);color:#7AE03A;font-size:11px;background:rgba(122,224,58,.07)">Storage</div></div>
+          <div style="display:flex;gap:2rem"><div style="text-align:center"><div style="color:#7AE03A;font-weight:700;font-size:16px">480KW</div><div style="color:rgba(255,255,255,.3);font-size:10px">Capacity</div></div><div style="text-align:center"><div style="color:#7AE03A;font-weight:700;font-size:16px">99%</div><div style="color:rgba(255,255,255,.3);font-size:10px">Uptime</div></div><div style="text-align:center"><div style="color:#7AE03A;font-weight:700;font-size:16px">Net Zero</div><div style="color:rgba(255,255,255,.3);font-size:10px">2035</div></div></div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div><div class="card-cat">Clean Tech Brand</div><div class="card-name">Volta Energy</div></div>
+            <div class="card-tags"><span class="card-tag" style="background:rgba(122,224,58,.1);border:1px solid rgba(122,224,58,.2);color:#7AE03A">Brand</span></div>
+          </div>
+          <p class="card-desc">Brand identity and investor website for a Liverpool energy startup. A polished online presence helped them attract press coverage and early investment interest.</p>
+          <div class="card-stats"><div><div class="s-val" style="color:#7AE03A">5★</div><div class="s-lbl">Client Rating</div></div><div><div class="s-val" style="color:#7AE03A">14</div><div class="s-lbl">Press Features</div></div><div><div class="s-val" style="color:#7AE03A">Top 50</div><div class="s-lbl">Northern Startups</div></div></div>
+          <div class="card-link" style="color:#7AE03A">View Case Study <span>→</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section id="services">
+  <div class="inner">
+    <div style="text-align:center;margin-bottom:3rem" class="fade">
+      <div class="section-label">WHAT WE DO</div>
+      <h2 class="section-title">Everything You Need,<br/>Nothing You Don't</h2>
+    </div>
+    <div class="svc-grid">
+      <div class="svc-card span2 fade d1" style="border-color:rgba(79,110,255,.2)"><div class="svc-glow" style="background:radial-gradient(circle at top right,rgba(79,110,255,.15) 0%,transparent 70%)"></div><div class="svc-icon">⬡</div><div class="svc-title">Web Design & Development</div><div class="svc-desc">Pixel-perfect, performance-first websites built to convert visitors into paying customers. Every site is custom — no templates, ever.</div></div>
+      <div class="svc-card fade d2"><div class="svc-glow" style="background:radial-gradient(circle at top right,rgba(46,207,170,.15) 0%,transparent 70%)"></div><div class="svc-icon" style="color:var(--green)">◎</div><div class="svc-title">SEO & Growth</div><div class="svc-desc">Rank higher on Google and get found by the right people without paying for ads.</div></div>
+      <div class="svc-card fade d1"><div class="svc-glow" style="background:radial-gradient(circle at top right,rgba(212,168,90,.15) 0%,transparent 70%)"></div><div class="svc-icon" style="color:var(--gold)">◈</div><div class="svc-title">Brand Identity</div><div class="svc-desc">Logos, colour palettes, and visual systems that make you stand out.</div></div>
+      <div class="svc-card fade d2"><div class="svc-glow" style="background:radial-gradient(circle at top right,rgba(217,126,196,.15) 0%,transparent 70%)"></div><div class="svc-icon" style="color:#D97EC4">◌</div><div class="svc-title">Motion & Animation</div><div class="svc-desc">Scroll effects and micro-interactions that feel premium and keep people engaged.</div></div>
+      <div class="svc-card fade d3"><div class="svc-glow" style="background:radial-gradient(circle at top right,rgba(56,163,245,.15) 0%,transparent 70%)"></div><div class="svc-icon" style="color:#38A3F5">◷</div><div class="svc-title">CRO & Analytics</div><div class="svc-desc">Turn your existing traffic into revenue using data, testing, and smart design.</div></div>
+      <div class="svc-card span2 fade d4"><div class="svc-glow" style="background:radial-gradient(circle at top right,rgba(122,224,58,.15) 0%,transparent 70%)"></div><div class="svc-icon" style="color:#7AE03A">◻</div><div class="svc-title">E-Commerce</div><div class="svc-desc">Shopify and custom online stores designed to maximise sales and average order value from day one.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="inner">
+    <div style="text-align:center;margin-bottom:3rem" class="fade">
+      <div class="section-label">TRANSPARENT PRICING</div>
+      <h2 class="section-title">Simple Pricing,<br/>Serious Results</h2>
+      <p style="color:var(--muted);margin-top:1rem;font-size:15px">No hidden fees. No surprises. Just great work at a fair price.</p>
+    </div>
+    <div class="price-grid">
+
+      <div class="price-card fade d1">
+        <div class="price-body">
+          <div class="price-name" style="color:var(--muted)">Starter</div>
+          <div><span class="price-amount">£214.99</span><span class="price-period">/one-time</span></div>
+          <div class="price-desc">Perfect for local businesses that need a professional, fast website without the agency price tag.</div>
+          <div class="price-feats">
+            <div class="price-feat"><div class="check" style="background:rgba(119,119,170,.2);border:1px solid rgba(119,119,170,.4);color:var(--muted)">✓</div>5-page custom website</div>
+            <div class="price-feat"><div class="check" style="background:rgba(119,119,170,.2);border:1px solid rgba(119,119,170,.4);color:var(--muted)">✓</div>Mobile responsive</div>
+            <div class="price-feat"><div class="check" style="background:rgba(119,119,170,.2);border:1px solid rgba(119,119,170,.4);color:var(--muted)">✓</div>Contact form + basic SEO</div>
+            <div class="price-feat"><div class="check" style="background:rgba(119,119,170,.2);border:1px solid rgba(119,119,170,.4);color:var(--muted)">✓</div>2 rounds of revisions</div>
+            <div class="price-feat"><div class="check" style="background:rgba(119,119,170,.2);border:1px solid rgba(119,119,170,.4);color:var(--muted)">✓</div>14-day delivery</div>
+            <div class="price-feat"><div class="check" style="background:rgba(119,119,170,.2);border:1px solid rgba(119,119,170,.4);color:var(--muted)">✓</div>30 days support</div>
+          </div>
+          <button class="price-btn" style="border:1px solid rgba(119,119,170,.3);background:transparent;color:var(--muted)" onclick="openModal()">Get Started →</button>
+        </div>
+      </div>
+
+      <div class="price-card popular fade d2">
+        <div class="price-tag" style="background:var(--accent)">MOST POPULAR</div>
+        <div style="position:absolute;inset:0;border-radius:20px;background:radial-gradient(ellipse at top,var(--accent-lo) 0%,transparent 60%);pointer-events:none"></div>
+        <div class="price-body" style="padding-top:2rem">
+          <div class="price-name" style="color:var(--accent)">Growth</div>
+          <div><span class="price-amount">£350</span><span class="price-period">/one-time</span></div>
+          <div class="price-desc">The full package for businesses serious about growing online. Most clients pick this one.</div>
+          <div class="price-feats">
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>Up to 12 pages</div>
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>Animations & interactions</div>
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>Full SEO + Google Analytics</div>
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>Blog / CMS integration</div>
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>4 rounds of revisions</div>
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>60 days priority support</div>
+            <div class="price-feat"><div class="check" style="background:var(--accent-lo);border:1px solid rgba(79,110,255,.4);color:var(--accent)">✓</div>Brand guidelines</div>
+          </div>
+          <button class="price-btn grad-btn" style="font-family:'Clash Display',sans-serif;font-weight:600;font-size:15px" onclick="openModal()">Start Growing →</button>
+        </div>
+      </div>
+
+      <div class="price-card fade d3">
+        <div class="price-tag" style="background:var(--gold)">BESPOKE</div>
+        <div class="price-body" style="padding-top:2rem">
+          <div class="price-name" style="color:var(--gold)">Enterprise</div>
+          <div><span class="price-amount">£670</span><span class="price-period">/one-time</span></div>
+          <div class="price-desc">For businesses that want a world-class digital presence built around their specific goals.</div>
+          <div class="price-feats">
+            <div class="price-feat"><div class="check" style="background:rgba(212,168,90,.15);border:1px solid rgba(212,168,90,.4);color:var(--gold)">✓</div>Unlimited pages</div>
+            <div class="price-feat"><div class="check" style="background:rgba(212,168,90,.15);border:1px solid rgba(212,168,90,.4);color:var(--gold)">✓</div>Custom web application</div>
+            <div class="price-feat"><div class="check" style="background:rgba(212,168,90,.15);border:1px solid rgba(212,168,90,.4);color:var(--gold)">✓</div>E-Commerce (Shopify/custom)</div>
+            <div class="price-feat"><div class="check" style="background:rgba(212,168,90,.15);border:1px solid rgba(212,168,90,.4);color:var(--gold)">✓</div>Full brand identity</div>
+            <div class="price-feat"><div class="check" style="background:rgba(212,168,90,.15);border:1px solid rgba(212,168,90,.4);color:var(--gold)">✓</div>Dedicated project manager</div>
+            <div class="price-feat"><div class="check" style="background:rgba(212,168,90,.15);border:1px solid rgba(212,168,90,.4);color:var(--gold)">✓</div>6 months support + retainer</div>
+          </div>
+          <button class="price-btn" style="border:1px solid rgba(212,168,90,.3);background:transparent;color:var(--gold)" onclick="openModal()">Book a Call →</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="guarantee fade"><span style="font-size:20px">🛡️</span><span><strong style="color:var(--white)">Not happy? We'll keep refining until you are.</strong> Simple as that.</span></div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="inner">
+    <div style="text-align:center;margin-bottom:3rem" class="fade">
+      <div class="section-label">TESTIMONIALS</div>
+      <h2 class="section-title">Don't Take<br/>Our Word for It</h2>
+    </div>
+    <div class="testi-grid">
+      <div class="testi-card fade d1"><div class="testi-q" style="color:var(--accent)">"</div><p class="testi-text">Honestly didn't expect much but the results were real. Enquiries went up, the site looks incredible, and they delivered on time. Would recommend to anyone.</p><div class="testi-footer"><div class="testi-av" style="background:linear-gradient(135deg,#4F6EFF,#7B93FF)">JH</div><div><div class="testi-name">James H.</div><div class="testi-role">Director, Apex Financial</div></div><div class="stars">★★★★★</div></div></div>
+      <div class="testi-card fade d2"><div class="testi-q" style="color:var(--gold)">"</div><p class="testi-text">Our old site was embarrassing. The new one is everything we wanted. Sales are up and customers actually comment on how nice it looks.</p><div class="testi-footer"><div class="testi-av" style="background:linear-gradient(135deg,#D4A85A,#8B6914)">CB</div><div><div class="testi-name">Chloé B.</div><div class="testi-role">Founder, Maison Lumière</div></div><div class="stars">★★★★★</div></div></div>
+      <div class="testi-card fade d3"><div class="testi-q" style="color:var(--green)">"</div><p class="testi-text">Best money I've spent on my shop. Bookings went mad in the first few weeks and I don't have to manage Instagram DMs anymore.</p><div class="testi-footer"><div class="testi-av" style="background:linear-gradient(135deg,#2ECFAA,#1a8a72)">MT</div><div><div class="testi-name">Marcus T.</div><div class="testi-role">Owner, NorthCut Barbers</div></div><div class="stars">★★★★★</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PROCESS -->
+<section id="process">
+  <div class="inner">
+    <div style="text-align:center;margin-bottom:3.5rem" class="fade">
+      <div class="section-label">HOW WE WORK</div>
+      <h2 class="section-title">Concept to Launch<br/>in 4 Steps</h2>
+    </div>
+    <div class="process-grid">
+      <div class="proc-card fade d1"><div class="proc-num">01</div><div class="proc-title">Discovery Call</div><div class="proc-desc">A quick 30-minute call to understand your goals, your customers, and what a successful website looks like for your business.</div><div class="proc-arrow">→</div></div>
+      <div class="proc-card fade d2"><div class="proc-num">02</div><div class="proc-title">Strategy & Design</div><div class="proc-desc">We build wireframes and high-fidelity designs. Two rounds of refinements before we write a single line of code.</div><div class="proc-arrow">→</div></div>
+      <div class="proc-card fade d3"><div class="proc-num">03</div><div class="proc-title">Build & Animate</div><div class="proc-desc">Clean code, fast load times, smooth animations. We obsess over every detail so you don't have to.</div><div class="proc-arrow">→</div></div>
+      <div class="proc-card fade d4"><div class="proc-num">04</div><div class="proc-title">Launch & Support</div><div class="proc-desc">Full SEO setup and 30–60 days of hands-on post-launch support so nothing gets left behind.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <div class="cta-inner fade">
+    <div class="section-label" style="justify-content:center;display:flex">READY TO START?</div>
+    <h2 class="cta-title">Let's Build<br/>Something<br/><span class="grad-text">Extraordinary</span></h2>
+    <p class="cta-sub">Drop us a message on WhatsApp or fill in the form below. No hard sell — just a chat about your goals.</p>
+    <div class="cta-btns">
+      <a href="https://wa.me/447504683058" target="_blank" class="wa-btn">💬 Message on WhatsApp</a>
+      <button class="btn-primary grad-btn" style="font-size:16px;padding:16px 38px;border-radius:50px;font-family:'Clash Display',sans-serif;font-weight:700" onclick="openModal()">Get a Free Quote →</button>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-inner">
+    <div class="foot-logo"><div class="foot-icon">L&D</div><span style="font-family:'Clash Display',sans-serif;font-weight:700;font-size:15px">L&D Designs</span></div>
+    <div class="foot-copy">© 2026 L&D Designs. All rights reserved.</div>
+    <div class="foot-links">
+      <a href="https://wa.me/447504683058" target="_blank" class="foot-link">WhatsApp</a>
+      <a href="#" class="foot-link">Instagram</a>
+      <a href="#" class="foot-link">LinkedIn</a>
+    </div>
+  </div>
+</footer>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal-box">
+    <div id="form-view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+        <div><div class="modal-title">Start Your Project</div><div class="modal-sub">We reply within 24 hours.</div></div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="form-row">
+        <input class="form-input" placeholder="Your Name" id="fname" style="margin-bottom:0"/>
+        <input class="form-input" placeholder="Email Address" id="femail" type="email" style="margin-bottom:0"/>
+      </div>
+      <input class="form-input" placeholder="Business Name" id="fbiz" style="margin-top:.75rem"/>
+      <select class="form-input" id="fbudget" style="color:var(--dim)">
+        <option value="" disabled selected>Select your budget</option>
+        <option style="background:var(--card)">£214.99 – Starter</option>
+        <option style="background:var(--card)">£350 – Growth</option>
+        <option style="background:var(--card)">£670 – Enterprise</option>
+      </select>
+      <textarea class="form-input" rows="4" placeholder="Tell us about your project..." id="fmsg" style="resize:vertical;line-height:1.6"></textarea>
+      <button class="form-submit grad-btn" onclick="submitForm()">Send Message →</button>
+      <p style="text-align:center;margin-top:1rem;font-size:13px;color:var(--muted)">Or message us directly: <a href="https://wa.me/447504683058" target="_blank" style="color:#25D366;font-weight:500">💬 WhatsApp</a></p>
+    </div>
+    <div id="success-view" style="display:none;text-align:center;padding:2rem 0">
+      <div class="success-icon">✦</div>
+      <h3 style="font-family:'Clash Display',sans-serif;font-size:1.5rem;color:var(--white);margin-bottom:8px">Message Sent!</h3>
+      <p style="color:var(--muted);margin-bottom:1.5rem">We'll get back to you within 24 hours.</p>
+      <button class="grad-btn" style="padding:12px 28px;border-radius:12px;font-family:'Clash Display',sans-serif;font-weight:600" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('sc',window.scrollY>50))
+function scrollToSection(id){var el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'})}
+function toggleMenu(){document.getElementById('mob-menu').classList.toggle('open')}
+function closeMenu(){document.getElementById('mob-menu').classList.remove('open')}
+
+const words=['Local Businesses','Barber Shops','Plumbers','Law Firms','Restaurants','Startups']
+let wi=0,ti=0,typing=true
+const el=document.getElementById('typed')
+function typeLoop(){
+  const w=words[wi]
+  if(typing){ti++;el.textContent=w.slice(0,ti);if(ti===w.length){typing=false;setTimeout(typeLoop,1800);return}}
+  else{ti--;el.textContent=w.slice(0,ti);if(ti===0){typing=true;wi=(wi+1)%words.length}}
+  setTimeout(typeLoop,typing?80:50)
+}
+typeLoop()
+
+const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}})},{threshold:0.1})
+document.querySelectorAll('.fade').forEach(el=>obs.observe(el))
+setTimeout(()=>document.querySelectorAll('.hero .fade').forEach(el=>el.classList.add('visible')),100)
+
+function openModal(){
+  document.getElementById('form-view').style.display='block'
+  document.getElementById('success-view').style.display='none'
+  document.getElementById('modal').classList.add('open')
+}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+function closeModalOutside(e){if(e.target===document.getElementById('modal'))closeModal()}
+function submitForm(){
+  if(document.getElementById('fname').value&&document.getElementById('femail').value){
+    document.getElementById('form-view').style.display='none'
+    document.getElementById('success-view').style.display='block'
+  }
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()})
+
+const cases=[
+  {name:'Apex Financial',cat:'Fintech Dashboard',accent:'#4F6EFF',desc:'Full redesign for a Manchester investment firm. Cleaner site helped increase enquiries and reduce bounce rate in the first 3 months.',stats:[['↑65%','More Enquiries'],['↓34%','Bounce Rate'],['4.8★','Google Rating']],tags:['React','Framer','Branding']},
+  {name:'NorthCut Barbers',cat:'Local Business Website',accent:'#2ECFAA',desc:'Modern booking site for a Salford barber. Online bookings increased significantly in the first 6 weeks — the owner stopped relying on Instagram DMs.',stats:[['↑54%','Online Bookings'],['↓28%','No-Shows'],['5★','Google Rating']],tags:['Next.js','Booking','SEO']},
+  {name:'Maison Lumière',cat:'Luxury E-Commerce',accent:'#D4A85A',desc:'Bespoke Shopify store for a boutique fashion brand. Cleaner product pages and faster checkout led to a strong uplift in average order value.',stats:[['↑28%','Avg Order Value'],['2.1×','Social Traffic'],['↓40%','Bounce Rate']],tags:['Shopify','Custom','Photography']},
+  {name:'Volta Energy',cat:'Clean Tech Brand',accent:'#7AE03A',desc:'Brand identity and investor website for a Liverpool energy startup. A polished online presence helped them attract press coverage and early investment interest.',stats:[['5★','Client Rating'],['14','Press Features'],['Top 50','Northern Startups']],tags:['Brand','Webflow','Pitch Deck']},
+]
+function openCase(i){
+  const c=cases[i]
+  document.getElementById('form-view').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <div><div style="color:var(--dim);font-size:11px;letter-spacing:.08em;margin-bottom:4px">${c.cat.toUpperCase()}</div><h2 style="font-family:'Clash Display',sans-serif;font-weight:700;font-size:1.8rem;color:var(--white)">${c.name}</h2></div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.5rem">
+      ${c.stats.map(([v,l])=>`<div style="background:${c.accent}18;border:1px solid ${c.accent}33;border-radius:12px;padding:1rem;text-align:center"><div style="font-family:'Clash Display',sans-serif;font-weight:700;font-size:1.4rem;color:${c.accent}">${v}</div><div style="color:var(--muted);font-size:12px;margin-top:2px">${l}</div></div>`).join('')}
+    </div>
+    <p style="color:var(--muted);line-height:1.8;font-size:14px;margin-bottom:1.5rem">${c.desc}</p>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">${c.tags.map(t=>`<span style="padding:6px 14px;border-radius:20px;background:${c.accent}18;border:1px solid ${c.accent}33;color:${c.accent};font-size:12px;font-weight:500">${t}</span>`).join('')}</div>
+    <div style="display:flex;gap:.75rem">
+      <button onclick="showContactForm()" class="grad-btn" style="flex:1;padding:13px;border-radius:12px;font-family:'Clash Display',sans-serif;font-weight:600;font-size:15px;border:none">Start a Similar Project →</button>
+      <button onclick="closeModal()" style="padding:13px 20px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:14px;cursor:pointer">Close</button>
+    </div>
+  `
+  document.getElementById('success-view').style.display='none'
+  document.getElementById('modal').classList.add('open')
+}
+function showContactForm(){
+  document.getElementById('form-view').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <div><div class="modal-title">Start Your Project</div><div class="modal-sub">We reply within 24 hours.</div></div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-row">
+      <input class="form-input" placeholder="Your Name" id="fname" style="margin-bottom:0"/>
+      <input class="form-input" placeholder="Email Address" id="femail" type="email" style="margin-bottom:0"/>
+    </div>
+    <input class="form-input" placeholder="Business Name" id="fbiz" style="margin-top:.75rem"/>
+    <select class="form-input" id="fbudget" style="color:var(--dim)">
+      <option value="" disabled selected>Select your budget</option>
+      <option style="background:var(--card)">£214.99 – Starter</option>
+      <option style="background:var(--card)">£350 – Growth</option>
+      <option style="background:var(--card)">£670 – Enterprise</option>
+    </select>
+    <textarea class="form-input" rows="4" placeholder="Tell us about your project..." id="fmsg" style="resize:vertical;line-height:1.6"></textarea>
+    <button class="form-submit grad-btn" onclick="submitForm()">Send Message →</button>
+    <p style="text-align:center;margin-top:1rem;font-size:13px;color:var(--muted)">Or message us: <a href="https://wa.me/447504683058" target="_blank" style="color:#25D366;font-weight:500">💬 WhatsApp</a></p>
+  `
+}
+</script>
+</body>
+</html>
