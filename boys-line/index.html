@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boys Line Barbers – Standish, Wigan</title>
+  <meta name="description" content="Boys Line Barbers in Standish, Wigan. 5-star rated barbershop offering fades, cuts, beard trims, hot towel shaves and more. Call 07301 181878." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:   #c9a84c;
+      --gold2:  #e8c96a;
+      --dark:   #0d0d0d;
+      --dark2:  #161616;
+      --dark3:  #1f1f1f;
+      --light:  #f5f5f0;
+      --muted:  #888;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--dark);
+      color: var(--light);
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ───────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 5%;
+      background: rgba(13,13,13,.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(201,168,76,.15);
+    }
+    .nav-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem; color: var(--gold); letter-spacing: .04em;
+    }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a {
+      color: var(--light); text-decoration: none; font-size: .88rem;
+      font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+      opacity: .75; transition: opacity .2s, color .2s;
+    }
+    .nav-links a:hover { opacity: 1; color: var(--gold); }
+    .nav-cta {
+      background: var(--gold); color: #000 !important;
+      padding: 9px 22px; border-radius: 4px; opacity: 1 !important;
+      font-weight: 600 !important;
+    }
+    .nav-cta:hover { background: var(--gold2) !important; }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; }
+    .hamburger span { width: 24px; height: 2px; background: var(--light); transition: .3s; }
+
+    /* ── HERO ──────────────────────────────────────────────────── */
+    #hero {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center;
+      position: relative;
+      background:
+        linear-gradient(to bottom, rgba(13,13,13,.75) 0%, rgba(13,13,13,.92) 100%),
+        url("https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1600&q=80") center/cover no-repeat;
+      padding: 120px 5% 80px;
+    }
+    .hero-inner { max-width: 780px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(201,168,76,.12); border: 1px solid rgba(201,168,76,.3);
+      color: var(--gold); padding: 7px 18px; border-radius: 30px;
+      font-size: .8rem; font-weight: 600; letter-spacing: .1em;
+      text-transform: uppercase; margin-bottom: 28px;
+    }
+    .hero-badge::before { content: '★'; }
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(3rem, 8vw, 6rem);
+      line-height: 1.05; color: #fff; margin-bottom: 20px;
+    }
+    h1 span { color: var(--gold); }
+    .hero-sub {
+      font-size: 1.1rem; color: rgba(245,245,240,.7);
+      max-width: 500px; margin: 0 auto 36px; line-height: 1.7; font-weight: 300;
+    }
+    .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--gold); color: #000; padding: 15px 36px;
+      border-radius: 4px; text-decoration: none; font-weight: 700;
+      font-size: .95rem; letter-spacing: .04em; transition: background .2s, transform .15s;
+    }
+    .btn-primary:hover { background: var(--gold2); transform: translateY(-2px); }
+    .btn-outline {
+      border: 1px solid rgba(201,168,76,.5); color: var(--gold);
+      padding: 15px 36px; border-radius: 4px; text-decoration: none;
+      font-weight: 500; font-size: .95rem; transition: border-color .2s, transform .15s;
+    }
+    .btn-outline:hover { border-color: var(--gold); transform: translateY(-2px); }
+    .hero-stats {
+      display: flex; justify-content: center; gap: 48px;
+      margin-top: 60px; padding-top: 40px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+    .stat-item { text-align: center; }
+    .stat-n {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.4rem; color: var(--gold); line-height: 1;
+    }
+    .stat-l { font-size: .78rem; color: var(--muted); text-transform: uppercase;
+               letter-spacing: .1em; margin-top: 5px; }
+
+    /* ── SECTION SHARED ────────────────────────────────────────── */
+    section { padding: 96px 5%; }
+    .section-label {
+      font-size: .75rem; font-weight: 600; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 14px;
+    }
+    h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 3rem); color: #fff; line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .section-desc { color: var(--muted); max-width: 520px; line-height: 1.75; }
+    .inner { max-width: 1100px; margin: 0 auto; }
+
+    /* ── ABOUT ─────────────────────────────────────────────────── */
+    #about { background: var(--dark2); }
+    .about-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+      align-items: center; margin-top: 48px;
+    }
+    .about-img {
+      aspect-ratio: 4/3; border-radius: 8px; overflow: hidden;
+      position: relative;
+    }
+    .about-img img { width: 100%; height: 100%; object-fit: cover; }
+    .about-img::after {
+      content: ''; position: absolute; inset: 0;
+      border: 2px solid rgba(201,168,76,.25); border-radius: 8px;
+      pointer-events: none;
+    }
+    .about-text p {
+      color: rgba(245,245,240,.75); line-height: 1.85; margin-bottom: 20px;
+      font-weight: 300;
+    }
+    .perks { list-style: none; margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
+    .perks li {
+      display: flex; align-items: center; gap: 12px;
+      color: rgba(245,245,240,.8); font-size: .92rem;
+    }
+    .perks li::before {
+      content: '✦'; color: var(--gold); font-size: .7rem; flex-shrink: 0;
+    }
+
+    /* ── SERVICES ──────────────────────────────────────────────── */
+    #services { background: var(--dark); }
+    .services-header { margin-bottom: 52px; }
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .service-card {
+      background: var(--dark3); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 8px; padding: 24px 20px;
+      transition: border-color .25s, transform .2s;
+    }
+    .service-card:hover {
+      border-color: rgba(201,168,76,.4); transform: translateY(-3px);
+    }
+    .service-icon { font-size: 1.6rem; margin-bottom: 12px; }
+    .service-name {
+      font-weight: 600; font-size: .92rem; color: #fff; margin-bottom: 4px;
+    }
+
+    /* ── REVIEWS ───────────────────────────────────────────────── */
+    #reviews { background: var(--dark2); }
+    .stars { color: var(--gold); font-size: 1.1rem; letter-spacing: 2px; }
+    .reviews-header { margin-bottom: 52px; }
+    .reviews-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+    }
+    .review-card {
+      background: var(--dark3); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 10px; padding: 28px;
+    }
+    .review-text {
+      font-size: .95rem; color: rgba(245,245,240,.8); line-height: 1.75;
+      font-style: italic; margin-bottom: 20px;
+    }
+    .review-text::before { content: '\201C'; color: var(--gold); font-size: 1.4rem;
+                            font-style: normal; line-height: 0; vertical-align: -.3em; }
+    .reviewer { display: flex; align-items: center; gap: 12px; }
+    .reviewer-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--gold); display: flex; align-items: center;
+      justify-content: center; font-weight: 700; color: #000; font-size: .9rem;
+    }
+    .reviewer-name { font-weight: 600; font-size: .88rem; }
+    .reviewer-source { font-size: .75rem; color: var(--muted); }
+    .google-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.25);
+      padding: 10px 20px; border-radius: 30px; margin-top: 40px;
+    }
+    .google-badge span { color: var(--gold); font-weight: 600; font-size: .9rem; }
+
+    /* ── CONTACT ───────────────────────────────────────────────── */
+    #contact { background: var(--dark); }
+    .contact-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+      margin-top: 52px; align-items: start;
+    }
+    .contact-item {
+      display: flex; gap: 18px; align-items: flex-start; margin-bottom: 32px;
+    }
+    .contact-icon {
+      width: 46px; height: 46px; border-radius: 8px;
+      background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .contact-label { font-size: .75rem; color: var(--muted); text-transform: uppercase;
+                      letter-spacing: .1em; margin-bottom: 4px; }
+    .contact-value { font-size: 1rem; color: #fff; font-weight: 500; }
+    .contact-value a { color: #fff; text-decoration: none; }
+    .contact-value a:hover { color: var(--gold); }
+    .hours-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .hours-table tr { border-bottom: 1px solid rgba(255,255,255,.06); }
+    .hours-table td { padding: 9px 0; font-size: .88rem; }
+    .hours-table td:first-child { color: var(--muted); width: 120px; }
+    .hours-table td:last-child  { color: #fff; font-weight: 500; }
+    .open { color: #4caf84 !important; }
+    .map-container {
+      border-radius: 10px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.08); aspect-ratio: 4/3;
+    }
+    .map-container iframe { width: 100%; height: 100%; display: block; border: 0; }
+    .wa-cta {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: #25D366; color: #fff; padding: 14px 30px;
+      border-radius: 6px; text-decoration: none; font-weight: 700;
+      font-size: .95rem; margin-top: 28px; transition: background .2s;
+    }
+    .wa-cta:hover { background: #1ebe5d; }
+
+    /* ── FOOTER ────────────────────────────────────────────────── */
+    footer {
+      background: #080808; border-top: 1px solid rgba(255,255,255,.06);
+      padding: 36px 5%; text-align: center;
+    }
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; color: var(--gold); margin-bottom: 10px;
+    }
+    .footer-sub { color: var(--muted); font-size: .82rem; }
+    .footer-sub a { color: var(--muted); text-decoration: none; }
+    .footer-sub a:hover { color: var(--gold); }
+
+    /* ── RESPONSIVE ────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; flex-direction: column; position: fixed;
+                   top: 65px; left: 0; right: 0; background: var(--dark);
+                   padding: 20px 5%; gap: 16px; border-bottom: 1px solid rgba(201,168,76,.15); }
+      .nav-links.open { display: flex; }
+      .hamburger { display: flex; }
+      .about-grid, .contact-grid { grid-template-columns: 1fr; gap: 36px; }
+      .hero-stats { gap: 24px; }
+      .stat-n { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Boys Line</div>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#about">About</a></li>
+    <li><a href="#services">Services</a></li>
+    <li><a href="#reviews">Reviews</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="https://wa.me/447301181878?text=Hi%20Boys%20Line%2C%20I%27d%20like%20to%20book%20an%20appointment%20please" class="nav-cta">Book Now</a></li>
+  </ul>
+  <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">5.0 Stars &nbsp;·&nbsp; 29 Google Reviews</div>
+    <h1>Boys <span>Line</span></h1>
+    <p class="hero-sub">Standish's finest barbershop. Premium cuts, fades & grooming — delivered by people who genuinely care about their craft.</p>
+    <div class="hero-btns">
+      <a href="https://wa.me/447301181878?text=Hi%20Boys%20Line%2C%20I%27d%20like%20to%20book%20an%20appointment%20please" class="btn-primary">📱 Book via WhatsApp</a>
+      <a href="#services" class="btn-outline">View Services</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-n">5.0</div>
+        <div class="stat-l">Google Rating</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-n">29+</div>
+        <div class="stat-l">5-Star Reviews</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-n">30+</div>
+        <div class="stat-l">Services Offered</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="inner">
+    <div class="about-grid">
+      <div class="about-img">
+        <img src="https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&q=80" alt="Barber at work" loading="lazy" />
+      </div>
+      <div class="about-text">
+        <p class="section-label">About Us</p>
+        <h2>More than just a haircut</h2>
+        <p>Boys Line is Standish's premier barbershop — a place where every client gets the attention they deserve. Whether you're after a sharp fade, a classic cut, or a full grooming experience, our skilled barbers bring precision and passion to every chair.</p>
+        <p>Located on Preston Road in the heart of Standish, Wigan — we've built a reputation for exceptional quality and a welcoming atmosphere that keeps our clients coming back.</p>
+        <ul class="perks">
+          <li>Expert barbers with years of experience</li>
+          <li>Cuts for all ages — from kids to gents</li>
+          <li>Full beard grooming & hot towel shaves</li>
+          <li>Walk-ins welcome · Appointments available via WhatsApp</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section id="services">
+  <div class="inner">
+    <div class="services-header">
+      <p class="section-label">What We Offer</p>
+      <h2>Our Services</h2>
+      <p class="section-desc">From sharp fades to luxury grooming packages — we've got everything covered.</p>
+    </div>
+    <div class="services-grid">
+      <div class="service-card"><div class="service-icon">✂️</div><div class="service-name">Scissor Cut</div></div>
+      <div class="service-card"><div class="service-icon">⚡</div><div class="service-name">Fade Cut</div></div>
+      <div class="service-card"><div class="service-icon">🪒</div><div class="service-name">Razor Cut</div></div>
+      <div class="service-card"><div class="service-icon">🔪</div><div class="service-name">Buzz Cut</div></div>
+      <div class="service-card"><div class="service-icon">👶</div><div class="service-name">Children's Cuts</div></div>
+      <div class="service-card"><div class="service-icon">💂</div><div class="service-name">Military Cut</div></div>
+      <div class="service-card"><div class="service-icon">🧔</div><div class="service-name">Beard Trim</div></div>
+      <div class="service-card"><div class="service-icon">🪥</div><div class="service-name">Beard Maintenance</div></div>
+      <div class="service-card"><div class="service-icon">🔥</div><div class="service-name">Hot Towel Shave</div></div>
+      <div class="service-card"><div class="service-icon">⚔️</div><div class="service-name">Straight Razor Shave</div></div>
+      <div class="service-card"><div class="service-icon">🎨</div><div class="service-name">Hair Colouring</div></div>
+      <div class="service-card"><div class="service-icon">🌀</div><div class="service-name">Curly Hair</div></div>
+      <div class="service-card"><div class="service-icon">💆</div><div class="service-name">Shampoo & Conditioning</div></div>
+      <div class="service-card"><div class="service-icon">💈</div><div class="service-name">Hair Shape-Up</div></div>
+      <div class="service-card"><div class="service-icon">🎁</div><div class="service-name">Groom Packages</div></div>
+      <div class="service-card"><div class="service-icon">💛</div><div class="service-name">Beard Dyeing</div></div>
+      <div class="service-card"><div class="service-icon">👁️</div><div class="service-name">Eyebrow Trimming</div></div>
+      <div class="service-card"><div class="service-icon">🌿</div><div class="service-name">Waxing</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- REVIEWS -->
+<section id="reviews">
+  <div class="inner">
+    <div class="reviews-header">
+      <p class="section-label">What Clients Say</p>
+      <h2>5.0 Stars on Google</h2>
+      <p class="section-desc">Don't just take our word for it — here's what the people of Wigan think.</p>
+      <div style="margin-top:16px;">
+        <div class="stars">★★★★★</div>
+      </div>
+    </div>
+    <div class="reviews-grid">
+      <div class="review-card">
+        <div class="stars">★★★★★</div>
+        <p class="review-text" style="margin-top:14px">Atmosphere guys, best services in the area. Honestly couldn't recommend this place enough — top lads doing top work.</p>
+        <div class="reviewer">
+          <div class="reviewer-avatar">A</div>
+          <div>
+            <div class="reviewer-name">Google Reviewer</div>
+            <div class="reviewer-source">⭐ 5/5 via Google</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars">★★★★★</div>
+        <p class="review-text" style="margin-top:14px">Great service! Great quality, happy with my cut — highly recommended 👌 Will definitely be back.</p>
+        <div class="reviewer">
+          <div class="reviewer-avatar">G</div>
+          <div>
+            <div class="reviewer-name">Google Reviewer</div>
+            <div class="reviewer-source">⭐ 5/5 via Google</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars">★★★★★</div>
+        <p class="review-text" style="margin-top:14px">They are really good at their jobs — excellent haircut and value for money! Best barbers in Standish without a doubt.</p>
+        <div class="reviewer">
+          <div class="reviewer-avatar">M</div>
+          <div>
+            <div class="reviewer-name">Google Reviewer</div>
+            <div class="reviewer-source">⭐ 5/5 via Google</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center; margin-top:40px;">
+      <div class="google-badge">
+        <span>⭐ 5.0 · 29 Reviews on Google Maps</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="inner">
+    <p class="section-label">Find Us</p>
+    <h2>Get In Touch</h2>
+    <p class="section-desc">Walk-ins always welcome. Book via WhatsApp for guaranteed availability.</p>
+    <div class="contact-grid">
+      <div>
+        <div class="contact-item">
+          <div class="contact-icon">📍</div>
+          <div>
+            <div class="contact-label">Address</div>
+            <div class="contact-value">35 Preston Rd, Standish<br>Wigan, WN6 0JH</div>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">📞</div>
+          <div>
+            <div class="contact-label">Phone</div>
+            <div class="contact-value"><a href="tel:07301181878">07301 181878</a></div>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">🕐</div>
+          <div>
+            <div class="contact-label">Opening Hours</div>
+            <table class="hours-table">
+              <tr><td>Monday</td><td>Closed</td></tr>
+              <tr><td>Tuesday</td><td class="open">9:00am – 6:00pm</td></tr>
+              <tr><td>Wednesday</td><td class="open">9:00am – 6:00pm</td></tr>
+              <tr><td>Thursday</td><td class="open">9:00am – 6:00pm</td></tr>
+              <tr><td>Friday</td><td class="open">9:00am – 6:00pm</td></tr>
+              <tr><td>Saturday</td><td class="open">9:00am – 5:00pm</td></tr>
+              <tr><td>Sunday</td><td>Closed</td></tr>
+            </table>
+          </div>
+        </div>
+        <a href="https://wa.me/447301181878?text=Hi%20Boys%20Line%2C%20I%27d%20like%20to%20book%20an%20appointment%20please" class="wa-cta">
+          💬 Book on WhatsApp
+        </a>
+      </div>
+      <div class="map-container">
+        <iframe
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2366.5!2d-2.6527!3d53.5802!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2s35+Preston+Rd%2C+Standish%2C+Wigan+WN6+0JH!5e0!3m2!1sen!2suk!4v1"
+          allowfullscreen="" loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade">
+        </iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Boys Line</div>
+  <p class="footer-sub">
+    35 Preston Rd, Standish, Wigan WN6 0JH &nbsp;·&nbsp;
+    <a href="tel:07301181878">07301 181878</a> &nbsp;·&nbsp;
+    Website by <a href="#">L&D Designs</a>
+  </p>
+</footer>
+
+<script>
+  function toggleMenu() {
+    document.getElementById('navLinks').classList.toggle('open');
+  }
+  // Close menu on link click
+  document.querySelectorAll('.nav-links a').forEach(a => {
+    a.addEventListener('click', () => document.getElementById('navLinks').classList.remove('open'));
+  });
+  // Highlight active nav on scroll
+  const sections = document.querySelectorAll('section[id]');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+    document.querySelectorAll('.nav-links a').forEach(a => {
+      a.style.color = a.getAttribute('href') === '#' + current ? 'var(--gold)' : '';
+      a.style.opacity = a.getAttribute('href') === '#' + current ? '1' : '';
+    });
+  });
+</script>
+</body>
+</html>
