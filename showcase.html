@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L&D Designs — See What We Can Build For You</title>
+<meta name="description" content="L&D Designs — affordable professional websites for local businesses in Wigan. See our work and pricing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --dark: #0d0d0d; --dark2: #161616; --dark3: #1f1f1f;
+    --gold: #c9a84c; --gold2: #e8c96a; --light: #f5f5f0; --muted: #888;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', sans-serif; background: var(--dark); color: var(--light); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 60px 24px;
+    background: linear-gradient(160deg, #0d0d0d 0%, #1a1508 50%, #0d0d0d 100%);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 60%, rgba(201,168,76,.08) 0%, transparent 70%);
+  }
+  .hero-inner { max-width: 700px; position: relative; }
+  .from-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.25);
+    color: var(--gold); padding: 8px 20px; border-radius: 30px;
+    font-size: .8rem; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; margin-bottom: 32px;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.4rem, 6vw, 4.5rem);
+    color: #fff; line-height: 1.1; margin-bottom: 20px;
+  }
+  h1 em { color: var(--gold); font-style: normal; }
+  .hero-sub {
+    font-size: 1.05rem; color: rgba(245,245,240,.65);
+    line-height: 1.75; font-weight: 300; margin-bottom: 40px;
+  }
+  .hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-gold {
+    background: var(--gold); color: #000; padding: 14px 32px;
+    border-radius: 5px; text-decoration: none; font-weight: 700;
+    font-size: .92rem; transition: background .2s, transform .15s;
+  }
+  .btn-gold:hover { background: var(--gold2); transform: translateY(-2px); }
+  .btn-outline {
+    border: 1px solid rgba(201,168,76,.4); color: var(--gold);
+    padding: 14px 32px; border-radius: 5px; text-decoration: none;
+    font-weight: 500; font-size: .92rem; transition: border-color .2s;
+  }
+  .btn-outline:hover { border-color: var(--gold); }
+  .scroll-hint {
+    position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+    color: var(--muted); font-size: .75rem; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; animation: bob 2s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
+
+  /* ── SHARED ── */
+  section { padding: 88px 24px; }
+  .inner { max-width: 1000px; margin: 0 auto; }
+  .label { font-size: .7rem; font-weight: 700; letter-spacing: .16em;
+            text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
+  h2 { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem,4vw,2.8rem);
+       color: #fff; line-height: 1.2; margin-bottom: 14px; }
+  .sub { color: var(--muted); line-height: 1.75; max-width: 520px; font-weight: 300; }
+
+  /* ── EXAMPLE SITE ── */
+  #example { background: var(--dark2); }
+  .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 52px;
+                   align-items: center; margin-top: 48px; }
+  .browser-frame {
+    background: #1a1a1a; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.1); overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .browser-bar {
+    background: #252525; padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #ffbd2e; } .dot.g { background: #28c941; }
+  .url-bar {
+    flex: 1; background: #1a1a1a; border-radius: 4px;
+    padding: 4px 10px; font-size: .72rem; color: var(--muted);
+    margin-left: 8px; font-family: monospace;
+  }
+  .site-preview { width: 100%; display: block; }
+  .site-iframe { width: 100%; height: 360px; border: 0; display: block; }
+  .example-details { display: flex; flex-direction: column; gap: 20px; }
+  .example-tag {
+    display: inline-block; background: rgba(201,168,76,.1);
+    border: 1px solid rgba(201,168,76,.2); color: var(--gold);
+    padding: 4px 12px; border-radius: 20px; font-size: .75rem; font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .example-details h3 { font-family: 'Playfair Display', serif; font-size: 1.8rem; color: #fff; }
+  .example-details p { color: rgba(245,245,240,.7); line-height: 1.7; font-size: .92rem; }
+  .feature-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .feature-list li { display: flex; gap: 10px; align-items: center;
+                      font-size: .88rem; color: rgba(245,245,240,.8); }
+  .feature-list li::before { content: '✓'; color: var(--gold); font-weight: 700; }
+
+  /* ── WHAT YOU GET ── */
+  #included { background: var(--dark); }
+  .included-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
+                    gap: 14px; margin-top: 44px; }
+  .inc-card {
+    background: var(--dark2); border: 1px solid rgba(255,255,255,.07);
+    border-radius: 8px; padding: 20px; text-align: center;
+    transition: border-color .2s;
+  }
+  .inc-card:hover { border-color: rgba(201,168,76,.3); }
+  .inc-icon { font-size: 1.8rem; margin-bottom: 10px; }
+  .inc-title { font-weight: 600; font-size: .88rem; color: #fff; }
+  .inc-desc { font-size: .76rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+  /* ── PRICING SNAPSHOT ── */
+  #pricing { background: var(--dark2); }
+  .price-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
+                  margin-top: 44px; }
+  .price-card {
+    background: var(--dark3); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px; padding: 28px 22px; position: relative;
+  }
+  .price-card.popular {
+    border-color: var(--gold); background: rgba(201,168,76,.04);
+  }
+  .popular-badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--gold); color: #000; font-size: .7rem; font-weight: 800;
+    padding: 4px 14px; border-radius: 20px; letter-spacing: .06em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .price-tier { font-size: .78rem; font-weight: 600; color: var(--gold);
+                 text-transform: uppercase; letter-spacing: .1em; }
+  .price-amount { font-family: 'Playfair Display', serif; font-size: 2.6rem;
+                   color: #fff; margin: 8px 0 4px; }
+  .price-amount span { font-size: 1.1rem; vertical-align: top; margin-top: 8px;
+                        display: inline-block; font-family: 'Inter', sans-serif; }
+  .price-turnaround { font-size: .78rem; color: var(--muted); margin-bottom: 18px; }
+  .price-features { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .price-features li { font-size: .82rem; color: rgba(245,245,240,.75);
+                         display: flex; gap: 8px; }
+  .price-features li::before { content: '✓'; color: var(--gold); flex-shrink: 0; }
+  .price-cta {
+    display: block; text-align: center; margin-top: 22px;
+    padding: 11px; border-radius: 5px; text-decoration: none;
+    font-weight: 700; font-size: .85rem; transition: .2s;
+  }
+  .price-card.popular .price-cta { background: var(--gold); color: #000; }
+  .price-card.popular .price-cta:hover { background: var(--gold2); }
+  .price-card:not(.popular) .price-cta {
+    border: 1px solid rgba(201,168,76,.3); color: var(--gold);
+  }
+  .price-card:not(.popular) .price-cta:hover { border-color: var(--gold); }
+
+  /* ── ABOUT ── */
+  #about { background: var(--dark); }
+  .about-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 52px;
+                  align-items: center; margin-top: 44px; }
+  .about-text p { color: rgba(245,245,240,.72); line-height: 1.8;
+                   font-size: .92rem; font-weight: 300; margin-bottom: 16px; }
+  .trust-items { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+  .trust-item {
+    background: var(--dark2); border: 1px solid rgba(255,255,255,.07);
+    border-radius: 6px; padding: 10px 16px; font-size: .82rem;
+    color: rgba(245,245,240,.8); display: flex; align-items: center; gap: 8px;
+  }
+  .reviews-box {
+    background: var(--dark2); border: 1px solid rgba(201,168,76,.2);
+    border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 18px;
+  }
+  .review { border-bottom: 1px solid rgba(255,255,255,.06); padding-bottom: 16px; }
+  .review:last-child { border-bottom: none; padding-bottom: 0; }
+  .review-stars { color: var(--gold); font-size: .85rem; margin-bottom: 6px; }
+  .review-text { font-size: .84rem; color: rgba(245,245,240,.75); line-height: 1.6;
+                  font-style: italic; }
+  .review-name { font-size: .76rem; color: var(--muted); margin-top: 6px; font-weight: 600; }
+
+  /* ── CTA ── */
+  #cta {
+    background: linear-gradient(135deg, #161206 0%, #0d0d0d 100%);
+    text-align: center; padding: 100px 24px;
+    border-top: 1px solid rgba(201,168,76,.15);
+  }
+  #cta h2 { font-size: clamp(2rem,5vw,3.2rem); margin-bottom: 16px; }
+  #cta p { color: rgba(245,245,240,.6); max-width: 460px; margin: 0 auto 36px;
+            line-height: 1.7; }
+  .cta-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-wa { background: #25D366; color: #fff; padding: 15px 34px; border-radius: 5px;
+              text-decoration: none; font-weight: 700; font-size: .95rem;
+              transition: background .2s; }
+  .btn-wa:hover { background: #1ebe5d; }
+
+  footer { background: #080808; border-top: 1px solid rgba(255,255,255,.06);
+            padding: 28px; text-align: center; color: var(--muted); font-size: .8rem; }
+  footer strong { color: var(--gold); }
+
+  @media (max-width: 768px) {
+    .example-grid, .about-inner { grid-template-columns: 1fr; gap: 32px; }
+    .price-cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="hero-inner">
+    <div class="from-badge">👋 Message from Dylan — L&D Designs</div>
+    <h1>Here's what I can <em>build for you</em></h1>
+    <p class="hero-sub">Professional websites for local businesses in Wigan and surrounding areas.<br>Affordable prices, quick turnaround — I handle everything.</p>
+    <div class="hero-btns">
+      <a href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20a%20website%20for%20my%20business" class="btn-gold">💬 Chat on WhatsApp</a>
+      <a href="#pricing" class="btn-outline">See Pricing</a>
+    </div>
+  </div>
+  <div class="scroll-hint">scroll down ↓</div>
+</section>
+
+<!-- EXAMPLE -->
+<section id="example">
+  <div class="inner">
+    <div class="example-grid">
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <div class="url-bar">boyslinebarbers.co.uk</div>
+        </div>
+        <iframe class="site-iframe"
+          src="https://htmlpreview.github.io/?https://github.com/DylanTownley12/L-D-Designss/blob/main/boys-line/index.html"
+          title="Boys Line Barbers website preview" loading="lazy"></iframe>
+      </div>
+      <div class="example-details">
+        <div>
+          <div class="example-tag">Recent Client</div>
+          <h3>Boys Line Barbers</h3>
+          <p style="color:var(--muted);font-size:.82rem;margin:4px 0 14px">Standish, Wigan — 5.0 ★ on Google</p>
+          <p>A full barbershop website built from scratch — no template, designed specifically for their brand. Customers can now find them on Google, see their services, read reviews and book via WhatsApp.</p>
+        </div>
+        <ul class="feature-list">
+          <li>Full mobile-responsive design</li>
+          <li>Services listed & easy to update</li>
+          <li>Google reviews displayed</li>
+          <li>WhatsApp booking button</li>
+          <li>Google Maps embedded</li>
+          <li>Delivered in under a week</li>
+        </ul>
+        <a href="https://htmlpreview.github.io/?https://github.com/DylanTownley12/L-D-Designss/blob/main/boys-line/index.html"
+           target="_blank" class="btn-outline" style="display:inline-block;text-align:center">View full site →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INCLUDED FREE -->
+<section id="included">
+  <div class="inner">
+    <p class="label">Always Included</p>
+    <h2>Everything you need, no hidden extras</h2>
+    <p class="sub">Every single site I build comes with all of this included in the price — no upsells, no surprises.</p>
+    <div class="included-grid">
+      <div class="inc-card"><div class="inc-icon">📱</div><div class="inc-title">Mobile Friendly</div><div class="inc-desc">Looks great on phones, tablets & desktops</div></div>
+      <div class="inc-card"><div class="inc-icon">⚡</div><div class="inc-title">Fast Loading</div><div class="inc-desc">Optimised so customers don't click away</div></div>
+      <div class="inc-card"><div class="inc-icon">🔒</div><div class="inc-title">SSL Certificate</div><div class="inc-desc">Secure padlock in the browser — free</div></div>
+      <div class="inc-card"><div class="inc-icon">📍</div><div class="inc-title">Google Maps</div><div class="inc-desc">Customers can find you easily</div></div>
+      <div class="inc-card"><div class="inc-icon">💬</div><div class="inc-title">WhatsApp Button</div><div class="inc-desc">One tap to message you directly</div></div>
+      <div class="inc-card"><div class="inc-icon">📲</div><div class="inc-title">Social Links</div><div class="inc-desc">Facebook, Instagram, TikTok — all linked</div></div>
+      <div class="inc-card"><div class="inc-icon">🔍</div><div class="inc-title">Google Ready</div><div class="inc-desc">Set up so Google can find and index your site</div></div>
+      <div class="inc-card"><div class="inc-icon">🎨</div><div class="inc-title">Custom Design</div><div class="inc-desc">Built for your business, not a generic template</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="inner">
+    <p class="label">Pricing</p>
+    <h2>Simple, transparent prices</h2>
+    <p class="sub">No monthly fees. You own the site outright. One payment, yours forever.</p>
+    <div class="price-cards">
+
+      <div class="price-card">
+        <div class="price-tier">Starter</div>
+        <div class="price-amount"><span>£</span>299</div>
+        <div class="price-turnaround">Delivered in 3–5 days</div>
+        <ul class="price-features">
+          <li>1-page website</li>
+          <li>Mobile responsive</li>
+          <li>Contact form</li>
+          <li>Google Maps</li>
+          <li>WhatsApp button</li>
+          <li>Social media links</li>
+        </ul>
+        <a href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27m%20interested%20in%20the%20Starter%20package" class="price-cta">Get Started</a>
+      </div>
+
+      <div class="price-card popular">
+        <div class="popular-badge">Most Popular</div>
+        <div class="price-tier">Professional</div>
+        <div class="price-amount"><span>£</span>549</div>
+        <div class="price-turnaround">Delivered in 7–10 days</div>
+        <ul class="price-features">
+          <li>Up to 5 pages</li>
+          <li>Everything in Starter</li>
+          <li>Photo gallery</li>
+          <li>Services / menu page</li>
+          <li>SEO basics included</li>
+          <li>Google Analytics</li>
+        </ul>
+        <a href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27m%20interested%20in%20the%20Professional%20package" class="price-cta">Get Started</a>
+      </div>
+
+      <div class="price-card">
+        <div class="price-tier">Premium</div>
+        <div class="price-amount"><span>£</span>899</div>
+        <div class="price-turnaround">Delivered in 2 weeks</div>
+        <ul class="price-features">
+          <li>Up to 10 pages</li>
+          <li>Everything in Professional</li>
+          <li>Online booking system</li>
+          <li>Blog section</li>
+          <li>1 month free edits</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27m%20interested%20in%20the%20Premium%20package" class="price-cta">Get Started</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="inner">
+    <div class="about-inner">
+      <div class="about-text">
+        <p class="label">About Me</p>
+        <h2>Hi, I'm Dylan</h2>
+        <p>I run L&D Designs — a web design business based in Wigan. I specialise in building websites for local businesses that need a proper online presence without the big agency price tag.</p>
+        <p>Every site I build is done personally by me — you're not handed off to a team or given a template. I take the time to understand your business and build something that actually works for you.</p>
+        <div class="trust-items">
+          <div class="trust-item">📍 Based in Wigan</div>
+          <div class="trust-item">⚡ Fast turnaround</div>
+          <div class="trust-item">💬 Always available on WhatsApp</div>
+          <div class="trust-item">✅ No jargon, no hidden fees</div>
+        </div>
+      </div>
+      <div class="reviews-box">
+        <p style="font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)">What clients say</p>
+        <div class="review">
+          <div class="review-stars">★★★★★</div>
+          <div class="review-text">"Dylan built our website in less than a week. Looked exactly how we wanted it and customers have already been finding us through Google. Brilliant service."</div>
+          <div class="review-name">— Boys Line Barbers, Standish</div>
+        </div>
+        <div class="review">
+          <div class="review-stars">★★★★★</div>
+          <div class="review-text">"Really impressed with how professional it looks. Dylan kept us updated throughout and made the whole process dead simple. Would 100% recommend."</div>
+          <div class="review-name">— Local Business Owner, Wigan</div>
+        </div>
+        <div class="review">
+          <div class="review-stars">★★★★★</div>
+          <div class="review-text">"We were nervous about getting a website but Dylan made it so easy. Great value for money and it's already bringing in new customers."</div>
+          <div class="review-name">— Local Business Owner, Bolton</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <div class="inner">
+    <p class="label">Get Started</p>
+    <h2>Ready to get your business online?</h2>
+    <p>Send me a message on WhatsApp and I'll get back to you same day. Free quote, no obligation.</p>
+    <div class="cta-btns">
+      <a href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20get%20a%20free%20quote%20for%20a%20website" class="btn-wa">💬 WhatsApp Me Now</a>
+      <a href="mailto:enquiries@lddesigns.co.uk" class="btn-outline">✉️ Send an Email</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <strong>L&D Designs</strong> &nbsp;·&nbsp; Wigan, UK &nbsp;·&nbsp;
+  <a href="https://wa.me/447301181878" style="color:var(--muted)">07301 181878</a>
+</footer>
+
+</body>
+</html>
