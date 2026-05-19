@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Website Generator — L&amp;D Designs</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#0d0d0d;color:#f0ebe0;min-height:100vh}
+a{color:inherit;text-decoration:none}
+
+/* Header */
+.header{background:#111;border-bottom:1px solid #222;padding:14px 24px;display:flex;align-items:center;gap:16px}
+.header-back{color:#c9a84c;font-size:.82rem;letter-spacing:.05em;opacity:.7;transition:opacity .2s}
+.header-back:hover{opacity:1}
+.header h1{font-family:'Playfair Display',serif;font-size:1.15rem;color:#c9a84c}
+.header p{font-size:.75rem;color:#666;margin-top:1px}
+
+/* Main layout */
+.main{display:grid;grid-template-columns:480px 1fr;min-height:calc(100vh - 57px)}
+@media(max-width:900px){.main{grid-template-columns:1fr;grid-template-rows:auto auto}}
+
+/* Form panel */
+.form-panel{background:#111;border-right:1px solid #1e1e1e;padding:28px 24px;overflow-y:auto;height:calc(100vh - 57px);position:sticky;top:0}
+@media(max-width:900px){.form-panel{height:auto;position:static}}
+
+.section-head{font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a84c;margin:24px 0 14px;padding-bottom:8px;border-bottom:1px solid #1e1e1e}
+.section-head:first-child{margin-top:0}
+
+.form-row{display:grid;gap:12px;margin-bottom:12px}
+.form-row.cols-2{grid-template-columns:1fr 1fr}
+.form-row.cols-3{grid-template-columns:1fr 1fr 1fr}
+
+.fg{margin-bottom:12px}
+label{display:block;font-size:.72rem;color:#888;margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase}
+input[type=text],input[type=email],input[type=tel],select,textarea{
+  width:100%;background:#161616;border:1px solid #252525;color:#f0ebe0;
+  padding:9px 13px;border-radius:6px;font-family:'Inter',sans-serif;font-size:.85rem;
+  transition:border-color .2s;appearance:none
+}
+input[type=text]:focus,input[type=email]:focus,input[type=tel]:focus,select:focus,textarea:focus{
+  outline:none;border-color:#c9a84c
+}
+select{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+textarea{resize:vertical;min-height:80px}
+
+/* Services */
+.svc-row{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:7px;align-items:center}
+.svc-num{font-size:.7rem;color:#555;text-align:center;width:18px;flex-shrink:0}
+.svc-inner{display:grid;grid-template-columns:1fr 80px;gap:6px;width:100%}
+
+/* Theme picker */
+.theme-cards{display:flex;gap:10px;margin-bottom:12px}
+.theme-card{flex:1;border:2px solid #222;border-radius:8px;padding:10px 8px;cursor:pointer;text-align:center;transition:border-color .2s,background .2s}
+.theme-card:hover{border-color:#444}
+.theme-card.active{border-color:#c9a84c}
+.theme-swatch{height:32px;border-radius:4px;margin-bottom:7px}
+.dark-sw{background:linear-gradient(135deg,#0d0d0d 50%,#c9a84c 50%)}
+.light-sw{background:linear-gradient(135deg,#fff 50%,#1a2035 50%);border:1px solid #333}
+.bold-sw{background:linear-gradient(135deg,#f8f9fa 50%,#e74c3c 50%);border:1px solid #333}
+.theme-label{font-size:.72rem;color:#aaa}
+.theme-card.active .theme-label{color:#c9a84c}
+
+.accent-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.accent-row label{margin:0;white-space:nowrap;font-size:.72rem;color:#888}
+input[type=color]{width:44px;height:32px;border:1px solid #252525;border-radius:6px;padding:2px 4px;cursor:pointer;background:#161616}
+
+/* Generate button */
+.btn-generate{width:100%;background:#c9a84c;color:#0d0d0d;padding:13px;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:.9rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:opacity .2s;margin-top:8px}
+.btn-generate:hover{opacity:.85}
+
+/* Preview panel */
+.preview-panel{background:#0a0a0a;display:flex;flex-direction:column;position:sticky;top:0;height:calc(100vh - 57px);overflow:hidden}
+@media(max-width:900px){.preview-panel{height:600px;position:static}}
+
+.preview-header{padding:14px 20px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.preview-title{font-size:.78rem;color:#666;letter-spacing:.05em;text-transform:uppercase}
+.preview-actions{display:flex;gap:8px}
+.preview-actions button,.preview-actions a{
+  background:#1a1a1a;border:1px solid #2a2a2a;color:#bbb;
+  padding:7px 14px;border-radius:5px;font-family:'Inter',sans-serif;
+  font-size:.75rem;font-weight:500;cursor:pointer;transition:border-color .2s,color .2s;
+  display:inline-flex;align-items:center;gap:5px;text-decoration:none
+}
+.preview-actions button:hover,.preview-actions a:hover{border-color:#c9a84c;color:#c9a84c}
+.btn-dl{background:#c9a84c !important;color:#0d0d0d !important;border-color:#c9a84c !important;font-weight:700 !important}
+.btn-dl:hover{opacity:.85}
+
+.preview-frame-wrap{flex:1;overflow:hidden;background:#1a1a1a;display:flex;align-items:center;justify-content:center}
+.preview-empty{text-align:center;color:#333;padding:40px}
+.preview-empty p{font-size:2.5rem;margin-bottom:12px}
+.preview-empty span{font-size:.85rem}
+#preview-frame{width:100%;height:100%;border:none;display:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a class="header-back" href="dashboard.html">← Dashboard</a>
+  <div>
+    <h1>Website Generator</h1>
+    <p>Fill in client details — get a ready-to-deliver website in seconds</p>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- FORM PANEL -->
+  <div class="form-panel">
+
+    <div class="section-head">Business Details</div>
+
+    <div class="fg">
+      <label>Business Name *</label>
+      <input type="text" id="biz-name" placeholder="e.g. Sharp Cuts Barbers"/>
+    </div>
+
+    <div class="form-row cols-2">
+      <div class="fg" style="margin:0">
+        <label>Business Type</label>
+        <select id="biz-type" onchange="applyPreset()">
+          <option value="barber">Barbers</option>
+          <option value="hair_salon">Hair Salon</option>
+          <option value="restaurant">Restaurant / Café</option>
+          <option value="plumber">Plumber</option>
+          <option value="electrician">Electrician</option>
+          <option value="beauty">Beauty Salon</option>
+          <option value="garage">Garage / MOT</option>
+          <option value="cleaner">Cleaning</option>
+          <option value="tattoo">Tattoo Studio</option>
+          <option value="gym">Gym / PT</option>
+          <option value="landscaper">Landscaping</option>
+          <option value="tradesman">Tradesman</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="fg" style="margin:0">
+        <label>Tagline</label>
+        <input type="text" id="tagline" placeholder="Auto-filled from type"/>
+      </div>
+    </div>
+
+    <div class="section-head">Contact Info</div>
+
+    <div class="form-row cols-2">
+      <div class="fg" style="margin:0">
+        <label>Phone Number *</label>
+        <input type="tel" id="phone" placeholder="07xxx xxxxxx"/>
+      </div>
+      <div class="fg" style="margin:0">
+        <label>WhatsApp (if different)</label>
+        <input type="tel" id="whatsapp" placeholder="Same as phone"/>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Email (optional)</label>
+      <input type="email" id="email" placeholder="info@business.co.uk"/>
+    </div>
+
+    <div class="fg">
+      <label>Address</label>
+      <input type="text" id="address" placeholder="35 High Street, Wigan, WN1 1AA"/>
+    </div>
+
+    <div class="section-head">About</div>
+
+    <div class="fg">
+      <label>About the Business</label>
+      <textarea id="about" rows="3" placeholder="2–3 sentences about the business, how long they've been going, what makes them great..."></textarea>
+    </div>
+
+    <div class="section-head">Services (up to 6)</div>
+
+    <div style="display:grid;grid-template-columns:1fr 80px;gap:6px;margin-bottom:6px">
+      <div style="font-size:.68rem;color:#555;padding-left:2px;letter-spacing:.04em;text-transform:uppercase">Service Name</div>
+      <div style="font-size:.68rem;color:#555;text-align:center;letter-spacing:.04em;text-transform:uppercase">Price</div>
+    </div>
+    <div id="svc-rows"></div>
+
+    <div class="section-head">Opening Hours</div>
+
+    <div class="form-row cols-3">
+      <div class="fg" style="margin:0">
+        <label>Mon – Fri</label>
+        <input type="text" id="h-mf" placeholder="9am – 6pm"/>
+      </div>
+      <div class="fg" style="margin:0">
+        <label>Saturday</label>
+        <input type="text" id="h-sat" placeholder="9am – 5pm"/>
+      </div>
+      <div class="fg" style="margin:0">
+        <label>Sunday</label>
+        <input type="text" id="h-sun" placeholder="Closed"/>
+      </div>
+    </div>
+
+    <div class="section-head">Design Theme</div>
+
+    <div class="theme-cards">
+      <div class="theme-card active" onclick="setTheme('dark',this,'#c9a84c')">
+        <div class="theme-swatch dark-sw"></div>
+        <div class="theme-label">Dark</div>
+      </div>
+      <div class="theme-card" onclick="setTheme('light',this,'#1a2035')">
+        <div class="theme-swatch light-sw"></div>
+        <div class="theme-label">Light</div>
+      </div>
+      <div class="theme-card" onclick="setTheme('bold',this,'#e74c3c')">
+        <div class="theme-swatch bold-sw"></div>
+        <div class="theme-label">Bold</div>
+      </div>
+    </div>
+
+    <div class="accent-row">
+      <label>Accent colour</label>
+      <input type="color" id="accent" value="#c9a84c"/>
+      <span style="font-size:.75rem;color:#555">Buttons, highlights, logo colour</span>
+    </div>
+
+    <input type="hidden" id="theme-val" value="dark"/>
+
+    <button class="btn-generate" onclick="generate()">&#9889; Generate Website</button>
+
+  </div>
+
+  <!-- PREVIEW PANEL -->
+  <div class="preview-panel">
+    <div class="preview-header">
+      <span class="preview-title">Preview</span>
+      <div class="preview-actions" id="actions" style="display:none">
+        <button onclick="openNew()">&#128279; Open</button>
+        <button id="copy-btn" onclick="copyHTML()">&#128203; Copy HTML</button>
+        <button class="btn-dl" onclick="download()">&#11015; Download</button>
+      </div>
+    </div>
+    <div class="preview-frame-wrap">
+      <div class="preview-empty" id="empty-msg">
+        <p>&#128196;</p>
+        <span>Fill in the form and click Generate Website</span>
+      </div>
+      <iframe id="preview-frame"></iframe>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Presets ────────────────────────────────────────────────────────────────
+var PRESETS = {
+  barber:     { tagline:'Sharp Cuts. Clean Lines.',            svcs:['Haircut','Skin Fade','Beard Trim','Hot Towel Shave','Kids Cut','Hair Wash & Style'] },
+  hair_salon: { tagline:'Where Style Meets Confidence.',       svcs:['Cut & Blow Dry','Colour','Highlights','Balayage','Keratin Treatment','Conditioning Treatment'] },
+  restaurant: { tagline:'Good Food. Great Times.',             svcs:['Dine In','Takeaway','Private Hire','Lunch Menu','Evening Menu','Catering'] },
+  plumber:    { tagline:'Fast, Reliable & Local.',             svcs:['Emergency Callouts','Boiler Repair','Central Heating','Bathroom Installation','Leak Detection','Drain Unblocking'] },
+  electrician:{ tagline:'Safe, Certified & Local.',            svcs:['Electrical Testing','Rewiring','Fuse Board Upgrades','EV Charger Installation','Lighting','Emergency Callouts'] },
+  beauty:     { tagline:'Look Good. Feel Amazing.',            svcs:['Facials','Eyebrow Threading','Lash Extensions','Nails','Waxing','Massage'] },
+  garage:     { tagline:'Your Local Trusted Mechanic.',        svcs:['MOT Testing','Full Service','Tyres','Brakes','Air Con Regas','Diagnostics'] },
+  cleaner:    { tagline:'Spotless Every Time.',                svcs:['Domestic Cleaning','End of Tenancy','Carpet Cleaning','Office Cleaning','Deep Clean','Window Cleaning'] },
+  tattoo:     { tagline:'Ink That Tells Your Story.',          svcs:['Custom Tattoos','Cover Ups','Touch Ups','Piercing','Flash Designs','Consultations'] },
+  gym:        { tagline:'Train Hard. Live Well.',              svcs:['Gym Membership','Personal Training','Classes','Nutrition Advice','Online Coaching','Day Pass'] },
+  landscaper: { tagline:'Transforming Outdoor Spaces.',        svcs:['Garden Design','Lawn Care','Fencing','Decking','Driveway','Tree Surgery'] },
+  tradesman:  { tagline:'Quality Work. Fair Prices.',          svcs:['Free Quotes','Residential Work','Commercial Work','Emergency Jobs','Maintenance','Installations'] },
+  other:      { tagline:'Quality Service. Local Business.',    svcs:['Service 1','Service 2','Service 3','Service 4','Service 5','Service 6'] }
+};
+
+// Build service rows
+(function buildRows(){
+  var wrap = document.getElementById('svc-rows');
+  for(var i=1;i<=6;i++){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 80px;gap:6px;margin-bottom:6px';
+    row.innerHTML =
+      '<input type="text" id="svc-'+i+'" placeholder="Service '+i+'" style="margin:0"/>'+
+      '<input type="text" id="svc-price-'+i+'" placeholder="£0" style="margin:0;text-align:center"/>';
+    wrap.appendChild(row);
+  }
+})();
+
+// Apply preset on type change
+function applyPreset(){
+  var type = document.getElementById('biz-type').value;
+  var p = PRESETS[type] || PRESETS.other;
+  document.getElementById('tagline').value = p.tagline;
+  for(var i=0;i<6;i++){
+    var el = document.getElementById('svc-'+(i+1));
+    if(el) el.value = p.svcs[i]||'';
+  }
+}
+applyPreset(); // run on load
+
+// Theme selection
+function setTheme(val, card, defaultAccent){
+  document.querySelectorAll('.theme-card').forEach(function(c){c.classList.remove('active')});
+  card.classList.add('active');
+  document.getElementById('theme-val').value = val;
+  document.getElementById('accent').value = defaultAccent;
+}
+
+// ── HTML escape ────────────────────────────────────────────────────────────
+function esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Format WA number ───────────────────────────────────────────────────────
+function toWA(n){
+  var d = n.replace(/[\s\-\(\)\+]/g,'');
+  if(d.startsWith('0')) d = '44'+d.slice(1);
+  return d;
+}
+
+// ── Build website HTML ─────────────────────────────────────────────────────
+var currentHTML = '';
+
+function buildHTML(){
+  var name    = esc(document.getElementById('biz-name').value.trim()) || 'Your Business';
+  var tagline = esc(document.getElementById('tagline').value.trim())  || 'Quality Service. Local Business.';
+  var phone   = document.getElementById('phone').value.trim();
+  var waRaw   = document.getElementById('whatsapp').value.trim() || phone;
+  var email   = document.getElementById('email').value.trim();
+  var addr    = document.getElementById('address').value.trim();
+  var about   = esc(document.getElementById('about').value.trim());
+  var theme   = document.getElementById('theme-val').value;
+  var accent  = document.getElementById('accent').value;
+  var phoneLink = phone.replace(/\s/g,'');
+  var waNum   = waRaw ? toWA(waRaw) : '';
+  var waMsg   = encodeURIComponent("Hi, I'd like to enquire about your services");
+  var mapsQ   = encodeURIComponent(addr);
+
+  // Services
+  var svcCards = '';
+  for(var i=1;i<=6;i++){
+    var sn = (document.getElementById('svc-'+i).value||'').trim();
+    var sp = (document.getElementById('svc-price-'+i).value||'').trim();
+    if(!sn) continue;
+    svcCards += '<div class="sc"><div class="sn">'+esc(sn)+'</div>';
+    if(sp) svcCards += '<div class="sp">'+(sp.startsWith('£')?esc(sp):'£'+esc(sp))+'</div>';
+    svcCards += '</div>';
+  }
+
+  // Hours
+  var hMF  = esc(document.getElementById('h-mf').value.trim())  || '9:00am &ndash; 6:00pm';
+  var hSat = esc(document.getElementById('h-sat').value.trim()) || '9:00am &ndash; 5:00pm';
+  var hSun = esc(document.getElementById('h-sun').value.trim()) || 'Closed';
+
+  // Theme vars
+  var TV = {
+    dark:  '--bg:#0d0d0d;--bg2:#141414;--bg3:#1f1f1f;--text:#f5f0e8;--text2:#999;--border:rgba(255,255,255,.07);--nav:rgba(13,13,13,.95);--atext:#0d0d0d',
+    light: '--bg:#fff;--bg2:#f8f9fc;--bg3:#edf0f7;--text:#1a1a2e;--text2:#555;--border:rgba(0,0,0,.08);--nav:rgba(255,255,255,.95);--atext:#fff',
+    bold:  '--bg:#fff;--bg2:#f0f2f7;--bg3:#e3e8f5;--text:#111;--text2:#555;--border:rgba(0,0,0,.07);--nav:rgba(255,255,255,.97);--atext:#fff'
+  };
+  var tv = TV[theme] + ';--accent:'+accent;
+
+  var addrCity = addr ? esc(addr).split(',').pop().trim() : 'Local Business';
+  var emailLine = email ? '<p class="ci"><span>&#9993;</span><a href="mailto:'+esc(email)+'">'+esc(email)+'</a></p>' : '';
+  var mapBlock  = addr  ? '<div class="map"><iframe src="https://maps.google.com/maps?q='+mapsQ+'&output=embed" allowfullscreen loading="lazy"></iframe></div>' : '';
+  var waFloat   = waNum ? '<a class="waf" href="https://wa.me/'+waNum+'?text='+waMsg+'" target="_blank">&#128248;</a>' : '';
+
+  var yr = new Date().getFullYear();
+
+  return '<!DOCTYPE html>\n'+
+'<html lang="en">\n'+
+'<head>\n'+
+'<meta charset="UTF-8"/>\n'+
+'<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'+
+'<title>'+name+'</title>\n'+
+'<meta name="description" content="'+tagline+(addr?' &mdash; '+esc(addr):'')+'. Call '+esc(phone)+'."/>\n'+
+'<link rel="preconnect" href="https://fonts.googleapis.com"/>\n'+
+'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>\n'+
+'<style>\n'+
+':root{'+tv+'}\n'+
+'*{box-sizing:border-box;margin:0;padding:0}\n'+
+'html{scroll-behavior:smooth}\n'+
+'body{font-family:\'Inter\',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}\n'+
+'a{color:inherit;text-decoration:none}\n'+
+'.c{max-width:1100px;margin:0 auto;padding:0 24px}\n'+
+'nav{position:fixed;top:0;left:0;right:0;z-index:99;background:var(--nav);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);height:64px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}\n'+
+'.nl{font-family:\'Playfair Display\',serif;font-size:1.15rem;font-weight:700;color:var(--accent)}\n'+
+'.nm{display:flex;gap:24px}\n'+
+'.nm a{font-size:.83rem;color:var(--text2);letter-spacing:.04em;transition:color .2s}\n'+
+'.nm a:hover{color:var(--accent)}\n'+
+'.nc{background:var(--accent);color:var(--atext);padding:9px 20px;border-radius:4px;font-size:.82rem;font-weight:600;transition:opacity .2s}\n'+
+'.nc:hover{opacity:.85}\n'+
+'@media(max-width:580px){.nm{display:none}}\n'+
+'.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:80px 24px 60px}\n'+
+'.hl{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}\n'+
+'.hero h1{font-family:\'Playfair Display\',serif;font-size:clamp(2.8rem,8vw,5rem);font-weight:700;line-height:1.1;margin-bottom:18px}\n'+
+'.hero p.tl{font-size:clamp(.95rem,2vw,1.15rem);color:var(--text2);max-width:480px;margin:0 auto 32px;font-weight:300}\n'+
+'.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}\n'+
+'.bp{background:var(--accent);color:var(--atext);padding:13px 30px;border-radius:4px;font-weight:600;font-size:.88rem;letter-spacing:.03em;transition:opacity .2s;display:inline-flex;align-items:center;gap:8px}\n'+
+'.bp:hover{opacity:.85}\n'+
+'.bs{background:transparent;color:var(--text);border:1px solid var(--border);padding:13px 26px;border-radius:4px;font-size:.88rem;font-weight:500;transition:border-color .2s,color .2s;display:inline-flex;align-items:center;gap:8px}\n'+
+'.bs:hover{border-color:var(--accent);color:var(--accent)}\n'+
+'.svcs{padding:96px 0;background:var(--bg2)}\n'+
+'.sl{font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}\n'+
+'.st{font-family:\'Playfair Display\',serif;font-size:clamp(1.7rem,4vw,2.6rem);font-weight:700;margin-bottom:44px}\n'+
+'.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-top:36px}\n'+
+'.sc{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:22px 18px;text-align:center;transition:border-color .2s,transform .2s}\n'+
+'.sc:hover{border-color:var(--accent);transform:translateY(-3px)}\n'+
+'.sn{font-weight:600;font-size:.9rem;margin-bottom:7px}\n'+
+'.sp{font-size:1.05rem;font-weight:700;color:var(--accent)}\n'+
+'.abt{padding:96px 0}\n'+
+'.ai{max-width:660px}\n'+
+'.ai p{font-size:1rem;color:var(--text2);line-height:1.85;font-weight:300}\n'+
+'.cont{padding:96px 0;background:var(--bg2)}\n'+
+'.cg{display:grid;grid-template-columns:1fr 1fr;gap:56px;margin-top:36px}\n'+
+'@media(max-width:680px){.cg{grid-template-columns:1fr}}\n'+
+'.ci{display:flex;align-items:flex-start;gap:11px;margin-bottom:14px;font-size:.9rem;color:var(--text2)}\n'+
+'.ci span{color:var(--accent);font-size:1rem;margin-top:2px;flex-shrink:0}\n'+
+'.ci a{color:var(--text2);transition:color .2s}\n'+
+'.ci a:hover{color:var(--accent)}\n'+
+'.ht{width:100%;border-collapse:collapse;margin-top:6px}\n'+
+'.ht tr{border-bottom:1px solid var(--border)}\n'+
+'.ht td{padding:9px 0;font-size:.86rem;color:var(--text2)}\n'+
+'.ht td:last-child{text-align:right;color:var(--text)}\n'+
+'.map{border-radius:8px;overflow:hidden;margin-top:22px;border:1px solid var(--border)}\n'+
+'.map iframe{display:block;width:100%;height:210px;border:none}\n'+
+'footer{padding:36px 24px;text-align:center;border-top:1px solid var(--border)}\n'+
+'footer p{font-size:.76rem;color:var(--text2)}\n'+
+'footer a{color:var(--accent)}\n'+
+'.waf{position:fixed;bottom:22px;right:22px;background:#25D366;color:#fff;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 4px 18px rgba(37,211,102,.35);z-index:98;transition:transform .2s}\n'+
+'.waf:hover{transform:scale(1.1)}\n'+
+'</style>\n'+
+'</head>\n'+
+'<body>\n\n'+
+
+'<nav>\n'+
+'  <div class="nl">'+name+'</div>\n'+
+'  <div class="nm"><a href="#services">Services</a><a href="#about">About</a><a href="#contact">Contact</a></div>\n'+
+'  <a class="nc" href="tel:'+phoneLink+'">Call Now</a>\n'+
+'</nav>\n\n'+
+
+'<section class="hero">\n'+
+'  <div style="max-width:720px">\n'+
+'    <p class="hl">'+addrCity+'</p>\n'+
+'    <h1>'+name+'</h1>\n'+
+'    <p class="tl">'+tagline+'</p>\n'+
+'    <div class="btns">\n'+
+'      <a class="bp" href="https://wa.me/'+waNum+'?text='+waMsg+'">&#128248; Book on WhatsApp</a>\n'+
+'      <a class="bs" href="tel:'+phoneLink+'">&#128222; Call Us</a>\n'+
+'    </div>\n'+
+'  </div>\n'+
+'</section>\n\n'+
+
+'<section class="svcs" id="services">\n'+
+'  <div class="c">\n'+
+'    <p class="sl">What we offer</p>\n'+
+'    <h2 class="st">Our Services</h2>\n'+
+'    <div class="sg">'+svcCards+'</div>\n'+
+'  </div>\n'+
+'</section>\n\n'+
+
+'<section class="abt" id="about">\n'+
+'  <div class="c"><div class="ai">\n'+
+'    <p class="sl">About us</p>\n'+
+'    <h2 class="st">Who We Are</h2>\n'+
+'    <p>'+(about||'We are a local business dedicated to providing the highest quality service to our customers. Get in touch today to find out how we can help you.')+'</p>\n'+
+'  </div></div>\n'+
+'</section>\n\n'+
+
+'<section class="cont" id="contact">\n'+
+'  <div class="c">\n'+
+'    <p class="sl">Get in touch</p>\n'+
+'    <h2 class="st">Find Us</h2>\n'+
+'    <div class="cg">\n'+
+'      <div>\n'+
+(addr  ? '        <p class="ci"><span>&#128205;</span> '+esc(addr)+'</p>\n' : '')+
+(phone ? '        <p class="ci"><span>&#128222;</span> <a href="tel:'+phoneLink+'">'+esc(phone)+'</a></p>\n' : '')+
+(emailLine ? '        '+emailLine+'\n' : '')+
+(waNum  ? '        <p class="ci"><span>&#128248;</span> <a href="https://wa.me/'+waNum+'">WhatsApp Us</a></p>\n' : '')+
+(mapBlock  ? '        '+mapBlock+'\n' : '')+
+'      </div>\n'+
+'      <div>\n'+
+'        <h3 style="font-size:1rem;margin-bottom:18px;font-family:\'Playfair Display\',serif">Opening Hours</h3>\n'+
+'        <table class="ht">\n'+
+'          <tr><td>Monday &ndash; Friday</td><td>'+hMF+'</td></tr>\n'+
+'          <tr><td>Saturday</td><td>'+hSat+'</td></tr>\n'+
+'          <tr><td>Sunday</td><td>'+hSun+'</td></tr>\n'+
+'        </table>\n'+
+'      </div>\n'+
+'    </div>\n'+
+'  </div>\n'+
+'</section>\n\n'+
+
+'<footer>\n'+
+'  <p>&copy; '+yr+' '+name+'. Website by <a href="https://github.com/DylanTownley12/L-D-Designss" target="_blank">L&amp;D Designs</a>.</p>\n'+
+'</footer>\n\n'+
+
+waFloat+'\n\n'+
+'</body>\n</html>';
+}
+
+// ── Generate ───────────────────────────────────────────────────────────────
+function generate(){
+  if(!document.getElementById('biz-name').value.trim()){
+    document.getElementById('biz-name').focus();
+    document.getElementById('biz-name').style.borderColor = '#e74c3c';
+    setTimeout(function(){ document.getElementById('biz-name').style.borderColor = ''; }, 2000);
+    return;
+  }
+  currentHTML = buildHTML();
+  var blob = new Blob([currentHTML], {type:'text/html'});
+  var url  = URL.createObjectURL(blob);
+  var frame = document.getElementById('preview-frame');
+  frame.src = url;
+  frame.style.display = 'block';
+  document.getElementById('empty-msg').style.display = 'none';
+  document.getElementById('actions').style.display = 'flex';
+}
+
+function download(){
+  var name = (document.getElementById('biz-name').value.trim()||'website').toLowerCase().replace(/\s+/g,'-');
+  var blob = new Blob([currentHTML],{type:'text/html'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name+'.html';
+  a.click();
+}
+
+function copyHTML(){
+  navigator.clipboard.writeText(currentHTML).then(function(){
+    var btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(function(){ btn.textContent = '📋 Copy HTML'; }, 2000);
+  });
+}
+
+function openNew(){
+  var blob = new Blob([currentHTML],{type:'text/html'});
+  window.open(URL.createObjectURL(blob),'_blank');
+}
+</script>
+</body>
+</html>
