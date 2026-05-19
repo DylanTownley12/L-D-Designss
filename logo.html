@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>L&amp;D Designs Logo</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1a1a1a;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 40px 20px;
+}
+
+.tip {
+  color: #666;
+  font-family: 'Inter', sans-serif;
+  font-size: .8rem;
+  text-align: center;
+  letter-spacing: .05em;
+}
+
+/* ── LOGO VARIANTS ─────────────────────────────────────────────────── */
+
+/* Square — for Facebook/Instagram profile pic */
+.logo-square {
+  width: 400px;
+  height: 400px;
+  background: #0d0d0d;
+  border: 2px solid #c9a84c;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.logo-square::before,
+.logo-square::after {
+  content: '';
+  position: absolute;
+  border: 1px solid rgba(201,168,76,.2);
+}
+.logo-square::before { inset: 8px; }
+.logo-square::after  { inset: 14px; }
+
+.logo-initials {
+  font-family: 'Playfair Display', serif;
+  font-size: 6rem;
+  font-weight: 700;
+  color: #c9a84c;
+  line-height: 1;
+  letter-spacing: .04em;
+}
+
+.logo-word {
+  font-family: 'Inter', sans-serif;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .28em;
+  color: #f0ebe0;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.logo-tagline {
+  font-family: 'Inter', sans-serif;
+  font-size: .55rem;
+  font-weight: 300;
+  letter-spacing: .22em;
+  color: rgba(201,168,76,.6);
+  text-transform: uppercase;
+}
+
+/* Wide — for Facebook cover / banner use */
+.logo-wide {
+  width: 500px;
+  height: 200px;
+  background: #0d0d0d;
+  border: 1.5px solid #c9a84c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-shrink: 0;
+  position: relative;
+}
+.logo-wide::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(201,168,76,.15);
+}
+
+.wide-divider {
+  width: 1px;
+  height: 60px;
+  background: rgba(201,168,76,.4);
+}
+
+.wide-left {
+  font-family: 'Playfair Display', serif;
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #c9a84c;
+  line-height: 1;
+}
+
+.wide-right {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wide-name {
+  font-family: 'Inter', sans-serif;
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .3em;
+  color: #f0ebe0;
+  text-transform: uppercase;
+}
+
+.wide-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: .5rem;
+  font-weight: 300;
+  letter-spacing: .2em;
+  color: rgba(201,168,76,.6);
+  text-transform: uppercase;
+}
+
+.label {
+  font-family: 'Inter', sans-serif;
+  font-size: .7rem;
+  color: #c9a84c;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+@media(max-width: 520px) {
+  .logo-square { width: 300px; height: 300px; }
+  .logo-initials { font-size: 4.5rem; }
+  .logo-wide { width: 340px; height: 140px; }
+  .wide-left { font-size: 2.5rem; }
+}
+</style>
+</head>
+<body>
+
+<p class="tip">Screenshot the one you want and crop it square for your profile picture</p>
+
+<!-- SQUARE LOGO (profile pic) -->
+<div>
+  <p class="label" style="margin-bottom:12px">Profile Picture — screenshot &amp; crop</p>
+  <div class="logo-square">
+    <div class="logo-initials">L&amp;D</div>
+    <div class="logo-word">Designs</div>
+    <div class="logo-tagline">Web Design · Wigan</div>
+  </div>
+</div>
+
+<!-- WIDE LOGO (banner/header) -->
+<div>
+  <p class="label" style="margin-bottom:12px">Wide version — for cover photo / banner</p>
+  <div class="logo-wide">
+    <div class="wide-left">L&amp;D</div>
+    <div class="wide-divider"></div>
+    <div class="wide-right">
+      <div class="wide-name">Designs</div>
+      <div class="wide-sub">Web Design · Wigan</div>
+    </div>
+  </div>
+</div>
+
+<p class="tip">Need a different colour or style? Just ask.</p>
+
+</body>
+</html>
