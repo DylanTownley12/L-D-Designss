@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pricing — L&amp;D Designs | Websites for Local Businesses</title>
+<meta name="description" content="Affordable, professional websites for local businesses in Wigan. From £299. Fast turnaround, everything handled for you."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --card: #181818;
+  --border: #242424;
+  --border-gold: rgba(201,168,76,0.3);
+  --gold: #c9a84c;
+  --gold-light: #e0bb6a;
+  --gold-dim: rgba(201,168,76,0.15);
+  --gold-glow: rgba(201,168,76,0.25);
+  --white: #f5f5f0;
+  --muted: #888880;
+  --dim: #555550;
+  --popular-bg: #1a1600;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+h1, h2, h3, h4 { font-family: 'Playfair Display', serif; line-height: 1.15; }
+a { text-decoration: none; color: inherit; }
+::selection { background: var(--gold); color: #0d0d0d; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── KEYFRAMES ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.8; }
+}
+
+/* ── NAV ── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 64px;
+  padding: 0 clamp(1rem, 5vw, 3rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(13,13,13,0.92);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+  color: var(--white);
+}
+.logo span { color: var(--gold); }
+.nav-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 22px;
+  background: var(--gold);
+  color: #0d0d0d;
+  border-radius: 40px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.2s;
+}
+.nav-cta:hover { background: var(--gold-light); transform: translateY(-1px); }
+
+/* ── HERO ── */
+.hero {
+  padding: clamp(5rem, 12vw, 9rem) clamp(1rem, 6vw, 3rem) clamp(4rem, 8vw, 6rem);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(700px, 140vw);
+  height: min(700px, 140vw);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%);
+  pointer-events: none;
+  animation: glowPulse 6s ease-in-out infinite;
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px;
+  border: 1px solid var(--border-gold);
+  border-radius: 40px;
+  background: var(--gold-dim);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 2rem;
+  animation: fadeUp 0.6s ease both;
+}
+.hero-eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  display: inline-block;
+}
+.hero h1 {
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  color: var(--white);
+  max-width: 820px;
+  margin: 0 auto;
+  line-height: 1.1;
+  animation: fadeUp 0.6s 0.1s ease both;
+}
+.hero h1 em {
+  font-style: normal;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+.hero-sub {
+  color: var(--muted);
+  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+  max-width: 500px;
+  margin: 1.5rem auto 0;
+  line-height: 1.75;
+  font-weight: 300;
+  animation: fadeUp 0.6s 0.2s ease both;
+}
+.hero-badges {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2.5rem;
+  animation: fadeUp 0.6s 0.3s ease both;
+}
+.hero-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.hero-badge-icon { color: var(--gold); font-size: 0.9rem; }
+
+/* ── SECTION SHELL ── */
+section { padding: clamp(4rem, 9vw, 7rem) clamp(1rem, 6vw, 3rem); }
+.inner { max-width: 1140px; margin: 0 auto; }
+.section-label {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+  font-family: 'Inter', sans-serif;
+}
+.section-title {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  color: var(--white);
+  line-height: 1.15;
+}
+
+/* ── DIVIDER ── */
+.divider {
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  margin: 1.25rem 0;
+  border-radius: 2px;
+}
+.divider.center { margin: 1.25rem auto; }
+
+/* ── PRICING CARDS ── */
+#pricing { background: var(--bg); }
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-top: 3rem;
+  align-items: start;
+}
+.price-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2.25rem 2rem;
+  position: relative;
+  transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+.price-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--border-gold);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px var(--border-gold);
+}
+.price-card.popular {
+  background: var(--popular-bg);
+  border-color: var(--gold);
+  transform: translateY(-8px);
+  box-shadow: 0 32px 80px rgba(201,168,76,0.12), 0 0 0 1px var(--gold);
+}
+.price-card.popular:hover {
+  transform: translateY(-13px);
+  box-shadow: 0 40px 90px rgba(201,168,76,0.2), 0 0 0 1px var(--gold-light);
+}
+.popular-badge {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--gold);
+  color: #0d0d0d;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 16px;
+  border-radius: 40px;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+}
+.card-tier {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 0.6rem;
+}
+.card-name {
+  font-size: 1.6rem;
+  color: var(--white);
+  margin-bottom: 0.4rem;
+}
+.card-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 1.75rem;
+}
+.price-currency {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
+  color: var(--gold);
+  font-weight: 400;
+  align-self: flex-start;
+  margin-top: 6px;
+}
+.price-amount {
+  font-family: 'Playfair Display', serif;
+  font-size: 3.6rem;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+}
+.price-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  align-self: flex-end;
+  padding-bottom: 4px;
+}
+.card-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 1.5rem;
+}
+.card-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 2rem;
+}
+.card-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.feat-check {
+  color: var(--gold);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.feat-text { color: var(--white); }
+.feat-muted { color: var(--muted); }
+.delivery-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--gold-dim);
+  border: 1px solid var(--border-gold);
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--gold);
+  margin-bottom: 1.5rem;
+  font-family: 'Inter', sans-serif;
+}
+.card-cta {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.25s;
+  border: none;
+  cursor: pointer;
+}
+.card-cta-outline {
+  background: transparent;
+  border: 1px solid var(--border-gold);
+  color: var(--gold);
+}
+.card-cta-outline:hover {
+  background: var(--gold-dim);
+  border-color: var(--gold);
+}
+.card-cta-gold {
+  background: var(--gold);
+  color: #0d0d0d;
+}
+.card-cta-gold:hover {
+  background: var(--gold-light);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(201,168,76,0.35);
+}
+
+/* ── INCLUDED FREE ── */
+#included { background: var(--surface); }
+.included-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+.included-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  transition: border-color 0.25s;
+}
+.included-card:hover { border-color: var(--border-gold); }
+.included-icon {
+  font-size: 1.6rem;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+.included-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+  color: var(--white);
+  margin-bottom: 0.35rem;
+}
+.included-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── TESTIMONIALS ── */
+#testimonials { background: var(--bg); }
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-top: 2.5rem;
+}
+.testimonial-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.75rem;
+  position: relative;
+  transition: border-color 0.25s;
+}
+.testimonial-card:hover { border-color: var(--border-gold); }
+.quote-mark {
+  font-family: 'Playfair Display', serif;
+  font-size: 3.5rem;
+  color: var(--gold);
+  opacity: 0.4;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+.testimonial-text {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.75;
+  margin-bottom: 1.25rem;
+  font-style: italic;
+}
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.author-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), #8b6914);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0d0d0d;
+  flex-shrink: 0;
+}
+.author-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white);
+}
+.author-biz {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.stars {
+  color: var(--gold);
+  font-size: 0.75rem;
+  margin-top: 6px;
+  letter-spacing: 2px;
+}
+
+/* ── FAQ ── */
+#faq { background: var(--surface); }
+.faq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+.faq-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem 1.75rem;
+  transition: border-color 0.25s;
+}
+.faq-item:hover { border-color: var(--border-gold); }
+.faq-q {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+  color: var(--white);
+  margin-bottom: 0.65rem;
+}
+.faq-a {
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.75;
+}
+.faq-a a { color: var(--gold); text-decoration: underline; }
+
+/* ── CTA BOTTOM ── */
+#cta {
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  text-align: center;
+}
+#cta .section-title { max-width: 600px; margin: 0 auto; }
+#cta .section-label { text-align: center; }
+.cta-sub {
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 400px;
+  margin: 1rem auto 2.5rem;
+  line-height: 1.7;
+}
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.btn-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 32px;
+  background: #25D366;
+  color: #fff;
+  border-radius: 50px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.25s;
+}
+.btn-wa:hover {
+  background: #1ebe5d;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(37,211,102,0.35);
+}
+.btn-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 32px;
+  background: transparent;
+  border: 1px solid var(--border-gold);
+  color: var(--gold);
+  border-radius: 50px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.25s;
+}
+.btn-email:hover {
+  background: var(--gold-dim);
+  border-color: var(--gold);
+  transform: translateY(-2px);
+}
+.cta-note {
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+/* ── FOOTER ── */
+footer {
+  padding: 2rem clamp(1rem, 5vw, 3rem);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.footer-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--white);
+}
+.footer-logo span { color: var(--gold); }
+.footer-copy {
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+/* ── FADE ANIMATION ── */
+.fade-in {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+.fade-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.delay-1 { transition-delay: 0.1s; }
+.delay-2 { transition-delay: 0.2s; }
+.delay-3 { transition-delay: 0.3s; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 960px) {
+  .pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
+  .price-card.popular { transform: none; }
+  .price-card.popular:hover { transform: translateY(-5px); }
+  .included-grid { grid-template-columns: 1fr 1fr; }
+  .testimonials-grid { grid-template-columns: 1fr; max-width: 480px; margin-left: auto; margin-right: auto; }
+  .faq-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .included-grid { grid-template-columns: 1fr; }
+  nav .nav-cta span { display: none; }
+  footer { flex-direction: column; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">L<span>&amp;</span>D Designs</div>
+  <a class="nav-cta" href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20a%20website%20for%20my%20business">
+    <span>&#128248;</span>
+    <span>Get a free quote</span>
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow">
+    <span class="hero-eyebrow-dot"></span>
+    Based in Wigan &mdash; Serving Local Businesses
+  </div>
+  <h1>Simple, Affordable Websites for <em>Local Businesses</em></h1>
+  <p class="hero-sub">
+    No jargon. No hidden fees. Just a clean, professional site that makes your business look the part &mdash; handled from start to finish.
+  </p>
+  <div class="hero-badges">
+    <span class="hero-badge"><span class="hero-badge-icon">&#10003;</span> No upfront design fees</span>
+    <span class="hero-badge"><span class="hero-badge-icon">&#10003;</span> Fast turnaround</span>
+    <span class="hero-badge"><span class="hero-badge-icon">&#10003;</span> You own everything</span>
+    <span class="hero-badge"><span class="hero-badge-icon">&#10003;</span> Local, personal service</span>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="inner">
+    <div style="text-align:center">
+      <p class="section-label">Transparent Pricing</p>
+      <h2 class="section-title">One flat price. No surprises.</h2>
+      <div class="divider center"></div>
+      <p style="color:var(--muted);font-size:0.88rem;max-width:440px;margin:0 auto;line-height:1.7">
+        Pick the package that fits your business. All prices are one-off &mdash; no monthly fees, no contracts.
+      </p>
+    </div>
+
+    <div class="pricing-grid">
+
+      <!-- STARTER -->
+      <div class="price-card fade-in">
+        <p class="card-tier">Starter</p>
+        <h3 class="card-name">Starter</h3>
+        <p class="card-desc">Perfect for getting online quickly with a single, polished page.</p>
+        <div class="price-row">
+          <span class="price-currency">&pound;</span>
+          <span class="price-amount">299</span>
+          <span class="price-note">one-off</span>
+        </div>
+        <div class="delivery-tag">&#9201; Delivered in 3&ndash;5 days</div>
+        <div class="card-divider"></div>
+        <ul class="card-features">
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">1-page website</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Mobile responsive design</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Contact form</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Google Maps embed</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Social media links</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">WhatsApp button</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">SSL certificate (https)</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Fast loading speed</span></li>
+        </ul>
+        <a class="card-cta card-cta-outline" href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20the%20Starter%20package">
+          Get Started
+        </a>
+      </div>
+
+      <!-- PROFESSIONAL (POPULAR) -->
+      <div class="price-card popular fade-in delay-1">
+        <div class="popular-badge">Most Popular</div>
+        <p class="card-tier">Professional</p>
+        <h3 class="card-name">Professional</h3>
+        <p class="card-desc">The sweet spot for most local businesses wanting a full online presence.</p>
+        <div class="price-row">
+          <span class="price-currency">&pound;</span>
+          <span class="price-amount">549</span>
+          <span class="price-note">one-off</span>
+        </div>
+        <div class="delivery-tag">&#9201; Delivered in 7&ndash;10 days</div>
+        <div class="card-divider"></div>
+        <ul class="card-features">
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Up to 5 pages</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Everything in Starter</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Gallery or portfolio section</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">SEO basics (titles, descriptions)</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Google Analytics set up</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Custom colour &amp; font styling</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Google Business profile advice</span></li>
+        </ul>
+        <a class="card-cta card-cta-gold" href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20the%20Professional%20package">
+          Get Started
+        </a>
+      </div>
+
+      <!-- PREMIUM -->
+      <div class="price-card fade-in delay-2">
+        <p class="card-tier">Premium</p>
+        <h3 class="card-name">Premium</h3>
+        <p class="card-desc">The full package for businesses that want to stand out and grow online.</p>
+        <div class="price-row">
+          <span class="price-currency">&pound;</span>
+          <span class="price-amount">899</span>
+          <span class="price-note">one-off</span>
+        </div>
+        <div class="delivery-tag">&#9201; Delivered in 2 weeks</div>
+        <div class="card-divider"></div>
+        <ul class="card-features">
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Up to 10 pages</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Everything in Professional</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Booking or enquiry system</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Blog section</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">1 month free edits after launch</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Priority support</span></li>
+          <li><span class="feat-check">&#10003;</span><span class="feat-text">Advanced SEO set-up</span></li>
+        </ul>
+        <a class="card-cta card-cta-outline" href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20the%20Premium%20package">
+          Get Started
+        </a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- INCLUDED FREE -->
+<section id="included">
+  <div class="inner">
+    <div style="text-align:center" class="fade-in">
+      <p class="section-label">Every Package</p>
+      <h2 class="section-title">What&rsquo;s always included free</h2>
+      <div class="divider center"></div>
+    </div>
+    <div class="included-grid">
+      <div class="included-card fade-in">
+        <span class="included-icon">&#128241;</span>
+        <h4 class="included-title">Mobile Responsive</h4>
+        <p class="included-desc">Your site looks great on every screen &mdash; phones, tablets and desktop. Most of your customers will visit on mobile.</p>
+      </div>
+      <div class="included-card fade-in delay-1">
+        <span class="included-icon">&#9889;</span>
+        <h4 class="included-title">Fast Loading</h4>
+        <p class="included-desc">Sites built for speed. Fast pages rank better on Google and keep visitors from bouncing before they see your work.</p>
+      </div>
+      <div class="included-card fade-in delay-2">
+        <span class="included-icon">&#128274;</span>
+        <h4 class="included-title">SSL Certificate</h4>
+        <p class="included-desc">Your site runs on https:// so visitors see the padlock &mdash; essential for trust, and required by Google.</p>
+      </div>
+      <div class="included-card fade-in">
+        <span class="included-icon">&#128205;</span>
+        <h4 class="included-title">Google Maps Embed</h4>
+        <p class="included-desc">An interactive map so customers can find you easily. Tapping it opens navigation straight to your door.</p>
+      </div>
+      <div class="included-card fade-in delay-1">
+        <span class="included-icon">&#128279;</span>
+        <h4 class="included-title">Social Media Links</h4>
+        <p class="included-desc">Links to your Facebook, Instagram or any other profiles so visitors can follow you with one click.</p>
+      </div>
+      <div class="included-card fade-in delay-2">
+        <span class="included-icon">&#128248;</span>
+        <h4 class="included-title">WhatsApp Button</h4>
+        <p class="included-desc">A tap-to-chat WhatsApp button so customers can message you instantly &mdash; the easiest way to get new enquiries.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="inner">
+    <div style="text-align:center" class="fade-in">
+      <p class="section-label">Happy Clients</p>
+      <h2 class="section-title">What local business owners say</h2>
+      <div class="divider center"></div>
+    </div>
+    <div class="testimonials-grid">
+
+      <div class="testimonial-card fade-in">
+        <div class="quote-mark">&ldquo;</div>
+        <p class="testimonial-text">Dylan built us a proper website in just a few days. It looks dead professional and we&rsquo;ve already had new customers come in saying they found us online. Couldn&rsquo;t be happier with how it turned out.</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">M</div>
+          <div>
+            <div class="author-name">Marcus T.</div>
+            <div class="author-biz">Marcus&rsquo;s Barber Shop, Wigan</div>
+            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card fade-in delay-1">
+        <div class="quote-mark">&ldquo;</div>
+        <p class="testimonial-text">I&rsquo;d been putting off getting a website for years because I thought it&rsquo;d be expensive and complicated. Dylan sorted everything for a fair price and I didn&rsquo;t have to do a thing. Brilliant service.</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">S</div>
+          <div>
+            <div class="author-name">Sarah K.</div>
+            <div class="author-biz">SK Nails &amp; Beauty, Leigh</div>
+            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card fade-in delay-2">
+        <div class="quote-mark">&ldquo;</div>
+        <p class="testimonial-text">As a sole trader I was sceptical, but the site Dylan made has genuinely brought in new work. I get enquiries through the contact form every week now. Worth every penny for the Professional package.</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">J</div>
+          <div>
+            <div class="author-name">James R.</div>
+            <div class="author-biz">JR Plumbing &amp; Heating, Wigan</div>
+            <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="inner">
+    <div style="text-align:center" class="fade-in">
+      <p class="section-label">Common Questions</p>
+      <h2 class="section-title">Got a question?</h2>
+      <div class="divider center"></div>
+    </div>
+    <div class="faq-grid">
+
+      <div class="faq-item fade-in">
+        <h4 class="faq-q">Do I need to provide content?</h4>
+        <p class="faq-a">
+          Not much. Just send over any photos you have (even phone photos are fine) and a few bullet points about your business &mdash; services, opening hours, that sort of thing. Dylan will write the copy and design the layout for you.
+        </p>
+      </div>
+
+      <div class="faq-item fade-in delay-1">
+        <h4 class="faq-q">How do I pay?</h4>
+        <p class="faq-a">
+          A 50% deposit is taken upfront to start the work, with the remaining 50% due before the site goes live. Payment by bank transfer or PayPal. No subscription, no monthly fees &mdash; just the one flat price.
+        </p>
+      </div>
+
+      <div class="faq-item fade-in delay-2">
+        <h4 class="faq-q">Can I update the site myself later?</h4>
+        <p class="faq-a">
+          Yes. Depending on how it&rsquo;s built, Dylan can set up a simple content system so you can change text and photos yourself. Or just drop him a message &mdash; small updates are usually free or very low cost.
+        </p>
+      </div>
+
+      <div class="faq-item fade-in">
+        <h4 class="faq-q">What if I&rsquo;m not happy with the design?</h4>
+        <p class="faq-a">
+          Two rounds of revisions are included as standard. If after both rounds you&rsquo;re still not satisfied, you get a full refund &mdash; no questions asked. Dylan&rsquo;s goal is a site you&rsquo;re genuinely proud of. <a href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20a%20website">Chat to him first</a> if you&rsquo;re unsure.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <div class="inner">
+    <div class="fade-in">
+      <p class="section-label" style="text-align:center">Ready to Get Started?</p>
+      <h2 class="section-title">Let&rsquo;s get your business online</h2>
+      <div class="divider center"></div>
+      <p class="cta-sub">
+        Drop Dylan a message on WhatsApp or email &mdash; no obligation, just a quick chat about what you need.
+      </p>
+      <div class="cta-buttons">
+        <a class="btn-wa" href="https://wa.me/447301181878?text=Hi%20Dylan%2C%20I%27d%20like%20to%20discuss%20a%20website%20for%20my%20business">
+          <span>&#128248;</span>
+          <span>WhatsApp Dylan</span>
+        </a>
+        <a class="btn-email" href="mailto:hello@lddesigns.co.uk">
+          <span>&#9993;</span>
+          <span>Send an Email</span>
+        </a>
+      </div>
+      <p class="cta-note">Usually responds within a few hours &bull; Based in Wigan</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">L<span>&amp;</span>D Designs &mdash; Wigan</div>
+  <p class="footer-copy">&copy; 2025 L&amp;D Designs. All rights reserved.</p>
+</footer>
+
+<script>
+// Scroll-triggered fade-in
+(function() {
+  var els = document.querySelectorAll('.fade-in');
+  if (!els.length) return;
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  els.forEach(function(el) { io.observe(el); });
+  // Hero elements are above the fold — mark visible immediately
+  var heroFades = document.querySelectorAll('.hero .fade-in');
+  heroFades.forEach(function(el) { el.classList.add('visible'); });
+})();
+</script>
+</body>
+</html>
