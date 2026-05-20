@@ -36,7 +36,7 @@ from templates import get_email, get_whatsapp, choose_template
 
 CRM_FILE     = Path(__file__).parent.parent / "leads" / "master_crm.xlsx"
 LOG_FILE     = Path(__file__).parent / "outreach_log.json"
-MAX_PER_DAY  = 30
+MAX_PER_DAY  = 50
 DAILY_COUNTER_FILE = Path(__file__).parent / ".daily_count.json"
 
 STATUS_COL   = 20  # "Outreach Status" column index (1-based)
@@ -269,7 +269,7 @@ def run(dry_run, limit, channel, auto_confirm=False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run",  action="store_true", help="Preview only, no messages sent")
-    parser.add_argument("--limit",    type=int, default=10, help="Max leads to contact (default 10)")
+    parser.add_argument("--limit",    type=int, default=50, help="Max leads to contact (default 50)")
     parser.add_argument("--channel",  choices=["email", "whatsapp"], default="email")
     parser.add_argument("--yes",      action="store_true", help="Skip confirmation prompt")
     args = parser.parse_args()
