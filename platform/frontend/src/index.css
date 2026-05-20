@@ -22,10 +22,13 @@
     background: linear-gradient(135deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%);
   }
   .card {
-    @apply bg-dark-2 border border-white/8 rounded-xl;
+    background-color: #141414;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.75rem;
   }
   .btn-gold {
-    @apply gold-gradient text-black font-semibold px-4 py-2 rounded-lg text-sm hover:opacity-90 transition-opacity;
+    background: linear-gradient(135deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%);
+    @apply text-black font-semibold px-4 py-2 rounded-lg text-sm hover:opacity-90 transition-opacity;
   }
   .btn-ghost {
     @apply bg-white/5 border border-white/10 text-white/70 font-medium px-4 py-2 rounded-lg text-sm hover:bg-white/10 hover:text-white transition-all;
