@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark text-white font-sans antialiased;
+  }
+  * {
+    @apply border-white/10;
+  }
+}
+
+@layer utilities {
+  .gold-text {
+    background: linear-gradient(135deg, #C9A84C, #E8C96A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .gold-gradient {
+    background: linear-gradient(135deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%);
+  }
+  .card {
+    @apply bg-dark-2 border border-white/8 rounded-xl;
+  }
+  .btn-gold {
+    @apply gold-gradient text-black font-semibold px-4 py-2 rounded-lg text-sm hover:opacity-90 transition-opacity;
+  }
+  .btn-ghost {
+    @apply bg-white/5 border border-white/10 text-white/70 font-medium px-4 py-2 rounded-lg text-sm hover:bg-white/10 hover:text-white transition-all;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #C9A84C; }

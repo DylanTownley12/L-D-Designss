@@ -1,0 +1,149 @@
+import { useState, useEffect } from 'react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { dashboard as dashApi, agents } from '../api/client'
+import StatCard from '../components/StatCard'
+
+const STATUS_COLORS = {
+  new: '#6b7280', analyzing: '#3b82f6', preview_ready: '#8b5cf6',
+  outreach_queued: '#f59e0b', outreach_sent: '#06b6d4',
+  replied: '#f59e0b', interested: '#8b5cf6', converted: '#10b981',
+  not_interested: '#ef4444', do_not_contact: '#7f1d1d',
+}
+
+export default function Dashboard() {
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(null)
+
+  const load = () => dashApi.stats().then(setStats).catch(console.error).finally(() => setLoading(false))
+
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
+
+  const runAgent = async (agent) => {
+    setRunning(agent)
+    try {
+      const res = await agents.run(agent)
+      alert(`${agent}: ${res.message}`)
+    } catch (e) {
+      alert(`Error: ${e.message}`)
+    } finally {
+      setRunning(null)
+    }
+  }
+
+  if (loading) return <div className="p-8 text-white/40">Loading dashboard...</div>
+  if (!stats) return <div className="p-8 text-red-400">Failed to load. Is the backend running?</div>
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
+        <p className="text-white/40 text-sm">Your agency at a glance</p>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <StatCard label="Total Leads"     value={stats.total_leads}       icon="🎯" color="gold" />
+        <StatCard label="New Leads"       value={stats.new_leads}         icon="✨" color="blue" />
+        <StatCard label="Outreach Sent"   value={stats.outreach_sent}     icon="📤" color="blue"   sub="all time" />
+        <StatCard label="Replies"         value={stats.replies}           icon="💬" color="purple" />
+        <StatCard label="Interested"      value={stats.interested}        icon="🔥" color="green" />
+        <StatCard label="Converted"       value={stats.converted}         icon="💷" color="green" sub="paid clients" />
+        <StatCard label="Previews"        value={stats.previews_generated} icon="🌐" color="purple" />
+        <StatCard label="Queue"           value={stats.outreach_queued}   icon="⏳" color="gold" sub="awaiting approval" />
+        <StatCard label="Emails Today"    value={`${stats.emails_today}/50`} icon="📧" color={stats.emails_today >= 50 ? 'red' : 'blue'} />
+        <StatCard label="Revenue"         value={`£${stats.revenue_total.toFixed(0)}`} icon="💰" color="green" />
+      </div>
+
+      {/* Charts + Notifications row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* 7-day activity chart */}
+        <div className="lg:col-span-2 card p-5 rounded-xl">
+          <h2 className="font-semibold mb-4 text-sm text-white/60 uppercase tracking-wider">7-Day Outreach Activity</h2>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={stats.activity || []} barSize={20}>
+              <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 11 }}
+                     tickFormatter={d => d.slice(5)} />
+              <YAxis tick={{ fill: '#555', fontSize: 11 }} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ background: '#141414', border: '1px solid #333', borderRadius: 8 }}
+                labelStyle={{ color: '#888' }}
+                itemStyle={{ color: '#C9A84C' }}
+              />
+              <Bar dataKey="sent" fill="#C9A84C" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Pipeline breakdown */}
+        <div className="card p-5 rounded-xl">
+          <h2 className="font-semibold mb-4 text-sm text-white/60 uppercase tracking-wider">Pipeline</h2>
+          <div className="space-y-3">
+            {(stats.pipeline || []).map(p => (
+              <div key={p.label} className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }}></div>
+                <span className="text-sm text-white/60 flex-1">{p.label}</span>
+                <span className="font-bold text-sm">{p.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      {stats.notifications?.length > 0 && (
+        <div className="card p-5 rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-sm text-white/60 uppercase tracking-wider">
+              Notifications <span className="text-gold ml-1">({stats.unread_notifications})</span>
+            </h2>
+            <button onClick={() => dashApi.markRead().then(load)}
+                    className="text-xs text-white/30 hover:text-gold transition-colors">
+              Mark all read
+            </button>
+          </div>
+          <div className="space-y-2">
+            {stats.notifications.map(n => (
+              <div key={n.id}
+                   className={`flex items-start gap-3 p-3 rounded-lg text-sm ${
+                     n.read ? 'bg-white/2 text-white/40' : 'bg-gold/5 border border-gold/15'
+                   }`}>
+                <div className="flex-1">
+                  <div className={n.read ? 'text-white/50' : 'text-white font-medium'}>{n.title}</div>
+                  {n.body && <div className="text-white/35 text-xs mt-0.5 truncate">{n.body}</div>}
+                </div>
+                <div className="text-white/25 text-xs flex-shrink-0">
+                  {new Date(n.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Agent controls */}
+      <div className="card p-5 rounded-xl">
+        <h2 className="font-semibold mb-4 text-sm text-white/60 uppercase tracking-wider">Run Agents Manually</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { agent: 'lead_finder',      label: 'Find New Leads',    icon: '🔍' },
+            { agent: 'website_analyzer', label: 'Analyse Websites',  icon: '🔬' },
+            { agent: 'followup_agent',   label: 'Check Follow-Ups',  icon: '🔁' },
+            { agent: 'outreach_queue',   label: 'Process Queue',     icon: '📤' },
+          ].map(a => (
+            <button
+              key={a.agent}
+              onClick={() => runAgent(a.agent)}
+              disabled={running === a.agent}
+              className="btn-ghost flex items-center gap-2 justify-center disabled:opacity-50"
+            >
+              <span>{a.icon}</span>
+              <span className="text-xs">{running === a.agent ? 'Running…' : a.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
