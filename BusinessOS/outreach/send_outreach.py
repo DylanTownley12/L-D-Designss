@@ -119,18 +119,35 @@ def mark_contacted(ws, row_num):
     ws.cell(row_num, NEXT_COL).value    = next_date.strftime("%d/%m/%Y")
     ws.cell(row_num, STATUS_COL).fill   = PatternFill("solid", fgColor="D6EAFF")
 
-def preview_outreach(leads):
+def print_summary(leads, channel, daily_count, dry_run=False):
+    from collections import Counter
+    industries = Counter(l["industry"] for l in leads if l["industry"])
+    has_email  = sum(1 for l in leads if l["email"])
+    has_phone  = sum(1 for l in leads if l["phone"])
+
+    label = "DRY RUN PREVIEW" if dry_run else "OUTREACH SUMMARY"
     print(f"\n  {'='*56}")
-    print(f"  DRY RUN — {len(leads)} leads queued")
+    print(f"  {label}")
     print(f"  {'='*56}")
-    for i, lead in enumerate(leads, 1):
-        tkey = choose_template(lead["website_status"])
-        e = get_email(tkey, lead["name"])
-        print(f"\n  [{i}] {lead['name']}")
-        print(f"      Email: {lead['email'] or 'none'}")
-        print(f"      Template: {tkey}")
-        print(f"      Subject: {e['subject']}")
-    print(f"\n  No messages sent (dry-run mode).\n")
+    print(f"  Businesses queued : {len(leads)}")
+    print(f"  Channel           : {channel}")
+    print(f"  With email        : {has_email}")
+    print(f"  With phone        : {has_phone}")
+    print(f"  Sent today so far : {daily_count}/{MAX_PER_DAY}")
+    print(f"  Follow-ups due    : in 3 days for all {len(leads)} sent")
+    print(f"\n  Industries:")
+    for industry, count in industries.most_common():
+        print(f"    {industry:<28} {count}")
+    if dry_run:
+        print(f"\n  Sample messages:")
+        for lead in leads[:3]:
+            tkey = choose_template(lead["website_status"])
+            e = get_email(tkey, lead["name"])
+            print(f"\n    [{lead['name']}]")
+            print(f"    Subject: {e['subject']}")
+            print(f"    Email:   {lead['email'] or 'none'}")
+        print(f"\n  No messages sent (dry-run mode).")
+    print(f"  {'='*56}\n")
 
 def send_email_gmail(to_email, subject, body):
     """
@@ -161,7 +178,7 @@ def send_email_gmail(to_email, subject, body):
         server.login(gmail_addr, gmail_pass)
         server.sendmail(gmail_addr, to_email, msg.as_string())
 
-def run(dry_run, limit, channel):
+def run(dry_run, limit, channel, auto_confirm=False):
     log = load_log()
     daily_count = get_daily_count()
 
@@ -184,9 +201,16 @@ def run(dry_run, limit, channel):
         print("  No leads to contact. Run the lead finder first.")
         return
 
+    print_summary(leads, channel, daily_count, dry_run=dry_run)
+
     if dry_run:
-        preview_outreach(leads)
         return
+
+    if not auto_confirm:
+        confirm = input("  Confirm send? (yes/no): ").strip().lower()
+        if confirm not in ("yes", "y"):
+            print("  Cancelled.\n")
+            return
 
     sent_count = 0
     for lead in leads:
@@ -247,11 +271,11 @@ def main():
     parser.add_argument("--dry-run",  action="store_true", help="Preview only, no messages sent")
     parser.add_argument("--limit",    type=int, default=10, help="Max leads to contact (default 10)")
     parser.add_argument("--channel",  choices=["email", "whatsapp"], default="email")
+    parser.add_argument("--yes",      action="store_true", help="Skip confirmation prompt")
     args = parser.parse_args()
 
     print(f"\n  L&D Designs — Outreach Sender")
-    print(f"  Channel: {args.channel}  |  Limit: {args.limit}  |  Dry run: {args.dry_run}\n")
-    run(args.dry_run, args.limit, args.channel)
+    run(args.dry_run, args.limit, args.channel, auto_confirm=args.yes)
 
 if __name__ == "__main__":
     main()
