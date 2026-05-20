@@ -1,1 +1,24 @@
 .claude/
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated lead/CRM files — keep out of git (contain personal data)
+BusinessOS/leads/*.xlsx
+BusinessOS/reports/*.xlsx
+BusinessOS/reports/*.csv
+
+# Outreach logs (contain contact data)
+BusinessOS/outreach/outreach_log.json
+BusinessOS/outreach/.daily_count.json
+BusinessOS/followups/followup_log.json
+
+# Old generated files at root
+wigan_hair_leads_*.xlsx
+multi_leads_*.xlsx
+outreach_dashboard.html
+
+# Environment / credentials
+.env
+*.env
+

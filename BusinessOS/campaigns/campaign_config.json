@@ -1,0 +1,23 @@
+{
+  "active_campaign": "Wigan Area Launch",
+  "campaigns": [
+    {
+      "name": "Wigan Area Launch",
+      "city": "wigan",
+      "radius_mi": 15,
+      "target_types": ["Barbers & Hair Salons", "Plumbers", "Electricians", "Builders", "Beauty Salons"],
+      "email_template": "no_website_v1",
+      "followup_days": 3,
+      "max_followups": 2,
+      "daily_send_limit": 30,
+      "status": "active",
+      "start_date": "20/05/2026",
+      "notes": "First campaign — testing templates and response rates"
+    }
+  ],
+  "ab_test_results": {
+    "email_subjects": {},
+    "whatsapp_templates": {},
+    "best_performing": null
+  }
+}
