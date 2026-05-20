@@ -1,1 +1,4 @@
 .claude/
+.env
+*.csv
+wigan_hair_leads_*.xlsx
