@@ -627,17 +627,31 @@ def main():
 
     if not raw:
         print("\n  No results found. Check your internet connection and try again.")
-        input("  Press Enter to exit …")
         sys.exit(1)
 
+    # ── Pre-filter: only process businesses we can actually contact ────────
+    # No phone AND no website = nothing to contact or scrape, skip immediately.
+    contactable = [b for b in raw if b["phone"] or b["website"]]
+    skipped_no_contact = len(raw) - len(contactable)
+    print(f"  Pre-filter: {skipped_no_contact} businesses skipped (no phone, no website).")
+    print(f"  Processing {len(contactable)} businesses with at least one contact method.\n")
+
     # ── 2. Check websites & scrape contacts ───────────────────────────────
-    print(f"\n[2/3] Checking websites and scraping contact info …\n")
+    print(f"[2/3] Checking websites and scraping contact info …\n")
     leads = []
 
-    for idx, biz in enumerate(raw, 1):
+    for idx, biz in enumerate(contactable, 1):
         name    = biz["name"]
         website = biz["website"]
-        print(f"  [{idx}/{len(raw)}] {name}")
+        print(f"  [{idx}/{len(contactable)}] {name}")
+
+        # No website listed — skip the HTTP check entirely, mark as none
+        if not website:
+            status, notes = "none", "No website listed"
+            print(f"         → none  (no website — phone: {biz['phone'] or 'none'})")
+            leads.append({**biz, "status": status, "notes": notes,
+                          "email": "", "whatsapp": ""})
+            continue
 
         status, notes = check_website(website)
         print(f"         → {status}  {notes}")
@@ -645,11 +659,14 @@ def main():
         if status == "active":
             continue   # skip businesses with a current, working website
 
-        email, whatsapp = "", ""
-        if website and status != "none":
-            email, whatsapp = scrape_contacts(website)
-            if email:    print(f"         email:    {email}")
-            if whatsapp: print(f"         whatsapp: {whatsapp}")
+        email, whatsapp = scrape_contacts(website)
+        if email:    print(f"         email:    {email}")
+        if whatsapp: print(f"         whatsapp: {whatsapp}")
+
+        # Only keep if we ended up with at least one contact method
+        if not (biz["phone"] or email or whatsapp):
+            print(f"         skipping — no contactable info found")
+            continue
 
         leads.append({
             **biz,
@@ -678,7 +695,6 @@ def main():
     print(f"║  With WhatsApp      : {sum(1 for b in sorted_leads if b['whatsapp']):<38}║")
     print("╚══════════════════════════════════════════════════════════════╝")
     print()
-    input("  Press Enter to exit …")
 
 
 if __name__ == "__main__":
