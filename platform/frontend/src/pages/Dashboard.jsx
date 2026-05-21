@@ -10,14 +10,49 @@ const STATUS_COLORS = {
   not_interested: '#ef4444', do_not_contact: '#7f1d1d',
 }
 
+const MAX_RETRIES = 4
+const RETRY_DELAY = 8000
+
+async function fetchStatsWithRetry(attempt = 0) {
+  try {
+    return await dashApi.stats()
+  } catch (err) {
+    if (attempt < MAX_RETRIES) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY))
+      return fetchStatsWithRetry(attempt + 1)
+    }
+    throw err
+  }
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [waking, setWaking] = useState(false)
+  const [error, setError] = useState(null)
   const [running, setRunning] = useState(null)
 
-  const load = () => dashApi.stats().then(setStats).catch(console.error).finally(() => setLoading(false))
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true)
+    setError(null)
+    const wakeTimer = setTimeout(() => setWaking(true), 5000)
+    try {
+      const data = await fetchStatsWithRetry()
+      setStats(data)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      clearTimeout(wakeTimer)
+      setWaking(false)
+      setLoading(false)
+    }
+  }
 
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    load()
+    const t = setInterval(() => load(true), 30000)
+    return () => clearInterval(t)
+  }, [])
 
   const runAgent = async (agent) => {
     setRunning(agent)
@@ -31,8 +66,23 @@ export default function Dashboard() {
     }
   }
 
-  if (loading) return <div className="p-8 text-white/40">Loading dashboard...</div>
-  if (!stats) return <div className="p-8 text-red-400">Failed to load. Is the backend running?</div>
+  if (loading) return (
+    <div className="p-8 space-y-2">
+      <div className="text-white/40">Loading dashboard…</div>
+      {waking && (
+        <div className="text-white/30 text-sm">
+          Backend is waking up (Render free tier — may take up to 60s on first load)…
+        </div>
+      )}
+    </div>
+  )
+  if (error) return (
+    <div className="p-8 space-y-3">
+      <div className="text-red-400">Failed to connect to backend.</div>
+      <div className="text-white/30 text-sm">{error}</div>
+      <button onClick={() => load()} className="btn-ghost text-sm mt-2">Retry</button>
+    </div>
+  )
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
