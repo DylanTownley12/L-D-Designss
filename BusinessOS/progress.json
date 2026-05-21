@@ -1,0 +1,28 @@
+{
+  "business": "L&D Designs",
+  "owner": "Dylan",
+  "started": "20/05/2026",
+  "last_updated": "20/05/2026",
+  "current_focus": "Setup complete — ready to run first lead search",
+  "lead_searches": [],
+  "outreach_summary": {
+    "total_contacted": 0,
+    "total_replied": 0,
+    "total_interested": 0,
+    "total_closed": 0,
+    "reply_rate_pct": 0
+  },
+  "facebook_ads": {
+    "daily_budget_gbp": 5,
+    "active": false,
+    "notes": ""
+  },
+  "next_actions": [
+    "Run: python BusinessOS/leads/find_leads_uk.py --city wigan --radius 15",
+    "Import leads to CRM: python BusinessOS/leads/create_crm.py --import leads_wigan_*.xlsx",
+    "Preview outreach: python BusinessOS/outreach/send_outreach.py --dry-run",
+    "Send first batch: python BusinessOS/outreach/send_outreach.py --limit 10",
+    "Check follow-ups daily: python BusinessOS/followups/send_followups.py --dry-run"
+  ],
+  "notes": ""
+}
