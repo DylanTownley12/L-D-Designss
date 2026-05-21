@@ -1,0 +1,103 @@
+{
+  "name": "4. Airtable CRM Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [{ "mode": "custom", "cronExpression": "0 */2 * * *" }]
+        }
+      },
+      "id": "40000004-0000-0000-0000-000000000001",
+      "name": "Every 2 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/webhooks/n8n/leads-export",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "limit", "value": "200" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "40000004-0000-0000-0000-000000000002",
+      "name": "Fetch All Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the leads array from the API response\nconst response = $input.first().json;\nconst leads = response.leads || [];\n\n// Return each lead as a separate item for the Airtable node\nreturn leads.map(lead => ({ json: lead }));"
+      },
+      "id": "40000004-0000-0000-0000-000000000003",
+      "name": "Extract Leads Array",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "fieldsToMatchOn": {
+          "fieldNames": ["Lead ID"]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "40000004-0000-0000-0000-000000000004",
+      "name": "Upsert in Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [900, 300],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable-credentials",
+          "name": "Airtable — L&D Designs"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 2 Hours": {
+      "main": [[{ "node": "Fetch All Leads", "type": "main", "index": 0 }]]
+    },
+    "Fetch All Leads": {
+      "main": [[{ "node": "Extract Leads Array", "type": "main", "index": 0 }]]
+    },
+    "Extract Leads Array": {
+      "main": [[{ "node": "Upsert in Airtable", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "40000004-0000-0000-0000-000000000000",
+  "meta": { "templateCredsSetupCompleted": true },
+  "id": "ld-workflow-4",
+  "tags": [{ "name": "L&D Designs" }]
+}

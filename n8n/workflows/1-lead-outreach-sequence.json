@@ -1,0 +1,269 @@
+{
+  "name": "1. Lead Outreach Sequence",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-outreach-sequence",
+        "responseMode": "onReceived",
+        "responseData": "noData"
+      },
+      "id": "10000001-0000-0000-0000-000000000001",
+      "name": "Trigger: Lead Ready for Outreach",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "lead-outreach-sequence"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/outreach/generate",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "lead_id", "value": "={{ $json.lead_id }}" },
+            { "name": "channel", "value": "={{ $json.channel || 'email' }}" },
+            { "name": "sequence_day", "value": "1" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "10000001-0000-0000-0000-000000000002",
+      "name": "Generate Day 1 Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "days",
+        "amount": 3
+      },
+      "id": "10000001-0000-0000-0000-000000000003",
+      "name": "Wait 3 Days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/leads/{{ $('Trigger: Lead Ready for Outreach').item.json.lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "10000001-0000-0000-0000-000000000004",
+      "name": "Check Lead Status (1)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "replied",
+              "operator": { "type": "string", "operation": "notEquals" }
+            },
+            {
+              "id": "cond-2",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "do_not_contact",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "10000001-0000-0000-0000-000000000005",
+      "name": "Still No Reply? (1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/outreach/generate",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "lead_id", "value": "={{ $('Trigger: Lead Ready for Outreach').item.json.lead_id }}" },
+            { "name": "channel", "value": "={{ $('Trigger: Lead Ready for Outreach').item.json.channel || 'email' }}" },
+            { "name": "sequence_day", "value": "2" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "10000001-0000-0000-0000-000000000006",
+      "name": "Generate Follow-up 1 (Day 2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 180]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "days",
+        "amount": 4
+      },
+      "id": "10000001-0000-0000-0000-000000000007",
+      "name": "Wait 4 More Days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1560, 180]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/leads/{{ $('Trigger: Lead Ready for Outreach').item.json.lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "10000001-0000-0000-0000-000000000008",
+      "name": "Check Lead Status (2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 180]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "replied",
+              "operator": { "type": "string", "operation": "notEquals" }
+            },
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "do_not_contact",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "10000001-0000-0000-0000-000000000009",
+      "name": "Still No Reply? (2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/outreach/generate",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "lead_id", "value": "={{ $('Trigger: Lead Ready for Outreach').item.json.lead_id }}" },
+            { "name": "channel", "value": "={{ $('Trigger: Lead Ready for Outreach').item.json.channel || 'email' }}" },
+            { "name": "sequence_day", "value": "3" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "10000001-0000-0000-0000-000000000010",
+      "name": "Generate Final Follow-up (Day 3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 60]
+    },
+    {
+      "parameters": {},
+      "id": "10000001-0000-0000-0000-000000000011",
+      "name": "Already Replied — Stop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1340, 420]
+    },
+    {
+      "parameters": {},
+      "id": "10000001-0000-0000-0000-000000000012",
+      "name": "Already Replied — Stop (2)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2220, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: Lead Ready for Outreach": {
+      "main": [[{ "node": "Generate Day 1 Outreach", "type": "main", "index": 0 }]]
+    },
+    "Generate Day 1 Outreach": {
+      "main": [[{ "node": "Wait 3 Days", "type": "main", "index": 0 }]]
+    },
+    "Wait 3 Days": {
+      "main": [[{ "node": "Check Lead Status (1)", "type": "main", "index": 0 }]]
+    },
+    "Check Lead Status (1)": {
+      "main": [[{ "node": "Still No Reply? (1)", "type": "main", "index": 0 }]]
+    },
+    "Still No Reply? (1)": {
+      "main": [
+        [{ "node": "Generate Follow-up 1 (Day 2)", "type": "main", "index": 0 }],
+        [{ "node": "Already Replied — Stop", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Follow-up 1 (Day 2)": {
+      "main": [[{ "node": "Wait 4 More Days", "type": "main", "index": 0 }]]
+    },
+    "Wait 4 More Days": {
+      "main": [[{ "node": "Check Lead Status (2)", "type": "main", "index": 0 }]]
+    },
+    "Check Lead Status (2)": {
+      "main": [[{ "node": "Still No Reply? (2)", "type": "main", "index": 0 }]]
+    },
+    "Still No Reply? (2)": {
+      "main": [
+        [{ "node": "Generate Final Follow-up (Day 3)", "type": "main", "index": 0 }],
+        [{ "node": "Already Replied — Stop (2)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "10000001-0000-0000-0000-000000000000",
+  "meta": { "templateCredsSetupCompleted": true },
+  "id": "ld-workflow-1",
+  "tags": [{ "name": "L&D Designs" }]
+}

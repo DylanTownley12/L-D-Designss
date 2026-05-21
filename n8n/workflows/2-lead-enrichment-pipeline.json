@@ -1,0 +1,189 @@
+{
+  "name": "2. Lead Enrichment Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-enrichment",
+        "responseMode": "onReceived",
+        "responseData": "noData"
+      },
+      "id": "20000002-0000-0000-0000-000000000001",
+      "name": "Trigger: New Lead Created",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "lead-enrichment"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/agents/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"agent\": \"website_analyzer\", \"lead_id\": \"{{ $json.lead_id }}\", \"params\": {}}",
+        "options": {}
+      },
+      "id": "20000002-0000-0000-0000-000000000002",
+      "name": "Analyse Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "seconds",
+        "amount": 30
+      },
+      "id": "20000002-0000-0000-0000-000000000003",
+      "name": "Wait for Analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/agents/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"agent\": \"preview_generator\", \"lead_id\": \"{{ $('Trigger: New Lead Created').item.json.lead_id }}\", \"params\": {}}",
+        "options": {}
+      },
+      "id": "20000002-0000-0000-0000-000000000004",
+      "name": "Generate Website Preview",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "seconds",
+        "amount": 20
+      },
+      "id": "20000002-0000-0000-0000-000000000005",
+      "name": "Wait for Preview",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/leads/{{ $('Trigger: New Lead Created').item.json.lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "20000002-0000-0000-0000-000000000006",
+      "name": "Fetch Enriched Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "cond-enrich-1",
+              "leftValue": "={{ $json.quality_score }}",
+              "rightValue": 50,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "20000002-0000-0000-0000-000000000007",
+      "name": "High Quality Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/webhook/lead-outreach-sequence",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"lead_id\": \"{{ $('Trigger: New Lead Created').item.json.lead_id }}\", \"channel\": \"email\"}",
+        "options": {}
+      },
+      "id": "20000002-0000-0000-0000-000000000008",
+      "name": "Trigger Outreach Sequence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 180]
+    },
+    {
+      "parameters": {},
+      "id": "20000002-0000-0000-0000-000000000009",
+      "name": "Low Score — Skip Outreach",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1780, 420]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: New Lead Created": {
+      "main": [[{ "node": "Analyse Website", "type": "main", "index": 0 }]]
+    },
+    "Analyse Website": {
+      "main": [[{ "node": "Wait for Analysis", "type": "main", "index": 0 }]]
+    },
+    "Wait for Analysis": {
+      "main": [[{ "node": "Generate Website Preview", "type": "main", "index": 0 }]]
+    },
+    "Generate Website Preview": {
+      "main": [[{ "node": "Wait for Preview", "type": "main", "index": 0 }]]
+    },
+    "Wait for Preview": {
+      "main": [[{ "node": "Fetch Enriched Lead", "type": "main", "index": 0 }]]
+    },
+    "Fetch Enriched Lead": {
+      "main": [[{ "node": "High Quality Lead?", "type": "main", "index": 0 }]]
+    },
+    "High Quality Lead?": {
+      "main": [
+        [{ "node": "Trigger Outreach Sequence", "type": "main", "index": 0 }],
+        [{ "node": "Low Score — Skip Outreach", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "20000002-0000-0000-0000-000000000000",
+  "meta": { "templateCredsSetupCompleted": true },
+  "id": "ld-workflow-2",
+  "tags": [{ "name": "L&D Designs" }]
+}

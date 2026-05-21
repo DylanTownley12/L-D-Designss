@@ -1,0 +1,135 @@
+{
+  "name": "3. Dashboard Alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [{ "mode": "custom", "cronExpression": "0 9 * * 1-5" }]
+        }
+      },
+      "id": "30000003-0000-0000-0000-000000000001",
+      "name": "Daily 9am (Mon–Fri)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-reply-alert",
+        "responseMode": "onReceived",
+        "responseData": "noData"
+      },
+      "id": "30000003-0000-0000-0000-000000000002",
+      "name": "Trigger: Lead Replied",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "webhookId": "lead-reply-alert"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/webhooks/n8n/daily-summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "30000003-0000-0000-0000-000000000003",
+      "name": "Send Daily Summary Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/leads/{{ $json.lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.N8N_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "30000003-0000-0000-0000-000000000004",
+      "name": "Get Replied Lead Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "cond-slack",
+              "leftValue": "={{ $env.SLACK_WEBHOOK_URL }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "30000003-0000-0000-0000-000000000005",
+      "name": "Slack Configured?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"text\": \":telephone_receiver: *{{ $('Get Replied Lead Details').item.json.business_name }}* replied to your outreach!\\n>Channel: {{ $('Trigger: Lead Replied').item.json.channel }}\\n>Message: {{ $('Trigger: Lead Replied').item.json.message.substring(0, 200) }}\"}",
+        "options": {}
+      },
+      "id": "30000003-0000-0000-0000-000000000006",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {},
+      "id": "30000003-0000-0000-0000-000000000007",
+      "name": "No Slack — Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 500]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 9am (Mon–Fri)": {
+      "main": [[{ "node": "Send Daily Summary Email", "type": "main", "index": 0 }]]
+    },
+    "Trigger: Lead Replied": {
+      "main": [[{ "node": "Get Replied Lead Details", "type": "main", "index": 0 }]]
+    },
+    "Get Replied Lead Details": {
+      "main": [[{ "node": "Slack Configured?", "type": "main", "index": 0 }]]
+    },
+    "Slack Configured?": {
+      "main": [
+        [{ "node": "Post to Slack", "type": "main", "index": 0 }],
+        [{ "node": "No Slack — Skip", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "30000003-0000-0000-0000-000000000000",
+  "meta": { "templateCredsSetupCompleted": true },
+  "id": "ld-workflow-3",
+  "tags": [{ "name": "L&D Designs" }]
+}

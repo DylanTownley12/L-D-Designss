@@ -61,7 +61,15 @@ async def create_lead(lead: LeadCreate):
     result = db.table("leads").insert(lead.model_dump(exclude_none=True)).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create lead")
-    return result.data[0]
+    created = result.data[0]
+
+    from utils import n8n
+    n8n.trigger("lead-enrichment", {
+        "lead_id": created["id"],
+        "business_name": created.get("business_name", ""),
+    })
+
+    return created
 
 
 @router.patch("/{lead_id}")

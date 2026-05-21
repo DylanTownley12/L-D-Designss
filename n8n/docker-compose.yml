@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # ── n8n access ───────────────────────────────────────────────────
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
+
+      # ── n8n URL (update with your server's IP or domain) ─────────────
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+
+      # ── Timezone ─────────────────────────────────────────────────────
+      - GENERIC_TIMEZONE=Europe/London
+      - TZ=Europe/London
+
+      # ── Custom env vars — used in workflow expressions as $env.X ─────
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:8000}
+      - N8N_SECRET=${N8N_SECRET:-change-this-n8n-secret}
+      - FOUNDER_EMAIL=${FOUNDER_EMAIL:-}
+      - AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID:-}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:

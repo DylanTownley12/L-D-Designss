@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     MAX_SMS_PER_DAY: int = 20
     REQUIRE_APPROVAL: bool = True
 
+    # n8n workflow automation
+    N8N_WEBHOOK_BASE_URL: Optional[str] = None   # e.g. http://localhost:5678
+    N8N_SECRET: str = "change-this-n8n-secret"
+
+    # Airtable (used by n8n Airtable sync workflow)
+    AIRTABLE_API_KEY: Optional[str] = None
+    AIRTABLE_BASE_ID: Optional[str] = None
+
+    # Slack (optional — used by n8n alert workflow)
+    SLACK_WEBHOOK_URL: Optional[str] = None
+
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
