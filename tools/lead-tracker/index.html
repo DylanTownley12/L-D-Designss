@@ -21,17 +21,14 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
-
     .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
     .logo { font-size: 18px; font-weight: 700; color: var(--gold); letter-spacing: -0.3px; }
     .header-actions { display: flex; gap: 10px; }
-
     .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
     .stat { background: var(--bg2); padding: 18px 24px; text-align: center; }
     .stat-value { font-size: 26px; font-weight: 700; color: var(--gold); }
     .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
     .stat-value.green { color: #4ade80; }
-
     .controls { display: flex; gap: 10px; padding: 14px 24px; background: var(--bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
     .search-input { flex: 1; min-width: 200px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 9px 14px; border-radius: 7px; font-size: 14px; }
     .search-input::placeholder { color: var(--text-muted); }
@@ -39,7 +36,6 @@
     select.filter { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 7px; font-size: 14px; cursor: pointer; }
     select.filter:focus { outline: none; border-color: var(--gold); }
     .count-label { font-size: 13px; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
-
     .btn { padding: 9px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
     .btn-gold { background: var(--gold); color: #000; }
     .btn-gold:hover { background: var(--gold-light); }
@@ -54,27 +50,21 @@
     .btn-delete:hover { border-color: var(--red); color: var(--red); }
     .btn-edit { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
     .btn-edit:hover { border-color: var(--text-muted); color: var(--text); }
-
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; min-width: 800px; }
     th { background: var(--bg2); padding: 11px 16px; text-align: left; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 600; }
     td { padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: rgba(255,255,255,0.02); }
-
     .status-select { background: transparent; border: none; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; padding: 3px 6px; border-radius: 20px; }
     .status-select:focus { outline: 1px solid var(--gold); }
-
     .note-input { background: transparent; border: none; color: var(--text-muted); font-size: 13px; width: 160px; padding: 4px; border-radius: 4px; }
     .note-input:hover { background: var(--bg3); }
     .note-input:focus { outline: none; background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
     .note-input::placeholder { color: #555; }
-
     .actions-cell { display: flex; gap: 5px; align-items: center; }
-
     .sample-banner { background: #1a1a00; border-bottom: 1px solid #333300; padding: 10px 24px; font-size: 13px; color: #b3b300; display: flex; align-items: center; gap: 10px; }
     .sample-banner a { color: var(--gold); text-decoration: underline; cursor: pointer; }
-
     .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
     .overlay.open { display: flex; }
     .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 460px; }
@@ -85,9 +75,7 @@
     .fg input[type=file] { padding: 7px 10px; cursor: pointer; }
     .fg input:focus, .fg select:focus, .fg textarea:focus { outline: none; border-color: var(--gold); }
     .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-
     .wa-preview { background: #0d1f13; border-left: 3px solid #25D366; border-radius: 0 8px 8px 0; padding: 14px; font-size: 13px; color: #ccc; white-space: pre-wrap; line-height: 1.6; margin-bottom: 14px; }
-
     .import-modal { max-width: 540px; }
     .import-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.7; }
     .import-hint code { background: var(--bg3); padding: 1px 5px; border-radius: 3px; color: var(--gold); font-size: 11px; }
@@ -96,14 +84,11 @@
     .csv-area textarea { width: 100%; background: transparent; border: none; color: var(--text); font-family: monospace; font-size: 12px; resize: vertical; min-height: 100px; padding: 10px; }
     .csv-area textarea:focus { outline: none; }
     .file-status { font-size: 12px; color: #4ade80; margin-top: 6px; min-height: 18px; }
-
     .empty-state { padding: 64px 24px; text-align: center; color: var(--text-muted); }
     .empty-state .icon { font-size: 44px; margin-bottom: 14px; }
     .empty-state p { font-size: 15px; }
-
     .toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 11px 18px; border-radius: 8px; font-size: 14px; z-index: 999; transition: all 0.25s; transform: translateY(80px); opacity: 0; pointer-events: none; }
     .toast.show { transform: translateY(0); opacity: 1; }
-
     @media (max-width: 640px) {
       .stats { grid-template-columns: repeat(3, 1fr); }
       .stat:nth-child(4), .stat:nth-child(5) { display: none; }
@@ -170,7 +155,6 @@
   </div>
 </div>
 
-<!-- Add/Edit Modal -->
 <div class="overlay" id="leadModal">
   <div class="modal">
     <h3 id="modalTitle">Add Lead</h3>
@@ -186,7 +170,6 @@
   </div>
 </div>
 
-<!-- WhatsApp Modal -->
 <div class="overlay" id="waModal">
   <div class="modal">
     <h3>📱 WhatsApp Message</h3>
@@ -200,28 +183,22 @@
   </div>
 </div>
 
-<!-- Import Modal -->
 <div class="overlay" id="importModal">
   <div class="modal import-modal">
     <h3>📥 Import Leads</h3>
     <div class="import-hint">
       Upload your <strong>Outscraper XLSX or CSV file</strong> directly — no converting needed.<br>
-      The tool will automatically find the right columns.<br>
       Duplicate leads (same name + city) are skipped automatically.
     </div>
-
     <div class="fg">
       <label>📂 Upload file (XLSX or CSV)</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileUpload(this)">
       <div class="file-status" id="fileStatus"></div>
     </div>
-
     <div class="divider">— or paste CSV text below —</div>
-
     <div class="csv-area">
       <textarea id="csvInput" placeholder="name,city,phone,email&#10;Kings Cuts,Manchester,07712345678,info@kingscuts.co.uk"></textarea>
     </div>
-
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeAll()">Cancel</button>
       <button class="btn btn-gold" onclick="doImport()">Import Leads</button>
@@ -308,9 +285,12 @@ function hideBanner() {
 
 function toWa(phone) {
   let n = phone.replace(/\D/g,'');
-  if (n.startsWith('0')) n = '44'+n.slice(1);
-  if (!n.startsWith('44')) n = '44'+n;
-  return n;
+  if (!n) return null;
+  if (n.startsWith('44') && n.length >= 12) return n;
+  if (n.startsWith('0')) n = '44' + n.slice(1);
+  else if (n.startsWith('7') && n.length === 10) n = '44' + n;
+  else if (!n.startsWith('44')) n = '44' + n;
+  return n.length >= 11 ? n : null;
 }
 
 function waTemplate(name, city) {
@@ -366,16 +346,20 @@ function render() {
     const [bg,fg] = (STATUS_COLORS[l.status]||STATUS_COLORS.new).split('/');
     const lastC = l.lastContacted ? new Date(l.lastContacted).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : '<span style="color:#444">—</span>';
     const emailBtn = l.email ? `<button class="btn btn-email btn-sm" onclick="doEmail(${l.id})" title="${l.email}">✉️ Email</button>` : '';
+    const num = toWa(l.phone);
+    const waBtn = num
+      ? `<button class="btn btn-wa btn-sm" onclick="openWa(${l.id})">💬 WhatsApp</button>`
+      : `<button class="btn btn-sm" style="background:#333;color:#666;cursor:default" title="No valid phone number">💬 No number</button>`;
     return `<tr>
       <td style="color:#444;font-size:12px">${i+1}</td>
       <td><strong>${l.name}</strong>${l.sample?'<span style="font-size:10px;color:#555;margin-left:6px">DEMO</span>':''}</td>
       <td style="color:var(--text-muted)">${l.city}</td>
-      <td style="font-family:monospace;font-size:13px;color:var(--text-muted)">${l.phone}</td>
+      <td style="font-family:monospace;font-size:13px;color:var(--text-muted)">${l.phone||'<span style="color:#555">no number</span>'}</td>
       <td><select class="status-select" style="background:${bg};color:${fg}" onchange="setStatus(${l.id},this.value)">${Object.entries(STATUSES).map(([k,v])=>`<option value="${k}" ${l.status===k?'selected':''}>${v}</option>`).join('')}</select></td>
       <td style="font-size:13px">${lastC}</td>
       <td><input class="note-input" placeholder="Add note..." value="${(l.notes||'').replace(/"/g,'&quot;')}" onchange="setNote(${l.id},this.value)"></td>
       <td><div class="actions-cell">
-        <button class="btn btn-wa btn-sm" onclick="openWa(${l.id})">💬 WhatsApp</button>
+        ${waBtn}
         ${emailBtn}
         <button class="btn btn-edit btn-sm" onclick="openEdit(${l.id})">✏️</button>
         <button class="btn btn-delete btn-sm" onclick="deleteLead(${l.id})">✕</button>
@@ -402,6 +386,8 @@ function deleteLead(id) {
 
 function openWa(id) {
   waLead=leads.find(x=>x.id===id); if(!waLead) return;
+  const num = toWa(waLead.phone);
+  if (!num) { toast('No valid phone number for this lead'); return; }
   const msg=waTemplate(waLead.name,waLead.city);
   document.getElementById('waMsg').value=msg;
   document.getElementById('waPreview').textContent=msg;
@@ -409,8 +395,10 @@ function openWa(id) {
 }
 function doSendWa() {
   if(!waLead) return;
+  const num = toWa(waLead.phone);
+  if (!num) { toast('No valid phone number for this lead'); return; }
   const msg=document.getElementById('waMsg').value;
-  window.open(`https://wa.me/${toWa(waLead.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank');
   waLead.status='contacted'; waLead.lastContacted=new Date().toISOString(); waLead.sample=false;
   save(); closeAll(); render(); hideBanner();
   toast(`WhatsApp opened for ${waLead.name} — marked as Contacted`);
@@ -496,6 +484,7 @@ function handleFileUpload(input) {
 }
 
 function processCSV(text) {
+  text = text.replace(/^﻿/, '');
   const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
   if (lines.length < 2) { toast('File seems empty'); return; }
   const hdrs = lines[0].toLowerCase().split(',').map(h=>h.trim().replace(/"/g,''));
@@ -506,12 +495,13 @@ function processCSV(text) {
     email: hdrs.findIndex(h=>/email|mail/.test(h)),
     notes: hdrs.findIndex(h=>/note|comment/.test(h))
   };
-  if (ci.name<0||ci.phone<0) {
-    if (ci.name<0) toast('Could not find a name/business column — check your file headers');
-    else toast('Could not find a phone column — check your file headers');
+  if (ci.name < 0 || ci.phone < 0) {
+    const found = hdrs.join(', ');
+    if (ci.name < 0) toast(`Could not find name column. Columns found: ${found}`);
+    else toast(`Could not find phone column. Columns found: ${found}`);
     return;
   }
-  if (ci.city<0) ci.city = hdrs.findIndex(h=>/street|suburb|region|state|district/.test(h));
+  if (ci.city < 0) ci.city = hdrs.findIndex(h=>/street|suburb|region|state|district/.test(h));
   let added=0, skipped=0;
   for (let i=1; i<lines.length; i++) {
     const cols=lines[i].split(',').map(c=>c.trim().replace(/^"|"$/g,''));
@@ -524,7 +514,7 @@ function processCSV(text) {
     added++;
   }
   save(); closeAll(); refreshCityFilter(); render(); hideBanner();
-  toast(`Imported ${added} leads${skipped?` (${skipped} skipped)`:''}`);
+  toast(`Imported ${added} leads${skipped?` (${skipped} skipped)`:''}`); 
 }
 
 function doImport() {
