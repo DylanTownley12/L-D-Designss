@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>L&D Designs — Lead Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --bg2: #1a1a1a;
+      --bg3: #242424;
+      --gold: #C9A84C;
+      --gold-light: #e8c97a;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --border: #2a2a2a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .logo { font-size: 18px; font-weight: 700; color: var(--gold); letter-spacing: -0.3px; }
+    .header-actions { display: flex; gap: 10px; }
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+    .stat { background: var(--bg2); padding: 18px 24px; text-align: center; }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--gold); }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value.green { color: #4ade80; }
+    .controls { display: flex; gap: 10px; padding: 14px 24px; background: var(--bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
+    .search-input { flex: 1; min-width: 200px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 9px 14px; border-radius: 7px; font-size: 14px; }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus { outline: none; border-color: var(--gold); }
+    select.filter { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 7px; font-size: 14px; cursor: pointer; }
+    select.filter:focus { outline: none; border-color: var(--gold); }
+    .count-label { font-size: 13px; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
+    .btn { padding: 9px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-gold { background: var(--gold); color: #000; }
+    .btn-gold:hover { background: var(--gold-light); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-sm { padding: 6px 11px; font-size: 13px; border-radius: 6px; }
+    .btn-wa { background: #25D366; color: #fff; }
+    .btn-wa:hover { background: #1fba58; }
+    .btn-email { background: #2563eb; color: #fff; }
+    .btn-email:hover { background: #1d4ed8; }
+    .btn-delete { background: transparent; border: 1px solid transparent; color: var(--text-muted); }
+    .btn-delete:hover { border-color: var(--red); color: var(--red); }
+    .btn-edit { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+    .btn-edit:hover { border-color: var(--text-muted); color: var(--text); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    th { background: var(--bg2); padding: 11px 16px; text-align: left; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 600; }
+    td { padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    .status-select { background: transparent; border: none; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; padding: 3px 6px; border-radius: 20px; }
+    .status-select:focus { outline: 1px solid var(--gold); }
+    .note-input { background: transparent; border: none; color: var(--text-muted); font-size: 13px; width: 160px; padding: 4px; border-radius: 4px; }
+    .note-input:hover { background: var(--bg3); }
+    .note-input:focus { outline: none; background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+    .note-input::placeholder { color: #555; }
+    .actions-cell { display: flex; gap: 5px; align-items: center; }
+    .sample-banner { background: #1a1a00; border-bottom: 1px solid #333300; padding: 10px 24px; font-size: 13px; color: #b3b300; display: flex; align-items: center; gap: 10px; }
+    .sample-banner a { color: var(--gold); text-decoration: underline; cursor: pointer; }
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    .overlay.open { display: flex; }
+    .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 460px; }
+    .modal h3 { font-size: 17px; margin-bottom: 20px; color: var(--gold); }
+    .fg { margin-bottom: 14px; }
+    .fg label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .fg input, .fg select, .fg textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 7px; font-size: 14px; }
+    .fg input[type=file] { padding: 7px 10px; cursor: pointer; }
+    .fg input:focus, .fg select:focus, .fg textarea:focus { outline: none; border-color: var(--gold); }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .wa-preview { background: #0d1f13; border-left: 3px solid #25D366; border-radius: 0 8px 8px 0; padding: 14px; font-size: 13px; color: #ccc; white-space: pre-wrap; line-height: 1.6; margin-bottom: 14px; }
+    .import-modal { max-width: 540px; }
+    .import-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.7; }
+    .divider { text-align: center; font-size: 12px; color: #444; margin: 14px 0; }
+    .csv-area { background: var(--bg3); border: 1px dashed var(--border); border-radius: 8px; padding: 2px; margin-bottom: 4px; }
+    .csv-area textarea { width: 100%; background: transparent; border: none; color: var(--text); font-family: monospace; font-size: 12px; resize: vertical; min-height: 100px; padding: 10px; }
+    .csv-area textarea:focus { outline: none; }
+    .file-status { font-size: 12px; color: #4ade80; margin-top: 6px; min-height: 18px; }
+    .empty-state { padding: 64px 24px; text-align: center; color: var(--text-muted); }
+    .empty-state .icon { font-size: 44px; margin-bottom: 14px; }
+    .empty-state p { font-size: 15px; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 11px 18px; border-radius: 8px; font-size: 14px; z-index: 999; transition: all 0.25s; transform: translateY(80px); opacity: 0; pointer-events: none; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    @media (max-width: 640px) {
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .stat:nth-child(4), .stat:nth-child(5) { display: none; }
+      .header-actions .btn-outline { display: none; }
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">L&D Designs — Lead Tracker</div>
+  <div class="header-actions">
+    <button class="btn btn-outline" onclick="openImport()">&#x1F4E5; Import</button>
+    <button class="btn btn-outline" onclick="exportCSV()">&#x1F4E4; Export</button>
+    <button class="btn btn-gold" onclick="openAdd()">+ Add Lead</button>
+  </div>
+</div>
+
+<div class="sample-banner" id="sampleBanner">
+  ⚠️ These are <strong>sample leads</strong> with demo phone numbers. <a onclick="openImport()">Import your real Outscraper file</a> to get started.
+</div>
+
+<div class="stats" id="statsBar"></div>
+
+<div class="controls">
+  <input class="search-input" id="searchInput" type="text" placeholder="🔍  Search name, city, phone..." oninput="render()">
+  <select class="filter" id="statusFilter" onchange="render()">
+    <option value="">All Statuses</option>
+    <option value="new">New</option>
+    <option value="contacted">Contacted</option>
+    <option value="replied">Replied</option>
+    <option value="interested">Interested</option>
+    <option value="not_interested">Not Interested</option>
+    <option value="converted">Converted</option>
+  </select>
+  <select class="filter" id="cityFilter" onchange="render()">
+    <option value="">All Cities</option>
+  </select>
+  <span class="count-label" id="countLabel"></span>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Business</th>
+        <th>City</th>
+        <th>Phone</th>
+        <th>Status</th>
+        <th>Last Contact</th>
+        <th>Notes</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="icon">📋</div>
+    <p>No leads match your filters</p>
+  </div>
+</div>
+
+<div class="overlay" id="leadModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Lead</h3>
+    <div class="fg"><label>Business Name *</label><input id="f_name" placeholder="Kings Cuts"></div>
+    <div class="fg"><label>City *</label><input id="f_city" placeholder="Manchester"></div>
+    <div class="fg"><label>Phone (for WhatsApp) *</label><input id="f_phone" placeholder="07700 900123"></div>
+    <div class="fg"><label>Email (optional)</label><input id="f_email" type="email" placeholder="info@example.co.uk"></div>
+    <div class="fg"><label>Notes</label><textarea id="f_notes" rows="2" placeholder="Anything to remember..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAll()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveLead()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="waModal">
+  <div class="modal">
+    <h3>📱 WhatsApp Message</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Edit the message then tap Send — opens WhatsApp with the message ready to go.</p>
+    <div class="wa-preview" id="waPreview"></div>
+    <div class="fg"><label>Edit before sending</label><textarea id="waMsg" rows="7"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAll()">Cancel</button>
+      <button class="btn btn-wa" onclick="doSendWa()">Open WhatsApp ↗</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="importModal">
+  <div class="modal import-modal">
+    <h3>📥 Import Leads</h3>
+    <div class="import-hint">
+      Upload your <strong>Outscraper XLSX or CSV file</strong> directly — no converting needed.<br>
+      Duplicate leads (same name + city) are skipped automatically.
+    </div>
+    <div class="fg">
+      <label>📂 Upload file (XLSX or CSV)</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileUpload(this)">
+      <div class="file-status" id="fileStatus"></div>
+    </div>
+    <div class="divider">— or paste CSV text below —</div>
+    <div class="csv-area">
+      <textarea id="csvInput" placeholder="name,city,phone,email&#10;Kings Cuts,Manchester,07712345678,info@kingscuts.co.uk"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAll()">Cancel</button>
+      <button class="btn btn-gold" onclick="doImport()">Import Leads</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SAMPLES = [
+  ["Blades Barber","Manchester","07712000001",""],
+  ["Prestige Cuts","Manchester","07712000002",""],
+  ["The Fade Room","Manchester","07712000003","info@thefaderoom.co.uk"],
+  ["Sharp Gents","Manchester","07712000004",""],
+  ["Classic Cuts MC","Manchester","07712000005",""],
+  ["Crown Barbers","Manchester","07712000006",""],
+  ["The Barber Lounge","Manchester","07712000007",""],
+  ["Urban Cuts MCR","Manchester","07712000008",""],
+  ["Kings Barbers","Birmingham","07712000009",""],
+  ["Gentleman's Blade","Birmingham","07712000010","info@gentsblade.co.uk"],
+  ["The Cut Above","Birmingham","07712000011",""],
+  ["Fade & Fresh","Birmingham","07712000012",""],
+  ["Empire Barbers","Birmingham","07712000013",""],
+  ["Smooth Cuts","Birmingham","07712000014",""],
+  ["Prime Cuts BHX","Birmingham","07712000015",""],
+  ["Top Blade Barbers","Leeds","07712000016",""],
+  ["The Gents Room","Leeds","07712000017","info@thegentsroom.co.uk"],
+  ["North Side Cuts","Leeds","07712000018",""],
+  ["Prime Barbers LS","Leeds","07712000019",""],
+  ["Razor Sharp Leeds","Leeds","07712000020",""],
+  ["City Fades Leeds","Leeds","07712000021",""],
+  ["Steel City Cuts","Sheffield","07712000022",""],
+  ["The Barber Box","Sheffield","07712000023",""],
+  ["Forge Barbers","Sheffield","07712000024",""],
+  ["Top Knot Sheffield","Sheffield","07712000025",""],
+  ["Mersey Cuts","Liverpool","07712000026",""],
+  ["The Scissor Room","Liverpool","07712000027","info@scissorroom.co.uk"],
+  ["Scouse Fades","Liverpool","07712000028",""],
+  ["Dockside Barbers","Liverpool","07712000029",""],
+  ["Bold Street Barbers","Liverpool","07712000030",""],
+  ["Tyne Barbers","Newcastle","07712000031",""],
+  ["Geordie Cuts","Newcastle","07712000032",""],
+  ["The Fade Factory NE","Newcastle","07712000033",""],
+  ["Quayside Barbers","Newcastle","07712000034",""],
+  ["Clifton Cuts","Bristol","07712000035",""],
+  ["Harbourside Barbers","Bristol","07712000036",""],
+  ["The BS1 Barber","Bristol","07712000037",""],
+  ["Stokes Croft Cuts","Bristol","07712000038",""],
+  ["Castle Cuts","Nottingham","07712000039",""],
+  ["Robin Hood Barbers","Nottingham","07712000040",""],
+  ["Lace Market Barber","Nottingham","07712000041",""],
+  ["City Cuts Leicester","Leicester","07712000042",""],
+  ["Highcross Barbers","Leicester","07712000043",""],
+  ["West End Barbers","Glasgow","07712000044",""],
+  ["The Glasgow Fade","Glasgow","07712000045",""],
+  ["Merchant City Cuts","Glasgow","07712000046",""],
+  ["Byres Road Barbers","Glasgow","07712000047",""],
+  ["Leith Barbers","Edinburgh","07712000048",""],
+  ["Old Town Cuts","Edinburgh","07712000049",""],
+  ["New Town Barbers","Edinburgh","07712000050","info@newtownbarbers.co.uk"]
+];
+
+let leads = [], editId = null, waLead = null;
+const STATUSES = {new:'New',contacted:'Contacted',replied:'Replied',interested:'Interested',not_interested:'Not Interested',converted:'Converted'};
+const STATUS_COLORS = {
+  new:'#1a2a3a/#60a5fa', contacted:'#2d2010/#f59e0b', replied:'#0f2d1a/#4ade80',
+  interested:'#0f2d1a/#86efac', not_interested:'#2d1010/#f87171', converted:'#14532d/#4ade80'
+};
+
+function load() {
+  const s = localStorage.getItem('ld_leads_v2');
+  leads = s ? JSON.parse(s) : SAMPLES.map((r,i) => mkLead(r[0],r[1],r[2],r[3],'',i,true));
+  if (!s) save();
+  hideBanner();
+}
+function save() { localStorage.setItem('ld_leads_v2', JSON.stringify(leads)); }
+function mkLead(name,city,phone,email,notes,offset,sample) {
+  return {id:Date.now()+(offset||0), name, city, phone:phone.replace(/\s/g,''), email:email||'', notes:notes||'', status:'new', lastContacted:null, addedDate:new Date().toISOString(), sample:!!sample};
+}
+function hideBanner() {
+  document.getElementById('sampleBanner').style.display = leads.some(l=>l.sample) ? 'flex' : 'none';
+}
+
+function toWa(phone) {
+  let n = phone.replace(/\D/g,'');
+  if (!n) return null;
+  if (n.startsWith('44') && n.length >= 12) return n;
+  if (n.startsWith('0')) n = '44' + n.slice(1);
+  else if (n.startsWith('7') && n.length === 10) n = '44' + n;
+  else if (!n.startsWith('44')) n = '44' + n;
+  return n.length >= 11 ? n : null;
+}
+
+function waTemplate(name, city) {
+  return `Hi, I came across ${name} while looking at barbers in ${city}.\n\nI noticed you don't have a website yet — I specialise in building professional websites for barbers, including online booking, price lists, and a mobile-friendly design.\n\nI've already put together a free demo for you. Takes 2 minutes to look at — want me to send it over?\n\nNo commitment at all 👊`;
+}
+function emailTemplate(name, city) {
+  const subj = encodeURIComponent(`Free website demo for ${name}`);
+  const body = encodeURIComponent(`Hi there,\n\nI came across ${name} while looking at barbers in ${city}.\n\nI noticed you don't have a website yet — I build professional websites for barbers, including online booking, your price list, and a clean mobile-friendly design.\n\nI've already put a free demo together for you — want me to send it over?\n\nNo pressure at all.\n\nBest,\nDylan\nL&D Designs`);
+  return `${subj}&body=${body}`;
+}
+
+function stats() {
+  const total = leads.length;
+  const contacted = leads.filter(l=>l.status!=='new').length;
+  const today = new Date().toDateString();
+  const todayN = leads.filter(l=>l.lastContacted && new Date(l.lastContacted).toDateString()===today).length;
+  const replied = leads.filter(l=>['replied','interested','converted'].includes(l.status)).length;
+  const converted = leads.filter(l=>l.status==='converted').length;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat"><div class="stat-value">${total}</div><div class="stat-label">Total Leads</div></div>
+    <div class="stat"><div class="stat-value">${contacted}</div><div class="stat-label">Contacted</div></div>
+    <div class="stat"><div class="stat-value">${todayN}</div><div class="stat-label">Sent Today</div></div>
+    <div class="stat"><div class="stat-value">${replied}</div><div class="stat-label">Replied</div></div>
+    <div class="stat"><div class="stat-value green">${converted}</div><div class="stat-label">Converted 💰</div></div>
+  `;
+}
+
+function filtered() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const st = document.getElementById('statusFilter').value;
+  const ct = document.getElementById('cityFilter').value;
+  return leads.filter(l => {
+    const mq = !q || l.name.toLowerCase().includes(q) || l.city.toLowerCase().includes(q) || l.phone.includes(q);
+    return mq && (!st||l.status===st) && (!ct||l.city===ct);
+  });
+}
+
+function refreshCityFilter() {
+  const sel = document.getElementById('cityFilter'), cur = sel.value;
+  const cities = [...new Set(leads.map(l=>l.city))].sort();
+  sel.innerHTML = '<option value="">All Cities</option>' + cities.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
+}
+
+function render() {
+  const rows = filtered();
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('emptyState');
+  document.getElementById('countLabel').textContent = `${rows.length} lead${rows.length!==1?'s':''}`;
+  stats();
+  if (!rows.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = rows.map((l,i) => {
+    const [bg,fg] = (STATUS_COLORS[l.status]||STATUS_COLORS.new).split('/');
+    const lastC = l.lastContacted ? new Date(l.lastContacted).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : '<span style="color:#444">—</span>';
+    const emailBtn = l.email ? `<button class="btn btn-email btn-sm" onclick="doEmail(${l.id})" title="${l.email}">✉️ Email</button>` : '';
+    const num = toWa(l.phone);
+    const waBtn = num
+      ? `<button class="btn btn-wa btn-sm" onclick="openWa(${l.id})">💬 WhatsApp</button>`
+      : `<button class="btn btn-sm" style="background:#333;color:#666;cursor:default" title="No valid phone number">💬 No number</button>`;
+    return `<tr>
+      <td style="color:#444;font-size:12px">${i+1}</td>
+      <td><strong>${l.name}</strong>${l.sample?'<span style="font-size:10px;color:#555;margin-left:6px">DEMO</span>':''}</td>
+      <td style="color:var(--text-muted)">${l.city}</td>
+      <td style="font-family:monospace;font-size:13px;color:var(--text-muted)">${l.phone||'<span style="color:#555">no number</span>'}</td>
+      <td><select class="status-select" style="background:${bg};color:${fg}" onchange="setStatus(${l.id},this.value)">${Object.entries(STATUSES).map(([k,v])=>`<option value="${k}" ${l.status===k?'selected':''}>${v}</option>`).join('')}</select></td>
+      <td style="font-size:13px">${lastC}</td>
+      <td><input class="note-input" placeholder="Add note..." value="${(l.notes||'').replace(/"/g,'&quot;')}" onchange="setNote(${l.id},this.value)"></td>
+      <td><div class="actions-cell">
+        ${waBtn}
+        ${emailBtn}
+        <button class="btn btn-edit btn-sm" onclick="openEdit(${l.id})">✏️</button>
+        <button class="btn btn-delete btn-sm" onclick="deleteLead(${l.id})">✕</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function setStatus(id,status) {
+  const l=leads.find(x=>x.id===id); if(!l) return;
+  l.status=status;
+  if(!l.lastContacted&&status!=='new') l.lastContacted=new Date().toISOString();
+  l.sample=false; save(); render();
+}
+function setNote(id,note) {
+  const l=leads.find(x=>x.id===id); if(!l) return;
+  l.notes=note; save();
+}
+function deleteLead(id) {
+  if(!confirm('Delete this lead?')) return;
+  leads=leads.filter(x=>x.id!==id); save(); refreshCityFilter(); render(); hideBanner();
+  toast('Lead deleted');
+}
+
+function openWa(id) {
+  waLead=leads.find(x=>x.id===id); if(!waLead) return;
+  const num = toWa(waLead.phone);
+  if (!num) { toast('No valid phone number for this lead'); return; }
+  const msg=waTemplate(waLead.name,waLead.city);
+  document.getElementById('waMsg').value=msg;
+  document.getElementById('waPreview').textContent=msg;
+  document.getElementById('waModal').classList.add('open');
+}
+function doSendWa() {
+  if(!waLead) return;
+  const num = toWa(waLead.phone);
+  if (!num) { toast('No valid phone number for this lead'); return; }
+  const msg=document.getElementById('waMsg').value;
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank');
+  waLead.status='contacted'; waLead.lastContacted=new Date().toISOString(); waLead.sample=false;
+  save(); closeAll(); render(); hideBanner();
+  toast(`WhatsApp opened for ${waLead.name} — marked as Contacted`);
+}
+
+function doEmail(id) {
+  const l=leads.find(x=>x.id===id); if(!l||!l.email) return;
+  window.open(`mailto:${l.email}?subject=${emailTemplate(l.name,l.city)}`,'_blank');
+  l.status='contacted'; l.lastContacted=new Date().toISOString(); l.sample=false;
+  save(); render(); hideBanner();
+  toast(`Email opened for ${l.name}`);
+}
+
+function openAdd() {
+  editId=null;
+  document.getElementById('modalTitle').textContent='Add Lead';
+  ['name','city','phone','email','notes'].forEach(f=>document.getElementById('f_'+f).value='');
+  document.getElementById('leadModal').classList.add('open');
+}
+function openEdit(id) {
+  const l=leads.find(x=>x.id===id); if(!l) return;
+  editId=id;
+  document.getElementById('modalTitle').textContent='Edit Lead';
+  document.getElementById('f_name').value=l.name;
+  document.getElementById('f_city').value=l.city;
+  document.getElementById('f_phone').value=l.phone;
+  document.getElementById('f_email').value=l.email||'';
+  document.getElementById('f_notes').value=l.notes||'';
+  document.getElementById('leadModal').classList.add('open');
+}
+function saveLead() {
+  const name=document.getElementById('f_name').value.trim();
+  const city=document.getElementById('f_city').value.trim();
+  const phone=document.getElementById('f_phone').value.trim().replace(/\s/g,'');
+  if(!name||!city||!phone){toast('Name, city and phone are required');return;}
+  if(editId) {
+    const l=leads.find(x=>x.id===editId);
+    Object.assign(l,{name,city,phone,email:document.getElementById('f_email').value.trim(),notes:document.getElementById('f_notes').value.trim(),sample:false});
+    toast('Lead updated');
+  } else {
+    leads.unshift(mkLead(name,city,phone,document.getElementById('f_email').value.trim(),document.getElementById('f_notes').value.trim(),0,false));
+    toast('Lead added');
+  }
+  save(); closeAll(); refreshCityFilter(); render(); hideBanner();
+}
+
+function openImport() {
+  document.getElementById('csvInput').value='';
+  document.getElementById('fileInput').value='';
+  document.getElementById('fileStatus').textContent='';
+  document.getElementById('importModal').classList.add('open');
+}
+
+function handleFileUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('fileStatus');
+  const isXLSX = /\.(xlsx|xls)$/i.test(file.name);
+  const reader = new FileReader();
+  if (isXLSX) {
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'binary'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        document.getElementById('csvInput').value = csv;
+        const rowCount = csv.split('\n').filter(Boolean).length - 1;
+        status.textContent = `✓ ${file.name} loaded — ${rowCount} rows ready to import`;
+      } catch(err) {
+        status.style.color='#f87171';
+        status.textContent = 'Could not read file — try again';
+      }
+    };
+    reader.readAsBinaryString(file);
+  } else {
+    reader.onload = e => {
+      document.getElementById('csvInput').value = e.target.result;
+      const rowCount = e.target.result.split('\n').filter(Boolean).length - 1;
+      status.textContent = `✓ ${file.name} loaded — ${rowCount} rows ready to import`;
+    };
+    reader.readAsText(file);
+  }
+}
+
+function processCSV(text) {
+  text = text.replace(/^﻿/, '');
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  if (lines.length < 2) { toast('File seems empty'); return; }
+  const hdrs = lines[0].toLowerCase().split(',').map(h=>h.trim().replace(/"/g,''));
+  const ci = {
+    name: hdrs.findIndex(h=>/name|business|title|company/.test(h)),
+    city: hdrs.findIndex(h=>/city|town|location|area|address/.test(h)),
+    phone: hdrs.findIndex(h=>/phone|mobile|number|tel|contact/.test(h)),
+    email: hdrs.findIndex(h=>/email|mail/.test(h)),
+    notes: hdrs.findIndex(h=>/note|comment/.test(h))
+  };
+  if (ci.name < 0 || ci.phone < 0) {
+    const found = hdrs.join(', ');
+    if (ci.name < 0) toast(`Could not find name column. Found: ${found}`);
+    else toast(`Could not find phone column. Found: ${found}`);
+    return;
+  }
+  if (ci.city < 0) ci.city = hdrs.findIndex(h=>/street|suburb|region|state|district/.test(h));
+  let added=0, skipped=0;
+  for (let i=1; i<lines.length; i++) {
+    const cols=lines[i].split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+    const name=cols[ci.name]||'';
+    const city=ci.city>=0?(cols[ci.city]||''):'UK';
+    const phone=(cols[ci.phone]||'').replace(/\s/g,'');
+    if(!name||!phone){skipped++;continue;}
+    if(leads.find(l=>l.name===name&&l.city===city)){skipped++;continue;}
+    leads.push(mkLead(name,city,phone,ci.email>=0?(cols[ci.email]||''):'',ci.notes>=0?(cols[ci.notes]||''):'',i,false));
+    added++;
+  }
+  save(); closeAll(); refreshCityFilter(); render(); hideBanner();
+  toast(`Imported ${added} leads${skipped?` (${skipped} skipped)`:''}`); 
+}
+
+function doImport() {
+  const text = document.getElementById('csvInput').value.trim();
+  if (!text) { toast('No data — upload a file first'); return; }
+  processCSV(text);
+}
+
+function exportCSV() {
+  const rows=[['Name','City','Phone','Email','Status','Last Contacted','Notes']];
+  filtered().forEach(l=>rows.push([l.name,l.city,l.phone,l.email,l.status,l.lastContacted?new Date(l.lastContacted).toLocaleDateString('en-GB'):'',l.notes]));
+  const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`leads-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast(`Exported ${filtered().length} leads`);
+}
+
+function closeAll() {
+  document.querySelectorAll('.overlay').forEach(el=>el.classList.remove('open'));
+  waLead=null; editId=null;
+}
+document.querySelectorAll('.overlay').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeAll();}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll();});
+
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+load(); refreshCityFilter(); render();
+</script>
+</body>
+</html>
