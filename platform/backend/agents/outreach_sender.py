@@ -143,7 +143,9 @@ def send_message(message_id: str, retry: bool = False) -> dict:
         "sent_at": datetime.now().isoformat() if result["success"] else None,
         **extra_data,
     }
-    db.table("outreach_messages").update(update_data).eq("id", message_id).execute()
+    update_result = db.table("outreach_messages").update(update_data).eq("id", message_id).execute()
+    if not update_result.data:
+        logger.error(f"Failed to update status for message {message_id} — double-send risk on retry")
 
     # Update lead status if first outreach
     if result["success"] and lead.get("status") in ("new", "preview_ready", "outreach_queued"):

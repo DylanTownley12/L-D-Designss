@@ -3,6 +3,7 @@ Webhooks endpoint
 Handles inbound replies from email (Gmail polling) and SMS (Twilio webhook).
 When a lead replies, the notification agent is triggered.
 """
+import re
 from fastapi import APIRouter, Request, HTTPException, Form
 from db.client import get_db
 from agents import notification_agent, followup_agent
@@ -24,8 +25,10 @@ async def twilio_sms_webhook(
     db = get_db()
     incoming_phone = From.strip()
 
-    # Find the lead by phone number
-    clean = incoming_phone.replace("+44", "0").replace("+", "")
+    # Find the lead by phone number — strip to digits only to prevent LIKE injection
+    clean = re.sub(r"\D", "", incoming_phone.replace("+44", "0"))
+    if not clean:
+        return {"message": "OK"}
     result = db.table("leads").select("*").ilike("phone", f"%{clean[-9:]}%").execute()
 
     if result.data:
@@ -59,7 +62,10 @@ async def inbound_email_webhook(request: Request):
     Can be used with Gmail polling or a service like Mailgun/SendGrid inbound.
     Simple implementation: poll Gmail for replies on a schedule instead.
     """
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid JSON body")
     lead_id = body.get("lead_id")
     message = body.get("message", "")
 
@@ -89,7 +95,10 @@ async def log_manual_reply(lead_id: str, request: Request):
     Founder manually logs a reply when they get a WhatsApp/call.
     Triggers all the same notification + follow-up stopping logic.
     """
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid JSON body")
     message = body.get("message", "Manual reply logged")
 
     db = get_db()

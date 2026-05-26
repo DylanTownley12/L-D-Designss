@@ -16,7 +16,7 @@ async def list_leads(
     offset: int = 0,
 ):
     db = get_db()
-    query = db.table("leads").select("*")
+    query = db.table("leads").select("*", count="exact")
 
     if status:
         query = query.eq("status", status)
@@ -34,7 +34,7 @@ async def list_leads(
         .range(offset, offset + limit - 1)
         .execute()
     )
-    return {"leads": result.data or [], "total": len(result.data or [])}
+    return {"leads": result.data or [], "total": result.count or 0}
 
 
 @router.get("/{lead_id}")

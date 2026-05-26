@@ -121,7 +121,7 @@ def run() -> dict:
                     "lead_id": lead_id,
                     "channel": channel,
                     "direction": "outbound",
-                    "subject": content.get("subject"),
+                    "subject": content.get("subject") or "",
                     "body": content["body"],
                     "status": "queued",
                     "sequence_day": step["sequence_day"],
