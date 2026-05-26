@@ -6,12 +6,14 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 
 from api import leads, outreach, previews, dashboard, agents, webhooks
+from api.deps import require_api_key
+from config import settings
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -38,6 +40,8 @@ app = FastAPI(
     description="AI-powered web design agency platform for local barber shops",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs" if not settings.is_production else None,
+    redoc_url="/redoc" if not settings.is_production else None,
 )
 
 # ── CORS — allow the React frontend ──────────────────────────────────────────
@@ -48,7 +52,6 @@ app.add_middleware(
         "http://localhost:3000",
         "https://l-d-designss.vercel.app",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,12 +61,13 @@ app.add_middleware(
 app.mount("/previews", StaticFiles(directory="static/previews"), name="previews")
 
 # ── API routes ────────────────────────────────────────────────────────────────
-app.include_router(leads.router,     prefix="/api")
-app.include_router(outreach.router,  prefix="/api")
-app.include_router(previews.router,  prefix="/api")
-app.include_router(dashboard.router, prefix="/api")
-app.include_router(agents.router,    prefix="/api")
-app.include_router(webhooks.router,  prefix="/api")
+_auth = [Depends(require_api_key)]
+app.include_router(leads.router,     prefix="/api", dependencies=_auth)
+app.include_router(outreach.router,  prefix="/api", dependencies=_auth)
+app.include_router(previews.router,  prefix="/api", dependencies=_auth)
+app.include_router(dashboard.router, prefix="/api", dependencies=_auth)
+app.include_router(agents.router,    prefix="/api", dependencies=_auth)
+app.include_router(webhooks.router,  prefix="/api")  # auth handled per-endpoint
 
 
 @app.get("/")

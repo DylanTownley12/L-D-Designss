@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     TWILIO_FROM_NUMBER: Optional[str] = None
 
     # Business
-    FOUNDER_PHONE: str = "07301181878"
+    FOUNDER_PHONE: str = ""
     FOUNDER_EMAIL: str = ""
     BUSINESS_NAME: str = "L&D Designs"
     BUSINESS_WEBSITE: str = "https://dylantownley12.github.io/L-D-Designss"

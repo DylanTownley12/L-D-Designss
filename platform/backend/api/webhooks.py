@@ -4,11 +4,28 @@ Handles inbound replies from email (Gmail polling) and SMS (Twilio webhook).
 When a lead replies, the notification agent is triggered.
 """
 import re
-from fastapi import APIRouter, Request, HTTPException, Form
+from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from db.client import get_db
 from agents import notification_agent, followup_agent
+from api.deps import require_api_key
+from config import settings
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+
+def _verify_twilio_signature(request: Request, form_data: dict) -> None:
+    """Reject requests that don't carry a valid Twilio signature."""
+    if not settings.sms_enabled:
+        return
+    try:
+        from twilio.request_validator import RequestValidator
+        signature = request.headers.get("X-Twilio-Signature", "")
+        url = str(request.url)
+        validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
+        if not validator.validate(url, form_data, signature):
+            raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+    except ImportError:
+        pass  # twilio not installed — skip validation
 
 
 @router.post("/twilio/sms")
@@ -22,6 +39,8 @@ async def twilio_sms_webhook(
     Twilio sends POST to this URL when an SMS is received.
     Set your Twilio webhook URL to: https://your-backend.com/webhooks/twilio/sms
     """
+    _verify_twilio_signature(request, {"From": From, "Body": Body, "MessageSid": MessageSid})
+
     db = get_db()
     incoming_phone = From.strip()
 
@@ -56,7 +75,7 @@ async def twilio_sms_webhook(
 
 
 @router.post("/inbound-email")
-async def inbound_email_webhook(request: Request):
+async def inbound_email_webhook(request: Request, _: str = Depends(require_api_key)):
     """
     Called by your email parsing service when a reply is detected.
     Can be used with Gmail polling or a service like Mailgun/SendGrid inbound.
@@ -90,7 +109,7 @@ async def inbound_email_webhook(request: Request):
 
 
 @router.post("/manual-reply/{lead_id}")
-async def log_manual_reply(lead_id: str, request: Request):
+async def log_manual_reply(lead_id: str, request: Request, _: str = Depends(require_api_key)):
     """
     Founder manually logs a reply when they get a WhatsApp/call.
     Triggers all the same notification + follow-up stopping logic.
