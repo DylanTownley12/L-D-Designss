@@ -71,7 +71,7 @@ export default function Dashboard() {
       <div className="text-white/40">Loading dashboard…</div>
       {waking && (
         <div className="text-white/30 text-sm">
-          Backend is waking up (Render free tier — may take up to 60s on first load)…
+          Backend is taking a moment to respond…
         </div>
       )}
     </div>
