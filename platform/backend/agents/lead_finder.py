@@ -29,12 +29,37 @@ SOCIAL_DOMAINS = (
 )
 
 UK_CITIES = [
-    "Wigan", "Manchester", "Liverpool", "Leeds", "Sheffield",
-    "Birmingham", "Bristol", "Leicester", "Nottingham", "Newcastle",
-    "Bradford", "Coventry", "Stoke-on-Trent", "Derby", "Wolverhampton",
-    "Preston", "Bolton", "Blackburn", "Burnley", "Oldham",
-    "Stockport", "Rochdale", "Salford", "Warrington", "St Helens",
-    "Bury", "Wakefield", "Huddersfield", "Halifax", "York",
+    # North West
+    "Wigan", "Manchester", "Liverpool", "Preston", "Bolton", "Blackburn",
+    "Burnley", "Oldham", "Stockport", "Rochdale", "Salford", "Warrington",
+    "St Helens", "Bury", "Blackpool", "Lancaster", "Carlisle", "Barrow-in-Furness",
+    # Yorkshire
+    "Leeds", "Sheffield", "Bradford", "Wakefield", "Huddersfield", "Halifax",
+    "York", "Hull", "Doncaster", "Rotherham", "Barnsley", "Scarborough",
+    # West Midlands
+    "Birmingham", "Coventry", "Wolverhampton", "Stoke-on-Trent", "Derby",
+    "Walsall", "West Bromwich", "Dudley", "Solihull", "Hereford", "Worcester",
+    # East Midlands
+    "Nottingham", "Leicester", "Northampton", "Lincoln", "Peterborough", "Luton",
+    # East of England
+    "Norwich", "Ipswich", "Cambridge", "Colchester", "Chelmsford", "Southend-on-Sea",
+    # London & South East
+    "London", "Croydon", "Bromley", "Lewisham", "Greenwich", "Hackney",
+    "Brighton", "Southampton", "Portsmouth", "Oxford", "Reading", "Milton Keynes",
+    "Guildford", "Crawley", "Slough", "Watford",
+    # South West
+    "Bristol", "Plymouth", "Exeter", "Swindon", "Bath", "Gloucester",
+    "Cheltenham", "Bournemouth", "Poole", "Torquay",
+    # North East
+    "Newcastle", "Sunderland", "Middlesbrough", "Gateshead", "Durham",
+    "Hartlepool", "Darlington",
+    # Scotland
+    "Glasgow", "Edinburgh", "Aberdeen", "Dundee", "Inverness", "Perth",
+    "Stirling", "Paisley", "East Kilbride",
+    # Wales
+    "Cardiff", "Swansea", "Newport", "Wrexham", "Barry", "Cwmbran",
+    # Northern Ireland
+    "Belfast", "Derry", "Lisburn", "Newry",
 ]
 
 
