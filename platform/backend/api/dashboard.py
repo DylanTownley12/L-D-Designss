@@ -25,6 +25,9 @@ async def get_stats():
     # Lead counts by status
     total_leads       = count("leads")
     new_leads         = count("leads", status="new")
+    analyzing         = count("leads", status="analyzing")
+    preview_ready     = count("leads", status="preview_ready")
+    outreach_queued_l = count("leads", status="outreach_queued")
     outreach_sent     = count("leads", status="outreach_sent")
     replied           = count("leads", status="replied")
     interested        = count("leads", status="interested")
@@ -50,11 +53,14 @@ async def get_stats():
 
     # Pipeline breakdown for chart
     pipeline = [
-        {"label": "New",           "count": new_leads,     "color": "#6b7280"},
-        {"label": "Outreach Sent", "count": outreach_sent, "color": "#3b82f6"},
-        {"label": "Replied",       "count": replied,       "color": "#f59e0b"},
-        {"label": "Interested",    "count": interested,    "color": "#8b5cf6"},
-        {"label": "Converted",     "count": converted,     "color": "#10b981"},
+        {"label": "New",           "count": new_leads,       "color": "#6b7280"},
+        {"label": "Analysing",     "count": analyzing,       "color": "#3b82f6"},
+        {"label": "Preview Ready", "count": preview_ready,   "color": "#a855f7"},
+        {"label": "Queued",        "count": outreach_queued_l, "color": "#f59e0b"},
+        {"label": "Outreach Sent", "count": outreach_sent,   "color": "#06b6d4"},
+        {"label": "Replied",       "count": replied,         "color": "#f59e0b"},
+        {"label": "Interested",    "count": interested,      "color": "#8b5cf6"},
+        {"label": "Converted",     "count": converted,       "color": "#10b981"},
     ]
 
     # 7-day outreach activity
