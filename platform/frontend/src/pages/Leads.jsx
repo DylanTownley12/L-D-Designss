@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { leads as leadsApi, agents, previews as previewsApi, outreach as outreachApi } from '../api/client'
 
+const PAGE_SIZE = 50
+
 const STATUS_LABELS = {
   new: { label: 'New', color: 'bg-gray-500/20 text-gray-400' },
   analyzing: { label: 'Analysing', color: 'bg-blue-500/20 text-blue-400' },
@@ -80,6 +82,8 @@ function LeadRow({ lead, onAction }) {
 
 export default function Leads() {
   const [data, setData] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ status: '', city: '', search: '' })
   const [toast, setToast] = useState(null)
@@ -90,17 +94,26 @@ export default function Leads() {
   }
 
   const load = useCallback(() => {
-    const params = {}
+    setLoading(true)
+    const params = { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }
     if (filters.status) params.status = filters.status
     if (filters.city)   params.city   = filters.city
     if (filters.search) params.search = filters.search
     leadsApi.list(params)
-      .then(d => setData(d.leads || []))
+      .then(d => {
+        setData(d.leads || [])
+        setTotal(d.total || 0)
+      })
       .catch(e => showToast(e.message, 'error'))
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
   useEffect(() => { load() }, [load])
+
+  const updateFilter = (key, value) => {
+    setPage(1)
+    setFilters(f => ({ ...f, [key]: value }))
+  }
 
   const handleAction = async (action, lead) => {
     try {
@@ -111,7 +124,7 @@ export default function Leads() {
         await previewsApi.generate(lead.id)
         showToast(`Preview generating for ${lead.business_name}`)
       } else if (action === 'outreach') {
-        const res = await outreachApi.generate(lead.id, 'email', 1)
+        await outreachApi.generate(lead.id, 'email', 1)
         showToast(`Outreach queued for ${lead.business_name}`)
       } else if (action === 'dnc') {
         if (confirm(`Mark ${lead.business_name} as Do Not Contact?`)) {
@@ -125,7 +138,7 @@ export default function Leads() {
     }
   }
 
-  const statusGroups = ['replied', 'interested', 'preview_ready', 'new', 'outreach_sent', 'converted']
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -140,7 +153,11 @@ export default function Leads() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Leads</h1>
-          <p className="text-white/40 text-sm mt-0.5">{data.length} leads loaded</p>
+          <p className="text-white/40 text-sm mt-0.5">
+            {total > 0
+              ? `${total} leads · page ${page} of ${totalPages}`
+              : 'Loading...'}
+          </p>
         </div>
         <button onClick={load} className="btn-ghost text-xs">↻ Refresh</button>
       </div>
@@ -151,12 +168,12 @@ export default function Leads() {
           className="bg-dark-2 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-gold/50 w-48"
           placeholder="Search name..."
           value={filters.search}
-          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+          onChange={e => updateFilter('search', e.target.value)}
         />
         <select
           className="bg-dark-2 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none focus:border-gold/50"
           value={filters.status}
-          onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+          onChange={e => updateFilter('status', e.target.value)}
         >
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABELS).map(([v, { label }]) => (
@@ -167,7 +184,7 @@ export default function Leads() {
           className="bg-dark-2 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-gold/50 w-36"
           placeholder="City..."
           value={filters.city}
-          onChange={e => setFilters(f => ({ ...f, city: e.target.value }))}
+          onChange={e => updateFilter('city', e.target.value)}
         />
       </div>
 
@@ -201,6 +218,34 @@ export default function Leads() {
           </div>
         )}
       </div>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-sm text-white/40">
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+          </span>
+          <div className="flex gap-2">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+              className="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+            <span className="px-3 py-1.5 text-sm text-white/50">
+              {page} / {totalPages}
+            </span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+              className="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
