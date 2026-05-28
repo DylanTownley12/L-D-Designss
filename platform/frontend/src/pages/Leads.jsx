@@ -78,8 +78,12 @@ function LeadRow({ lead, onAction }) {
   )
 }
 
+const PAGE_SIZE = 50
+
 export default function Leads() {
   const [data, setData] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ status: '', city: '', search: '' })
   const [toast, setToast] = useState(null)
@@ -90,15 +94,16 @@ export default function Leads() {
   }
 
   const load = useCallback(() => {
-    const params = {}
+    setLoading(true)
+    const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE }
     if (filters.status) params.status = filters.status
     if (filters.city)   params.city   = filters.city
     if (filters.search) params.search = filters.search
     leadsApi.list(params)
-      .then(d => setData(d.leads || []))
+      .then(d => { setData(d.leads || []); setTotal(d.total || 0) })
       .catch(e => showToast(e.message, 'error'))
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
   useEffect(() => { load() }, [load])
 
@@ -140,7 +145,9 @@ export default function Leads() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Leads</h1>
-          <p className="text-white/40 text-sm mt-0.5">{data.length} leads loaded</p>
+          <p className="text-white/40 text-sm mt-0.5">
+            {total} leads · page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          </p>
         </div>
         <button onClick={load} className="btn-ghost text-xs">↻ Refresh</button>
       </div>
@@ -151,12 +158,12 @@ export default function Leads() {
           className="bg-dark-2 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-gold/50 w-48"
           placeholder="Search name..."
           value={filters.search}
-          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+          onChange={e => { setPage(0); setFilters(f => ({ ...f, search: e.target.value })) }}
         />
         <select
           className="bg-dark-2 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none focus:border-gold/50"
           value={filters.status}
-          onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+          onChange={e => { setPage(0); setFilters(f => ({ ...f, status: e.target.value })) }}
         >
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABELS).map(([v, { label }]) => (
@@ -167,7 +174,7 @@ export default function Leads() {
           className="bg-dark-2 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-gold/50 w-36"
           placeholder="City..."
           value={filters.city}
-          onChange={e => setFilters(f => ({ ...f, city: e.target.value }))}
+          onChange={e => { setPage(0); setFilters(f => ({ ...f, city: e.target.value })) }}
         />
       </div>
 
@@ -201,6 +208,31 @@ export default function Leads() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-white/30">
+            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+              className="btn-ghost px-4 py-2 disabled:opacity-30"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={(page + 1) * PAGE_SIZE >= total}
+              className="btn-ghost px-4 py-2 disabled:opacity-30"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
