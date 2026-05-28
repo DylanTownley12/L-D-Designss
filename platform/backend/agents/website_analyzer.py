@@ -150,8 +150,7 @@ def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
         result = (
             db.table("leads")
             .select("*")
-            .eq("status", "new")
-            .is_("analysis_data", "null")
+            .in_("status", ["new", "analyzing"])
             .limit(batch_size)
             .execute()
         )
@@ -194,8 +193,11 @@ def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
                 lead_quality += 10
             lead_quality = min(lead_quality, 100)
 
+            # none/weak = still a good lead (no site or bad site)
+            # decent/good = they already have a real site, skip them
+            new_status = "preview_ready" if website_status in ("none", "weak") else "not_interested"
             db.table("leads").update({
-                "status": "preview_ready" if website_status == "none" else "analyzing",
+                "status": new_status,
                 "website_status": website_status,
                 "quality_score": lead_quality,
                 "analysis_data": analysis,
