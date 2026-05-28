@@ -132,7 +132,7 @@ def _score_to_status(score: int, has_website: bool) -> str:
     return "good"
 
 
-def run(lead_id: str | None = None, batch_size: int = 20) -> dict:
+def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
     """
     Analyze website quality for leads.
     If lead_id is given, analyze just that lead.
