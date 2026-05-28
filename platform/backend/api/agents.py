@@ -32,12 +32,13 @@ async def run_agent(req: AgentRunRequest, background_tasks: BackgroundTasks):
     fn = AGENTS[req.agent]
     params = req.params or {}
 
-    # Preview generator and analyzer take a lead_id argument
+    # Preview generator: single lead or batch
     if req.agent == "preview_generator":
-        if not req.lead_id:
-            raise HTTPException(status_code=400, detail="preview_generator requires lead_id")
-        background_tasks.add_task(fn, req.lead_id)
-        return AgentRunResult(agent=req.agent, status="started", message="Generating preview in background")
+        if req.lead_id:
+            background_tasks.add_task(fn, req.lead_id)
+        else:
+            background_tasks.add_task(preview_generator.run_batch)
+        return AgentRunResult(agent=req.agent, status="started", message="Generating previews in background")
 
     if req.agent == "website_analyzer" and req.lead_id:
         background_tasks.add_task(fn, req.lead_id)

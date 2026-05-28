@@ -181,3 +181,27 @@ def run(lead_id: str) -> dict:
         log_agent_action(db, "preview_generator", "generate_preview", lead_id, "error",
                          {}, 0, str(e))
         return {"status": "error", "message": str(e)}
+
+
+def run_batch(limit: int = 20) -> dict:
+    """Generate previews for a batch of preview_ready leads with no website."""
+    db = get_db()
+    result = (
+        db.table("leads")
+        .select("id")
+        .eq("status", "preview_ready")
+        .eq("website_status", "none")
+        .limit(limit)
+        .execute()
+    )
+    leads = result.data or []
+    generated = 0
+    errors = 0
+    for lead in leads:
+        outcome = run(lead["id"])
+        if outcome["status"] == "success":
+            generated += 1
+        else:
+            errors += 1
+    logger.info(f"Preview batch: {generated} generated, {errors} errors")
+    return {"generated": generated, "errors": errors}
