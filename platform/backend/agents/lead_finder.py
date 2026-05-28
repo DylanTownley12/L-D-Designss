@@ -1,27 +1,23 @@
 """
 Lead Finder Agent
-Scrapes Yell.com for barber shops with no website.
-Uses requests + BeautifulSoup — no paid API needed.
+Uses Google Places API (New) to find barber shops with no website across UK cities.
 """
-import re
 import time
 import logging
-import requests
-from bs4 import BeautifulSoup
+import httpx
 from datetime import datetime
 from db.client import get_db
-from utils.helpers import log_agent_action, clean_phone, clean_postcode
+from config import settings
+from utils.helpers import log_agent_action, clean_phone
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-GB,en;q=0.9",
-}
+PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
+FIELD_MASK = (
+    "places.id,places.displayName,places.formattedAddress,"
+    "places.nationalPhoneNumber,places.websiteUri,"
+    "places.rating,places.userRatingCount"
+)
 
 SOCIAL_DOMAINS = (
     "facebook.com", "instagram.com", "twitter.com",
@@ -32,200 +28,169 @@ UK_CITIES = [
     # North West
     "Wigan", "Manchester", "Liverpool", "Preston", "Bolton", "Blackburn",
     "Burnley", "Oldham", "Stockport", "Rochdale", "Salford", "Warrington",
-    "St Helens", "Bury", "Blackpool", "Lancaster", "Carlisle", "Barrow-in-Furness",
+    "St Helens", "Bury", "Blackpool", "Lancaster", "Carlisle",
     # Yorkshire
     "Leeds", "Sheffield", "Bradford", "Wakefield", "Huddersfield", "Halifax",
     "York", "Hull", "Doncaster", "Rotherham", "Barnsley", "Scarborough",
     # West Midlands
     "Birmingham", "Coventry", "Wolverhampton", "Stoke-on-Trent", "Derby",
-    "Walsall", "West Bromwich", "Dudley", "Solihull", "Hereford", "Worcester",
+    "Walsall", "West Bromwich", "Dudley", "Solihull", "Worcester",
     # East Midlands
-    "Nottingham", "Leicester", "Northampton", "Lincoln", "Peterborough", "Luton",
+    "Nottingham", "Leicester", "Northampton", "Lincoln", "Peterborough",
     # East of England
-    "Norwich", "Ipswich", "Cambridge", "Colchester", "Chelmsford", "Southend-on-Sea",
+    "Norwich", "Ipswich", "Cambridge", "Colchester", "Chelmsford",
     # London & South East
-    "London", "Croydon", "Bromley", "Lewisham", "Greenwich", "Hackney",
-    "Brighton", "Southampton", "Portsmouth", "Oxford", "Reading", "Milton Keynes",
-    "Guildford", "Crawley", "Slough", "Watford",
+    "London", "Croydon", "Brighton", "Southampton", "Portsmouth",
+    "Oxford", "Reading", "Milton Keynes", "Guildford", "Slough", "Watford",
     # South West
-    "Bristol", "Plymouth", "Exeter", "Swindon", "Bath", "Gloucester",
-    "Cheltenham", "Bournemouth", "Poole", "Torquay",
+    "Bristol", "Plymouth", "Exeter", "Swindon", "Bath",
+    "Bournemouth", "Poole", "Gloucester", "Cheltenham",
     # North East
-    "Newcastle", "Sunderland", "Middlesbrough", "Gateshead", "Durham",
-    "Hartlepool", "Darlington",
+    "Newcastle", "Sunderland", "Middlesbrough", "Gateshead", "Durham", "Darlington",
     # Scotland
-    "Glasgow", "Edinburgh", "Aberdeen", "Dundee", "Inverness", "Perth",
-    "Stirling", "Paisley", "East Kilbride",
+    "Glasgow", "Edinburgh", "Aberdeen", "Dundee", "Inverness", "Stirling",
     # Wales
-    "Cardiff", "Swansea", "Newport", "Wrexham", "Barry", "Cwmbran",
+    "Cardiff", "Swansea", "Newport", "Wrexham",
     # Northern Ireland
-    "Belfast", "Derry", "Lisburn", "Newry",
+    "Belfast", "Derry",
 ]
 
 
-def _is_real_website(url: str) -> bool:
-    """Returns True only if the URL is a proper business website."""
+def _has_real_website(url: str) -> bool:
     if not url:
         return False
-    url_lower = url.lower()
-    return not any(domain in url_lower for domain in SOCIAL_DOMAINS)
+    return not any(d in url.lower() for d in SOCIAL_DOMAINS)
 
 
-def _scrape_yell_page(city: str, page: int = 1) -> list[dict]:
-    """Scrape one page of Yell results for barbers in a city."""
-    query = "barbers"
-    url = f"https://www.yell.com/ucs/UcsSearchAction.do?keywords={query}&location={city}&pageNum={page}"
+def _search_city(city: str, page_token: str = None) -> tuple[list[dict], str | None]:
+    """Call Google Places API for one page of barbers in a city."""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": FIELD_MASK,
+    }
+    body = {
+        "textQuery": f"barbers in {city}, UK",
+        "languageCode": "en-GB",
+        "regionCode": "GB",
+        "pageSize": 20,
+    }
+    if page_token:
+        body["pageToken"] = page_token
 
     try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        if r.status_code != 200:
-            logger.warning(f"Yell returned {r.status_code} for {city} page {page}")
-            return []
-        return _parse_yell_results(r.text, city)
+        with httpx.Client(timeout=20.0) as client:
+            r = client.post(PLACES_URL, headers=headers, json=body)
+            if r.status_code != 200:
+                logger.warning(f"Places API returned {r.status_code} for {city}: {r.text[:200]}")
+                return [], None
+            data = r.json()
+            places = data.get("places", [])
+            next_token = data.get("nextPageToken")
+            return places, next_token
     except Exception as e:
-        logger.error(f"Yell scrape failed for {city} p{page}: {e}")
-        return []
+        logger.error(f"Places API request failed for {city}: {e}")
+        return [], None
 
 
-def _parse_yell_results(html: str, city: str) -> list[dict]:
-    soup = BeautifulSoup(html, "lxml")
-    leads = []
-
-    for card in soup.select(".businessCapsule--mainContent"):
-        try:
-            name_el = card.select_one(".businessCapsule--name")
-            if not name_el:
-                continue
-            name = name_el.get_text(strip=True)
-
-            phone_el = card.select_one("[class*='phone'], .businessCapsule--phone")
-            phone = clean_phone(phone_el.get_text(strip=True)) if phone_el else None
-
-            addr_el = card.select_one(".businessCapsule--address, address")
-            address = addr_el.get_text(" ", strip=True) if addr_el else None
-
-            website_el = card.select_one("a[href*='http']:not([href*='yell.com'])")
-            raw_website = website_el["href"] if website_el else None
-
-            # Only include leads with NO real website
-            if _is_real_website(raw_website):
-                continue
-
-            # Extract rating
-            rating_el = card.select_one("[class*='rating'], .rating")
-            rating = None
-            if rating_el:
-                m = re.search(r"(\d+\.?\d*)", rating_el.get_text())
-                rating = float(m.group(1)) if m else None
-
-            review_el = card.select_one("[class*='reviewCount'], [class*='review-count']")
-            reviews = 0
-            if review_el:
-                m = re.search(r"\d+", review_el.get_text())
-                reviews = int(m.group()) if m else 0
-
-            yell_link = card.select_one("a.businessCapsule--name")
-            yell_url = ("https://www.yell.com" + yell_link["href"]) if yell_link and yell_link.get("href") else None
-
-            # Try to get email/social from the Yell listing page
-            social_url = raw_website if raw_website else yell_url
-
-            leads.append({
-                "business_name": name,
-                "phone": phone,
-                "address": address,
-                "city": city,
-                "website": social_url,
-                "website_status": "none",
-                "google_rating": rating,
-                "google_reviews": reviews,
-                "source": "yell",
-            })
-
-        except Exception as e:
-            logger.debug(f"Failed to parse card: {e}")
-            continue
-
-    return leads
-
-
-def _get_lead_email(yell_url: str) -> str | None:
-    """Try to extract an email from the Yell listing page."""
-    if not yell_url:
+def _parse_place(place: dict, city: str) -> dict | None:
+    """Convert a Google Places result into a lead dict."""
+    name = place.get("displayName", {}).get("text", "").strip()
+    if not name:
         return None
-    try:
-        r = requests.get(yell_url, headers=HEADERS, timeout=10)
-        if r.status_code != 200:
-            return None
-        emails = re.findall(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", r.text)
-        skip = {"noreply", "no-reply", "example", "wordpress", "sentry",
-                "privacy", "abuse", "postmaster", "webmaster", "yell.com"}
-        for email in emails:
-            if not any(s in email.lower() for s in skip):
-                return email.lower()
-    except Exception:
-        pass
-    return None
+
+    website = place.get("websiteUri", "")
+    if _has_real_website(website):
+        return None  # Already has a website — skip
+
+    phone_raw = place.get("nationalPhoneNumber", "")
+    phone = clean_phone(phone_raw) if phone_raw else None
+
+    address = place.get("formattedAddress", "")
+
+    rating = place.get("rating")
+    reviews = place.get("userRatingCount", 0)
+
+    return {
+        "business_name": name,
+        "phone": phone,
+        "address": address,
+        "city": city,
+        "website": website or None,
+        "website_status": "none",
+        "google_rating": float(rating) if rating else None,
+        "google_reviews": int(reviews) if reviews else 0,
+        "source": "google_maps",
+    }
 
 
 def run(cities: list[str] | None = None, pages_per_city: int = 3) -> dict:
     """
     Main entry point for the Lead Finder agent.
-    Scrapes Yell for barbers with no website across UK cities.
-    Returns a summary dict.
+    Uses Google Places API to find barbers with no website across UK cities.
     """
+    if not settings.GOOGLE_PLACES_API_KEY:
+        logger.error("GOOGLE_PLACES_API_KEY not set — cannot run lead finder")
+        return {"error": "GOOGLE_PLACES_API_KEY not configured"}
+
     start = datetime.now()
     db = get_db()
     cities_to_search = cities or UK_CITIES
     new_leads = 0
     skipped_dupes = 0
+    skipped_has_website = 0
     errors = 0
 
     for city in cities_to_search:
         logger.info(f"Searching {city}...")
-        city_leads = []
+        page_token = None
 
-        for page in range(1, pages_per_city + 1):
-            page_leads = _scrape_yell_page(city, page)
-            city_leads.extend(page_leads)
-            if not page_leads:
-                break  # No more results for this city
-            time.sleep(1.5)  # Polite delay
+        for page_num in range(1, pages_per_city + 1):
+            if page_num > 1 and not page_token:
+                break  # No more pages
 
-        for lead in city_leads:
-            try:
-                # Check for duplicates by name + city
-                existing = (
-                    db.table("leads")
-                    .select("id")
-                    .eq("business_name", lead["business_name"])
-                    .eq("city", city)
-                    .execute()
-                )
-                if existing.data:
-                    skipped_dupes += 1
+            places, page_token = _search_city(city, page_token if page_num > 1 else None)
+
+            if not places:
+                break
+
+            for place in places:
+                lead = _parse_place(place, city)
+                if lead is None:
+                    skipped_has_website += 1
                     continue
 
-                # Try to get email from Yell listing
-                email = _get_lead_email(lead.get("website"))
-                if email:
-                    lead["email"] = email
+                try:
+                    existing = (
+                        db.table("leads")
+                        .select("id")
+                        .eq("business_name", lead["business_name"])
+                        .eq("city", city)
+                        .execute()
+                    )
+                    if existing.data:
+                        skipped_dupes += 1
+                        continue
 
-                db.table("leads").insert(lead).execute()
-                new_leads += 1
+                    db.table("leads").insert(lead).execute()
+                    new_leads += 1
 
-            except Exception as e:
-                logger.error(f"DB insert failed for {lead.get('business_name')}: {e}")
-                errors += 1
+                except Exception as e:
+                    logger.error(f"DB insert failed for {lead.get('business_name')}: {e}")
+                    errors += 1
 
-        time.sleep(2)  # Polite pause between cities
+            if page_token:
+                time.sleep(2)  # Google requires a short delay before using nextPageToken
+
+        time.sleep(1)  # Polite pause between cities
 
     duration_ms = int((datetime.now() - start).total_seconds() * 1000)
 
-    log_agent_action(db, "lead_finder", "scrape_yell", None, "success", {
+    log_agent_action(db, "lead_finder", "google_places_search", None, "success", {
         "cities": len(cities_to_search),
         "new_leads": new_leads,
         "skipped_dupes": skipped_dupes,
+        "skipped_has_website": skipped_has_website,
         "errors": errors,
     }, duration_ms)
 
@@ -233,6 +198,7 @@ def run(cities: list[str] | None = None, pages_per_city: int = 3) -> dict:
         "cities_searched": len(cities_to_search),
         "new_leads_added": new_leads,
         "duplicates_skipped": skipped_dupes,
+        "skipped_has_website": skipped_has_website,
         "errors": errors,
         "duration_seconds": duration_ms / 1000,
     }

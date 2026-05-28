@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     GMAIL_ADDRESS: str
     GMAIL_APP_PASSWORD: str
 
+    # Google Places API (optional — enables lead finder)
+    GOOGLE_PLACES_API_KEY: Optional[str] = None
+
     # Twilio (optional)
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
