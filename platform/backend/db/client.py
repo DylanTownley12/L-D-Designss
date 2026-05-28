@@ -143,8 +143,7 @@ class _QueryBuilder:
 
             data = r.json()
 
-            if self._single and isinstance(data, dict):
-                data = [data]
+            # single() returns a dict directly — do not wrap in a list
 
             count = None
             if self._count == "exact":
