@@ -12,6 +12,7 @@ pydantic==2.7.1
 pydantic-settings==2.2.1
 apscheduler==3.10.4
 twilio==9.1.0
+textmagic==2.0.1291
 python-multipart==0.0.9
 aiofiles==23.2.1
 pytz==2024.1

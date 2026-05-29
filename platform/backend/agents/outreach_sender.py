@@ -64,33 +64,51 @@ def _send_email(to_email: str, subject: str, body: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
-# ── Twilio SMS ─────────────────────────────────────────────────────────
+# ── SMS Sending (TextMagic preferred, Twilio fallback) ─────────────────
 
-def _send_sms(to_phone: str, body: str) -> dict:
-    """Send an SMS via Twilio. Returns {'success': bool, 'sid': str|None, 'error': str|None}."""
-    if not settings.sms_enabled:
-        return {"success": False, "error": "Twilio not configured — add credentials to .env"}
+def _format_uk_phone(phone: str) -> str:
+    p = phone.strip()
+    if p.startswith("0"):
+        return "+44" + p[1:]
+    if not p.startswith("+"):
+        return "+" + p
+    return p
 
+
+def _send_sms_textmagic(to_phone: str, body: str) -> dict:
+    try:
+        import textmagic.rest
+        from textmagic.rest import TextmagicRestClient
+        client = TextmagicRestClient(settings.TEXTMAGIC_USERNAME, settings.TEXTMAGIC_API_KEY)
+        formatted = _format_uk_phone(to_phone)
+        response = client.messages.create(phones=formatted, text=body)
+        return {"success": True, "sid": str(response.id), "error": None}
+    except Exception as e:
+        return {"success": False, "sid": None, "error": str(e)}
+
+
+def _send_sms_twilio(to_phone: str, body: str) -> dict:
     try:
         from twilio.rest import Client as TwilioClient
         client = TwilioClient(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-
-        # UK numbers need +44 format
-        formatted_phone = to_phone.strip()
-        if formatted_phone.startswith("0"):
-            formatted_phone = "+44" + formatted_phone[1:]
-        elif not formatted_phone.startswith("+"):
-            formatted_phone = "+" + formatted_phone
-
         message = client.messages.create(
             body=body,
             from_=settings.TWILIO_FROM_NUMBER,
-            to=formatted_phone,
+            to=_format_uk_phone(to_phone),
         )
         return {"success": True, "sid": message.sid, "error": None}
-
     except Exception as e:
         return {"success": False, "sid": None, "error": str(e)}
+
+
+def _send_sms(to_phone: str, body: str) -> dict:
+    """Send SMS via TextMagic (preferred) or Twilio (fallback)."""
+    if not settings.sms_enabled:
+        return {"success": False, "error": "No SMS provider configured — add TEXTMAGIC_USERNAME and TEXTMAGIC_API_KEY to Railway Variables"}
+
+    if settings.sms_provider == "textmagic":
+        return _send_sms_textmagic(to_phone, body)
+    return _send_sms_twilio(to_phone, body)
 
 
 # ── Main send function ─────────────────────────────────────────────────
