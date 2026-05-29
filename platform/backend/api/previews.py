@@ -53,7 +53,7 @@ async def generate_batch(limit: int = 10, background_tasks: BackgroundTasks = No
 
 
 @router.get("/")
-async def list_previews(limit: int = 50):
+async def list_previews(limit: int = 200):
     db = get_db()
     result = (
         db.table("previews")
