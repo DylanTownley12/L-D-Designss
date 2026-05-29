@@ -294,10 +294,9 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
             )
             preview_url = preview_result.data[0]["preview_url"] if preview_result.data else None
 
-            # Skip if preview URL is old format (file-based, now broken)
-            if not preview_url or "/previews/serve/" not in preview_url:
-                skipped += 1
-                continue
+            # Only include preview URL if it's the new DB-served format
+            if preview_url and "/previews/serve/" not in preview_url:
+                preview_url = None
 
             body = _write_whatsapp(lead, preview_url)
 
