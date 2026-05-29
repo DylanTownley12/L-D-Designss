@@ -184,13 +184,14 @@ export default function Dashboard() {
         <h2 className="font-semibold mb-4 text-sm text-white/60 uppercase tracking-wider">Run Agents Manually</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { agent: 'lead_finder',       label: 'Find New Leads',      icon: '🔍' },
-            { agent: 'website_analyzer', label: 'Analyse Websites',    icon: '🔬' },
-            { agent: 'extract_emails',   label: 'Extract Emails',      icon: '📧' },
+            { agent: 'lead_finder',        label: 'Find New Leads',      icon: '🔍' },
+            { agent: 'website_analyzer',  label: 'Analyse Websites',   icon: '🔬' },
+            { agent: 'extract_emails',    label: 'Extract Emails',     icon: '📧' },
             { agent: 'preview_generator', label: 'Generate Previews',  icon: '🌐' },
-            { agent: 'outreach_writer',  label: 'Write Outreach',      icon: '✍️' },
-            { agent: 'followup_agent',   label: 'Check Follow-Ups',    icon: '🔁' },
-            { agent: 'outreach_queue',   label: 'Send Queue',          icon: '📤' },
+            { agent: 'whatsapp_campaign', label: 'WhatsApp Campaign',  icon: '💬' },
+            { agent: 'outreach_writer',   label: 'Write Emails',       icon: '✍️' },
+            { agent: 'followup_agent',    label: 'Check Follow-Ups',   icon: '🔁' },
+            { agent: 'outreach_queue',    label: 'Send Email Queue',   icon: '📤' },
           ].map(a => (
             <button
               key={a.agent}

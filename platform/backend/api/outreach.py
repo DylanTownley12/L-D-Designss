@@ -8,16 +8,18 @@ router = APIRouter(prefix="/outreach", tags=["outreach"])
 
 
 @router.get("/queue")
-async def get_queue(status: str = "queued"):
+async def get_queue(status: str = "queued", channel: str = None):
     db = get_db()
-    result = (
+    q = (
         db.table("outreach_messages")
         .select("*, leads(business_name, city, email, phone, status)")
         .eq("status", status)
         .eq("direction", "outbound")
         .order("created_at")
-        .execute()
     )
+    if channel:
+        q = q.eq("channel", channel)
+    result = q.execute()
     return {"messages": result.data or []}
 
 

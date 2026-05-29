@@ -35,9 +35,12 @@ MOBILE_KEYWORDS = ["viewport", "responsive", "mobile"]
 CONTACT_KEYWORDS = ["contact", "phone", "email", "whatsapp", "call us"]
 
 EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
+INSTAGRAM_RE = re.compile(r'instagram\.com/([A-Za-z0-9_.]+)')
+FACEBOOK_RE = re.compile(r'facebook\.com/([A-Za-z0-9_.]+)')
 # Exclude common false positives
 EMAIL_BLACKLIST = {"example.com", "sentry.io", "wixpress.com", "squarespace.com",
                    "wordpress.com", "schema.org", "googleapis.com", "w3.org"}
+INSTAGRAM_BLACKLIST = {"p", "explore", "reel", "stories", "sharer", "share"}
 
 
 def _is_social_only(url: str) -> bool:
@@ -95,6 +98,18 @@ def _analyze_url(url: str) -> dict:
             domain = e.split("@")[-1].lower()
             if domain not in EMAIL_BLACKLIST and not any(bad in domain for bad in EMAIL_BLACKLIST):
                 result["email"] = e.lower()
+                break
+
+        # Extract social links
+        ig_matches = INSTAGRAM_RE.findall(r.text)
+        for handle in ig_matches:
+            if handle.lower() not in INSTAGRAM_BLACKLIST and len(handle) > 2:
+                result["instagram_url"] = f"https://www.instagram.com/{handle}/"
+                break
+        fb_matches = FACEBOOK_RE.findall(r.text)
+        for handle in fb_matches:
+            if handle.lower() not in {"sharer", "share", "plugins", "tr"} and len(handle) > 2:
+                result["facebook_url"] = f"https://www.facebook.com/{handle}/"
                 break
 
         # Issues
@@ -218,6 +233,10 @@ def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
             }
             if analysis.get("email") and not lead.get("email"):
                 update_data["email"] = analysis["email"]
+            if analysis.get("instagram_url") and not lead.get("instagram_url"):
+                update_data["instagram_url"] = analysis["instagram_url"]
+            if analysis.get("facebook_url") and not lead.get("facebook_url"):
+                update_data["facebook_url"] = analysis["facebook_url"]
             db.table("leads").update(update_data).eq("id", lead["id"]).execute()
 
             analyzed += 1

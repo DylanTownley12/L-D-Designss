@@ -18,6 +18,7 @@ AGENTS = {
     "extract_emails": website_analyzer.extract_emails_batch,
     "preview_generator": preview_generator.run,
     "outreach_writer": outreach_writer.run_batch,
+    "whatsapp_campaign": outreach_writer.generate_whatsapp_campaign,
     "followup_agent": followup_agent.run,
     "outreach_queue": outreach_sender.process_queue,
 }

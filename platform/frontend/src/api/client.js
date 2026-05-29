@@ -26,6 +26,7 @@ export const leads = {
 
 export const outreach = {
   queue: (status) => api.get('/outreach/queue', { params: { status } }),
+  queueByChannel: (channel, status) => api.get('/outreach/queue', { params: { status, channel } }),
   history: (limit) => api.get('/outreach/history', { params: { limit } }),
   generate: (lead_id, channel, sequence_day) =>
     api.post('/outreach/generate', null, { params: { lead_id, channel, sequence_day } }),

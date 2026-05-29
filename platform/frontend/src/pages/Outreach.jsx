@@ -68,11 +68,60 @@ function MessageCard({ msg, onApprove, onReject }) {
   )
 }
 
+function WhatsAppCard({ msg, onDone }) {
+  const waLink = msg.metadata?.wa_link || msg.wa_link
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    navigator.clipboard.writeText(msg.body)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="card rounded-xl p-4 border border-green-500/20 bg-green-500/3">
+      <div className="flex items-start gap-3">
+        <div className="text-xl flex-shrink-0">💬</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-medium text-sm">{msg.leads?.business_name || 'Unknown'}</span>
+            <span className="text-white/30 text-xs">·</span>
+            <span className="text-white/40 text-xs">{msg.leads?.city}</span>
+            <span className="text-white/25 text-xs ml-auto">📱 {msg.leads?.phone}</span>
+          </div>
+          <div className="text-white/70 text-sm leading-relaxed bg-white/5 rounded-lg p-3 whitespace-pre-wrap">
+            {msg.body}
+          </div>
+          <div className="text-white/25 text-xs mt-2">
+            {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-3 pt-3 border-t border-white/6">
+        {waLink ? (
+          <a href={waLink} target="_blank" rel="noopener noreferrer"
+             className="btn-gold flex-1 py-2 text-sm text-center">
+            📱 Open WhatsApp
+          </a>
+        ) : (
+          <button onClick={copy} className="btn-gold flex-1 py-2 text-sm">
+            {copied ? '✓ Copied!' : '📋 Copy Message'}
+          </button>
+        )}
+        <button onClick={onDone} className="btn-ghost px-4 py-2 text-sm text-white/40">
+          ✓ Sent
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Outreach() {
   const [queue, setQueue] = useState([])
+  const [whatsappQueue, setWhatsappQueue] = useState([])
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
-  const [tab, setTab] = useState('queue')
+  const [tab, setTab] = useState('whatsapp')
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [generating, setGenerating] = useState(false)
@@ -87,12 +136,14 @@ export default function Outreach() {
   const load = async () => {
     setLoading(true)
     try {
-      const [q, h, s] = await Promise.all([
+      const [q, wa, h, s] = await Promise.all([
         outreachApi.queue('queued'),
+        outreachApi.queueByChannel('whatsapp', 'queued'),
         outreachApi.history(50),
         outreachApi.statsToday(),
       ])
-      setQueue(q.messages || [])
+      setQueue((q.messages || []).filter(m => m.channel !== 'whatsapp'))
+      setWhatsappQueue(wa.messages || [])
       setHistory(h.messages || [])
       setStats(s)
     } catch (e) {
@@ -131,6 +182,13 @@ export default function Outreach() {
       showToast(`${queue.length} message(s) ready for review!`)
     }
   }, [queue.length, generating])
+
+  const markWhatsAppSent = async (id) => {
+    try {
+      await outreachApi.approve(id)
+      load()
+    } catch (e) { showToast(e.message, 'error') }
+  }
 
   const approve = async (id) => {
     try {
@@ -232,12 +290,16 @@ export default function Outreach() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-dark-2 rounded-lg p-1 w-fit">
-        {['queue', 'history'].map(t => (
-          <button key={t} onClick={() => setTab(t)}
+        {[
+          { key: 'whatsapp', label: `💬 WhatsApp (${whatsappQueue.length})` },
+          { key: 'queue',    label: `📧 Email Queue (${queue.length})` },
+          { key: 'history',  label: `History (${history.length})` },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    tab === t ? 'bg-gold text-black' : 'text-white/50 hover:text-white'
+                    tab === t.key ? 'bg-gold text-black' : 'text-white/50 hover:text-white'
                   }`}>
-            {t === 'queue' ? `Queue (${queue.length})` : `History (${history.length})`}
+            {t.label}
           </button>
         ))}
       </div>
@@ -245,14 +307,29 @@ export default function Outreach() {
       {/* Messages */}
       {loading ? (
         <div className="text-white/30 text-sm text-center py-12">Loading messages...</div>
+      ) : tab === 'whatsapp' ? (
+        whatsappQueue.length === 0 ? (
+          <div className="card rounded-xl p-12 text-center">
+            <div className="text-4xl mb-3">💬</div>
+            <div className="text-white/40 text-sm">No WhatsApp messages generated yet.</div>
+            <div className="text-white/25 text-xs mt-2">
+              Click "WhatsApp Campaign" on the Dashboard to generate messages for leads with phone numbers.
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {whatsappQueue.map(msg => (
+              <WhatsAppCard key={msg.id} msg={msg} onDone={() => { markWhatsAppSent(msg.id); }} />
+            ))}
+          </div>
+        )
       ) : tab === 'queue' ? (
         queue.length === 0 ? (
           <div className="card rounded-xl p-12 text-center">
             <div className="text-4xl mb-3">📤</div>
-            <div className="text-white/40 text-sm">Queue is empty.</div>
+            <div className="text-white/40 text-sm">Email queue is empty.</div>
             <div className="text-white/25 text-xs mt-2">
-              Run "Write Outreach" from the Dashboard to generate emails for preview-ready leads,
-              or click Refresh if you just ran it.
+              Run "Write Emails" from the Dashboard to generate emails for leads with email addresses.
             </div>
           </div>
         ) : (

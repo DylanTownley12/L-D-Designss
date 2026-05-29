@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 SYSTEM_PROMPT = """You are Dylan, a 17-year-old web designer from Wigan, UK.
-You're writing cold outreach messages to local barber shops that don't have a proper website.
+You write short outreach messages to local barber shops that don't have a proper website.
 
 Your tone:
 - Friendly and casual, like a local lad
@@ -23,16 +23,36 @@ Your tone:
 - Never use exclamation marks more than once
 - Never say "I hope this message finds you well" or similar clichés
 - Sound human, not like AI
-- Focus on helping them get more bookings
+
+Your pitch is simple — focus ONLY on:
+- Getting more bookings
+- Customers being able to find them online easily
+- Looking more professional
+- Being mobile-friendly so people on their phones can find and book them
+
+NEVER mention: SEO, Lighthouse scores, website analysis, tech stack, metrics, or anything technical.
 
 Your offer:
 - You build websites for barbers
 - Prices start from £150 one-off, no monthly fees
-- Quick turnaround (days not weeks)
-- You handle everything — they just give you info
-- You include: booking integration, services, gallery, contact, Google Maps
+- Quick turnaround (a few days)
+- You handle everything — they just give you info and approve it
+- Customers can book directly, find opening hours, see services
 
 Always mention the preview website link if provided."""
+
+WHATSAPP_SYSTEM_PROMPT = """You are Dylan, a 17-year-old web designer from Wigan, UK.
+Write a very short WhatsApp message to a local barber shop.
+
+Rules:
+- Max 3 sentences
+- Casual, like texting a local business
+- Mention you built them a free preview website
+- Include the preview link if given
+- End by asking if they want to have a look
+- Sign off as Dylan
+- NO exclamation marks except maximum one
+- Sound like a real person, not a business"""
 
 
 def _write_email(lead: dict, preview_url: str | None = None, sequence_day: int = 1) -> dict:
@@ -190,6 +210,112 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
     return msg
 
 
+def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
+    """Write a short WhatsApp message for manual sending."""
+    name = lead.get("business_name", "the shop")
+    city = lead.get("city", "")
+
+    prompt = f"Business: {name}" + (f" in {city}" if city else "")
+    if preview_url:
+        prompt += f"\nPreview URL: {preview_url}"
+    prompt += "\nWrite the WhatsApp message now."
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": WHATSAPP_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=120,
+            temperature=0.85,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"OpenAI WhatsApp write failed: {e}")
+        msg = f"Hi, I'm Dylan — I've built a free preview website for {name}."
+        if preview_url:
+            msg += f" Have a look: {preview_url}"
+        msg += " Want me to get it live for you?"
+        return msg
+
+
+def generate_whatsapp_campaign(limit: int = 50) -> dict:
+    """
+    Generate WhatsApp messages for preview_ready leads with phone numbers.
+    Stores them as queued outreach messages with channel='whatsapp'.
+    These are for manual sending — Dylan clicks the wa.me link.
+    """
+    from db.client import get_db
+    db = get_db()
+
+    result = (
+        db.table("leads")
+        .select("*")
+        .eq("status", "preview_ready")
+        .limit(limit)
+        .execute()
+    )
+    leads = [l for l in (result.data or []) if l.get("phone")]
+
+    generated = 0
+    skipped = 0
+
+    for lead in leads:
+        lead_id = lead["id"]
+        try:
+            # Skip if already has a pending whatsapp message
+            existing = (
+                db.table("outreach_messages")
+                .select("id")
+                .eq("lead_id", lead_id)
+                .eq("channel", "whatsapp")
+                .in_("status", ["queued", "approved"])
+                .execute()
+            )
+            if existing.data:
+                skipped += 1
+                continue
+
+            preview_result = (
+                db.table("previews")
+                .select("preview_url")
+                .eq("lead_id", lead_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            preview_url = preview_result.data[0]["preview_url"] if preview_result.data else None
+
+            body = _write_whatsapp(lead, preview_url)
+
+            # Build wa.me link
+            phone = lead["phone"].replace(" ", "").replace("+", "").replace("-", "")
+            if phone.startswith("0"):
+                phone = "44" + phone[1:]
+            wa_link = f"https://wa.me/{phone}?text={body.replace(' ', '%20').replace('\n', '%0A')}"
+
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "whatsapp",
+                "direction": "outbound",
+                "body": body,
+                "status": "queued",
+                "sequence_day": 1,
+                "ai_generated": True,
+                "approved_by_founder": True,
+                "metadata": {"wa_link": wa_link},
+            }).execute()
+
+            generated += 1
+
+        except Exception as e:
+            logger.error(f"WhatsApp generation failed for lead {lead_id}: {e}")
+
+    logger.info(f"WhatsApp campaign: {generated} generated, {skipped} skipped")
+    return {"generated": generated, "skipped": skipped}
+
+
 def generate_outreach(
     lead: dict,
     channel: str = "email",
@@ -205,6 +331,9 @@ def generate_outreach(
         return _write_email(lead, preview_url, sequence_day)
     elif channel == "sms":
         body = _write_sms(lead, preview_url, sequence_day)
+        return {"body": body}
+    elif channel == "whatsapp":
+        body = _write_whatsapp(lead, preview_url)
         return {"body": body}
     else:
         raise ValueError(f"Unknown channel: {channel}")
