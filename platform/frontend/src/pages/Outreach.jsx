@@ -143,7 +143,7 @@ export default function Outreach() {
         outreachApi.history(50),
         outreachApi.statsToday(),
       ])
-      setQueue((q.messages || []).filter(m => m.channel !== 'whatsapp'))
+      setQueue((q.messages || []).filter(m => m.channel === 'email'))
       setWhatsappQueue(wa.messages || [])
       setHistory(h.messages || [])
       setStats(s)
