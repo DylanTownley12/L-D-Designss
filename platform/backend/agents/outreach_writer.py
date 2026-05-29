@@ -248,6 +248,11 @@ def run_batch(limit: int = 50) -> dict:
                 skipped += 1
                 continue
 
+            # Skip leads with no email address — can't send without one
+            if not lead.get("email"):
+                skipped += 1
+                continue
+
             # Get preview URL
             preview_result = (
                 db.table("previews")
