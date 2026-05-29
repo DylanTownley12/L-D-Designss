@@ -165,10 +165,13 @@ async def clear_invalid_whatsapp():
     deleted = 0
     for msg in (result.data or []):
         body = msg.get("body", "")
-        if "/previews/serve/" not in body and ".html" in body:
-            db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
-            deleted += 1
-        elif "/previews/serve/" not in body and "previews" not in body:
+        should_delete = (
+            (".html" in body and "/previews/serve/" not in body) or
+            "(insert link)" in body.lower() or
+            "[link]" in body.lower() or
+            "/previews/serve/" not in body
+        )
+        if should_delete:
             db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
             deleted += 1
     return {"deleted": deleted}
