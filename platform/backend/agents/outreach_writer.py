@@ -236,12 +236,13 @@ def run_batch(limit: int = 50) -> dict:
         try:
             lead_id = lead["id"]
 
-            # Skip if already has outreach queued
+            # Skip if already has pending outreach (queued/approved/draft)
             existing = (
                 db.table("outreach_messages")
                 .select("id")
                 .eq("lead_id", lead_id)
                 .eq("direction", "outbound")
+                .in_("status", ["queued", "approved", "draft"])
                 .execute()
             )
             if existing.data:
