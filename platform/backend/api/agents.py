@@ -41,7 +41,7 @@ async def run_agent(req: AgentRunRequest, background_tasks: BackgroundTasks):
         if req.lead_id:
             background_tasks.add_task(fn, req.lead_id)
         else:
-            background_tasks.add_task(preview_generator.run_batch)
+            background_tasks.add_task(preview_generator.run_batch, 1000)
         return AgentRunResult(agent=req.agent, status="started", message="Generating previews in background")
 
     if req.agent == "website_analyzer" and req.lead_id:
