@@ -265,6 +265,15 @@ export default function Outreach() {
           <button onClick={writeOutreach} disabled={generating} className="btn-ghost text-sm">
             {generating ? '✍️ Writing…' : '✍️ Write Outreach'}
           </button>
+          {tab === 'whatsapp' && (
+            <button onClick={async () => {
+              await outreachApi.clearInvalidWhatsapp()
+              showToast('Cleared invalid messages')
+              load()
+            }} className="btn-ghost text-sm text-red-400/60 hover:text-red-400">
+              🗑 Clear Invalid
+            </button>
+          )}
           {queue.length > 0 && (
             <button onClick={sendAll} className="btn-gold">
               Send All ({queue.length})

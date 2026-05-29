@@ -151,6 +151,29 @@ async def reject_message(message_id: str):
     return {"status": "rejected"}
 
 
+@router.post("/clear-invalid-whatsapp")
+async def clear_invalid_whatsapp():
+    """Delete queued WhatsApp messages with broken preview URLs (old .html format)."""
+    db = get_db()
+    result = (
+        db.table("outreach_messages")
+        .select("id,body")
+        .eq("channel", "whatsapp")
+        .eq("status", "queued")
+        .execute()
+    )
+    deleted = 0
+    for msg in (result.data or []):
+        body = msg.get("body", "")
+        if "/previews/serve/" not in body and ".html" in body:
+            db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
+            deleted += 1
+        elif "/previews/serve/" not in body and "previews" not in body:
+            db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
+            deleted += 1
+    return {"deleted": deleted}
+
+
 @router.patch("/{message_id}")
 async def edit_message(message_id: str, body: str, subject: str = None):
     """Edit a queued message before sending."""

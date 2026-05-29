@@ -34,6 +34,7 @@ export const outreach = {
   markSent: (id) => api.post(`/outreach/mark-sent/${id}`),
   reject: (id) => api.post(`/outreach/reject/${id}`),
   sendAllApproved: () => api.post('/outreach/send-all-approved'),
+  clearInvalidWhatsapp: () => api.post('/outreach/clear-invalid-whatsapp'),
   statsToday: () => api.get('/outreach/stats/today'),
 }
 
