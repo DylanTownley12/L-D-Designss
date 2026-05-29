@@ -128,6 +128,22 @@ async def approve_message(message_id: str, background_tasks: BackgroundTasks):
     return {"status": "approved", "sending": True}
 
 
+@router.post("/mark-sent/{message_id}")
+async def mark_manually_sent(message_id: str):
+    """Mark a WhatsApp message as manually sent by the founder."""
+    from datetime import datetime
+    db = get_db()
+    msg = db.table("outreach_messages").select("lead_id").eq("id", message_id).single().execute()
+    db.table("outreach_messages").update({
+        "status": "sent",
+        "sent_at": datetime.utcnow().isoformat(),
+        "approved_by_founder": True,
+    }).eq("id", message_id).execute()
+    if msg.data:
+        db.table("leads").update({"status": "outreach_sent"}).eq("id", msg.data["lead_id"]).execute()
+    return {"status": "sent"}
+
+
 @router.post("/reject/{message_id}")
 async def reject_message(message_id: str):
     db = get_db()

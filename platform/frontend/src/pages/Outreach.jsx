@@ -186,7 +186,8 @@ export default function Outreach() {
 
   const markWhatsAppSent = async (id) => {
     try {
-      await outreachApi.approve(id)
+      await outreachApi.markSent(id)
+      showToast('Marked as sent!')
       load()
     } catch (e) { showToast(e.message, 'error') }
   }

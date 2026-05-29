@@ -31,6 +31,7 @@ export const outreach = {
   generate: (lead_id, channel, sequence_day) =>
     api.post('/outreach/generate', null, { params: { lead_id, channel, sequence_day } }),
   approve: (id) => api.post(`/outreach/approve/${id}`),
+  markSent: (id) => api.post(`/outreach/mark-sent/${id}`),
   reject: (id) => api.post(`/outreach/reject/${id}`),
   sendAllApproved: () => api.post('/outreach/send-all-approved'),
   statsToday: () => api.get('/outreach/stats/today'),
