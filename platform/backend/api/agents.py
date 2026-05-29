@@ -4,6 +4,7 @@ from agents import (
     lead_finder,
     website_analyzer,
     preview_generator,
+    outreach_writer,
     followup_agent,
     notification_agent,
     outreach_sender,
@@ -15,6 +16,7 @@ AGENTS = {
     "lead_finder": lead_finder.run,
     "website_analyzer": website_analyzer.run,
     "preview_generator": preview_generator.run,
+    "outreach_writer": outreach_writer.run_batch,
     "followup_agent": followup_agent.run,
     "outreach_queue": outreach_sender.process_queue,
 }

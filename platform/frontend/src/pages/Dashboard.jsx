@@ -177,11 +177,12 @@ export default function Dashboard() {
         <h2 className="font-semibold mb-4 text-sm text-white/60 uppercase tracking-wider">Run Agents Manually</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { agent: 'lead_finder',      label: 'Find New Leads',      icon: '🔍' },
+            { agent: 'lead_finder',       label: 'Find New Leads',      icon: '🔍' },
             { agent: 'website_analyzer', label: 'Analyse Websites',    icon: '🔬' },
             { agent: 'preview_generator', label: 'Generate Previews',  icon: '🌐' },
+            { agent: 'outreach_writer',  label: 'Write Outreach',      icon: '✍️' },
             { agent: 'followup_agent',   label: 'Check Follow-Ups',    icon: '🔁' },
-            { agent: 'outreach_queue',   label: 'Process Queue',       icon: '📤' },
+            { agent: 'outreach_queue',   label: 'Send Queue',          icon: '📤' },
           ].map(a => (
             <button
               key={a.agent}

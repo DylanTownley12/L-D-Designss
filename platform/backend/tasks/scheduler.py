@@ -23,6 +23,18 @@ async def _process_queue():
     logger.info(f"Queue processed: {result}")
 
 
+async def _generate_previews():
+    from agents.preview_generator import run_batch
+    result = run_batch(limit=100)
+    logger.info(f"Preview batch: {result}")
+
+
+async def _write_outreach():
+    from agents.outreach_writer import run_batch
+    result = run_batch(limit=50)
+    logger.info(f"Outreach batch: {result}")
+
+
 async def _check_followups():
     from agents.followup_agent import run
     result = run()
@@ -73,6 +85,24 @@ def start_scheduler():
         misfire_grace_time=600,
     )
 
+    # Generate previews every 3 hours
+    scheduler.add_job(
+        _generate_previews,
+        trigger=IntervalTrigger(hours=3),
+        id="generate_previews",
+        replace_existing=True,
+        misfire_grace_time=600,
+    )
+
+    # Write outreach emails every 4 hours (after previews exist)
+    scheduler.add_job(
+        _write_outreach,
+        trigger=IntervalTrigger(hours=4),
+        id="write_outreach",
+        replace_existing=True,
+        misfire_grace_time=600,
+    )
+
     # Find new leads once a day at 7am
     scheduler.add_job(
         _find_new_leads,
@@ -83,7 +113,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("Scheduler started with 4 jobs")
+    logger.info("Scheduler started with 6 jobs")
 
 
 def stop_scheduler():

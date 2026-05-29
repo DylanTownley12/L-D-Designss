@@ -208,3 +208,89 @@ def generate_outreach(
         return {"body": body}
     else:
         raise ValueError(f"Unknown channel: {channel}")
+
+
+def run_batch(limit: int = 50) -> dict:
+    """Write outreach emails for leads that have a preview but no outreach yet."""
+    from db.client import get_db
+    from agents import qc_agent
+    from config import settings
+
+    db = get_db()
+
+    # Get preview_ready leads that have a preview but no outreach queued yet
+    result = (
+        db.table("leads")
+        .select("*")
+        .eq("status", "preview_ready")
+        .limit(limit)
+        .execute()
+    )
+    leads = result.data or []
+
+    generated = 0
+    skipped = 0
+    errors = 0
+
+    for lead in leads:
+        try:
+            lead_id = lead["id"]
+
+            # Skip if already has outreach queued
+            existing = (
+                db.table("outreach_messages")
+                .select("id")
+                .eq("lead_id", lead_id)
+                .eq("direction", "outbound")
+                .execute()
+            )
+            if existing.data:
+                skipped += 1
+                continue
+
+            # Get preview URL
+            preview_result = (
+                db.table("previews")
+                .select("preview_url")
+                .eq("lead_id", lead_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            preview_url = preview_result.data[0]["preview_url"] if preview_result.data else None
+
+            content = generate_outreach(lead=lead, channel="email", preview_url=preview_url)
+
+            qc = qc_agent.validate(
+                channel="email",
+                subject=content.get("subject"),
+                body=content["body"],
+                preview_url=preview_url,
+                lead=lead,
+            )
+
+            if not qc["passed"]:
+                errors += 1
+                continue
+
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "email",
+                "direction": "outbound",
+                "subject": content.get("subject"),
+                "body": content["body"],
+                "status": "queued",
+                "sequence_day": 1,
+                "ai_generated": True,
+                "approved_by_founder": not settings.REQUIRE_APPROVAL,
+            }).execute()
+
+            db.table("leads").update({"status": "outreach_queued"}).eq("id", lead_id).execute()
+            generated += 1
+
+        except Exception as e:
+            logger.error(f"Outreach batch failed for lead {lead.get('id')}: {e}")
+            errors += 1
+
+    logger.info(f"Outreach batch: {generated} generated, {skipped} skipped, {errors} errors")
+    return {"generated": generated, "skipped": skipped, "errors": errors}
