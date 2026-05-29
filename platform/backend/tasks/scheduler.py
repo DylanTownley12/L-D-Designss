@@ -19,7 +19,7 @@ scheduler = AsyncIOScheduler()
 
 async def _process_queue():
     from agents.outreach_sender import process_queue
-    result = process_queue(max_send=5)  # Conservative: 5 per hour max
+    result = process_queue(max_send=50)
     logger.info(f"Queue processed: {result}")
 
 
@@ -31,7 +31,7 @@ async def _check_followups():
 
 async def _analyze_new_leads():
     from agents.website_analyzer import run
-    result = run(batch_size=10)
+    result = run(batch_size=100)
     logger.info(f"Website analysis batch: {result}")
 
 
@@ -40,8 +40,8 @@ async def _find_new_leads():
     # Only search 3 cities per day to stay polite and avoid blocks
     import random
     from agents.lead_finder import UK_CITIES
-    cities = random.sample(UK_CITIES, min(3, len(UK_CITIES)))
-    result = run(cities=cities, pages_per_city=2)
+    cities = random.sample(UK_CITIES, min(20, len(UK_CITIES)))
+    result = run(cities=cities, pages_per_city=3)
     logger.info(f"Lead finder result: {result}")
 
 
@@ -64,10 +64,10 @@ def start_scheduler():
         misfire_grace_time=300,
     )
 
-    # Analyze new leads twice a day
+    # Analyze new leads every 2 hours
     scheduler.add_job(
         _analyze_new_leads,
-        trigger=CronTrigger(hour="9,15", minute=0),
+        trigger=IntervalTrigger(hours=2),
         id="analyze_leads",
         replace_existing=True,
         misfire_grace_time=600,
