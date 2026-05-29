@@ -293,7 +293,8 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
             phone = lead["phone"].replace(" ", "").replace("+", "").replace("-", "")
             if phone.startswith("0"):
                 phone = "44" + phone[1:]
-            wa_link = f"https://wa.me/{phone}?text={body.replace(' ', '%20').replace('\n', '%0A')}"
+            encoded = body.replace(' ', '%20').replace('\n', '%0A')
+            wa_link = f"https://wa.me/{phone}?text={encoded}"
 
             db.table("outreach_messages").insert({
                 "lead_id": lead_id,
