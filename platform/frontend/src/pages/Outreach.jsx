@@ -138,11 +138,16 @@ export default function Outreach() {
           <h1 className="text-2xl font-bold">Outreach</h1>
           <p className="text-white/40 text-sm mt-0.5">Review, approve, and send messages</p>
         </div>
-        {queue.length > 0 && (
-          <button onClick={sendAll} className="btn-gold">
-            Send All ({queue.length})
+        <div className="flex gap-2">
+          <button onClick={load} disabled={loading} className="btn-ghost text-sm">
+            {loading ? 'Loading…' : '↻ Refresh'}
           </button>
-        )}
+          {queue.length > 0 && (
+            <button onClick={sendAll} className="btn-gold">
+              Send All ({queue.length})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Daily stats */}
@@ -181,7 +186,11 @@ export default function Outreach() {
         queue.length === 0 ? (
           <div className="card rounded-xl p-12 text-center">
             <div className="text-4xl mb-3">📤</div>
-            <div className="text-white/40 text-sm">Queue is empty. Generate outreach from the Leads page.</div>
+            <div className="text-white/40 text-sm">Queue is empty.</div>
+            <div className="text-white/25 text-xs mt-2">
+              Run "Write Outreach" from the Dashboard to generate emails for preview-ready leads,
+              or click Refresh if you just ran it.
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

@@ -184,7 +184,7 @@ def run(lead_id: str) -> dict:
 
 
 def run_batch(limit: int = 100) -> dict:
-    """Generate previews for a batch of preview_ready leads with no website."""
+    """Generate previews for a batch of preview_ready leads with no website and no existing preview."""
     db = get_db()
     result = (
         db.table("leads")
@@ -196,12 +196,27 @@ def run_batch(limit: int = 100) -> dict:
     )
     leads = result.data or []
     generated = 0
+    skipped = 0
     errors = 0
     for lead in leads:
-        outcome = run(lead["id"])
+        lead_id = lead["id"]
+        # Skip leads that already have a preview
+        existing = (
+            db.table("previews")
+            .select("id")
+            .eq("lead_id", lead_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            # Preview exists but lead is still preview_ready — move it forward
+            db.table("leads").update({"status": "outreach_queued"}).eq("id", lead_id).execute()
+            skipped += 1
+            continue
+        outcome = run(lead_id)
         if outcome["status"] == "success":
             generated += 1
         else:
             errors += 1
-    logger.info(f"Preview batch: {generated} generated, {errors} errors")
-    return {"generated": generated, "errors": errors}
+    logger.info(f"Preview batch: {generated} generated, {skipped} already had preview, {errors} errors")
+    return {"generated": generated, "skipped": skipped, "errors": errors}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { dashboard as dashApi, agents } from '../api/client'
 import StatCard from '../components/StatCard'
@@ -31,6 +32,7 @@ export default function Dashboard() {
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState(null)
   const [running, setRunning] = useState(null)
+  const navigate = useNavigate()
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true)
@@ -57,8 +59,14 @@ export default function Dashboard() {
   const runAgent = async (agent) => {
     setRunning(agent)
     try {
-      const res = await agents.run(agent)
-      alert(`${agent}: ${res.message}`)
+      await agents.run(agent)
+      if (agent === 'outreach_writer') {
+        // Give the background task a few seconds to write messages, then go to Outreach
+        setTimeout(() => navigate('/outreach'), 3000)
+        alert('Writing outreach emails in background. Opening Outreach page in 3 seconds...')
+      } else {
+        alert(`${agent} started. Check agent logs for results.`)
+      }
     } catch (e) {
       alert(`Error: ${e.message}`)
     } finally {

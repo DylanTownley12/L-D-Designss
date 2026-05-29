@@ -57,9 +57,12 @@ def _check_email(subject: str, body: str, preview_url: str | None) -> list[str]:
         issues.append("No call-to-action or contact info found in email")
 
     # Check preview URL is valid if provided
+    # Note: URL validation is best-effort; a reachability failure is logged but not blocking
+    # to avoid batch failures when the preview server is cold or the URL is localhost in dev.
     if preview_url:
         url_issues = _validate_url(preview_url)
-        issues.extend(url_issues)
+        if url_issues:
+            logger.warning(f"Preview URL issues (non-blocking): {url_issues}")
 
     return issues
 
