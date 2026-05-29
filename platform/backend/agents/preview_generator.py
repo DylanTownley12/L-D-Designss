@@ -137,7 +137,7 @@ def run(lead_id: str) -> dict:
     # Check if a full preview already exists (html_content longer than 10KB means it's complete)
     existing = (
         db.table("previews")
-        .select("id", "preview_url", "html_content")
+        .select("id,preview_url,html_content")
         .eq("lead_id", lead_id)
         .limit(1)
         .execute()
