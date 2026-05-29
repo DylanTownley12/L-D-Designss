@@ -119,6 +119,10 @@ def send_message(message_id: str, retry: bool = False) -> dict:
         db.table("outreach_messages").update({"status": "queued"}).eq("id", message_id).execute()
         return {"success": False, "error": f"Daily {msg['channel']} limit reached. Message stays queued."}
 
+    # WhatsApp messages are sent manually — skip automated sending
+    if msg["channel"] == "whatsapp":
+        return {"success": False, "error": "WhatsApp messages are sent manually"}
+
     # Send
     result = {"success": False, "error": "Unknown channel"}
     extra_data = {}
@@ -174,6 +178,7 @@ def process_queue(max_send: int = 10) -> dict:
         db.table("outreach_messages")
         .select("id, channel")
         .eq("status", "approved")
+        .neq("channel", "whatsapp")
         .order("created_at")
         .limit(max_send)
         .execute()
