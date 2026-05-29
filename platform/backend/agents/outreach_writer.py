@@ -212,34 +212,25 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
     return msg
 
 
+_WHATSAPP_TEMPLATES = [
+    "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed you don't have a website — went ahead and built you a free preview to have a look at: {url}\n\nLmk what you think, cheers",
+    "Hiya, Dylan here. I was searching for local barbers and noticed you haven't got a website yet, so I built you a free one to check out: {url}\n\nWorth a look if you get a sec!",
+    "Hey, I'm Dylan — I build websites for barbers. Noticed you didn't have one so I put together a free preview for you: {url}\n\nLet me know what you reckon",
+    "Hiya mate, name's Dylan. Had a look for barbers near me and saw you didn't have a site, so I made you a free preview: {url}\n\nNo strings, just let me know if you like it",
+    "Hey, Dylan here. I noticed you don't have a website yet so I built you a free preview to have a look at: {url}\n\nLmk if you want it live, cheers",
+]
+
+import random as _random
+
 def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
-    """Write a short WhatsApp message for manual sending."""
-    name = lead.get("business_name", "the shop")
-    city = lead.get("city", "")
-
-    prompt = f"Business: {name}" + (f" in {city}" if city else "")
-    if preview_url:
-        prompt += f"\nPreview URL: {preview_url}"
-    prompt += "\nWrite the WhatsApp message now."
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": WHATSAPP_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=120,
-            temperature=0.85,
+    """Build a WhatsApp message directly — no AI, so the URL is always included."""
+    if not preview_url:
+        return (
+            "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed you don't have a website. "
+            "I build free previews for local barbers — fancy one? Just reply and I'll sort it. Cheers"
         )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"OpenAI WhatsApp write failed: {e}")
-        msg = f"Hi, I'm Dylan — I've built a free preview website for {name}."
-        if preview_url:
-            msg += f" Have a look: {preview_url}"
-        msg += " Want me to get it live for you?"
-        return msg
+    template = _random.choice(_WHATSAPP_TEMPLATES)
+    return template.format(url=preview_url)
 
 
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
