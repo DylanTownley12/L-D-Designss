@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { outreach as outreachApi } from '../api/client'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { outreach as outreachApi, agents } from '../api/client'
 
 function MessageCard({ msg, onApprove, onReject }) {
   const [expanded, setExpanded] = useState(false)
@@ -74,6 +75,9 @@ export default function Outreach() {
   const [tab, setTab] = useState('queue')
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
+  const [generating, setGenerating] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const pollRef = useRef(null)
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -98,7 +102,35 @@ export default function Outreach() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    // If navigated here after triggering outreach writer, auto-poll until messages appear
+    if (searchParams.get('generating') === '1') {
+      setGenerating(true)
+      setSearchParams({}, { replace: true })
+      showToast('Writing outreach emails in background — auto-refreshing…')
+      let attempts = 0
+      pollRef.current = setInterval(async () => {
+        attempts++
+        await load()
+        // Stop polling after 12 attempts (60s) or if queue has items
+        if (attempts >= 12) {
+          clearInterval(pollRef.current)
+          setGenerating(false)
+        }
+      }, 5000)
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
+
+  // Stop polling once messages appear in queue
+  useEffect(() => {
+    if (generating && queue.length > 0) {
+      clearInterval(pollRef.current)
+      setGenerating(false)
+      showToast(`${queue.length} message(s) ready for review!`)
+    }
+  }, [queue.length, generating])
 
   const approve = async (id) => {
     try {
@@ -114,6 +146,27 @@ export default function Outreach() {
       showToast('Message rejected')
       load()
     } catch (e) { showToast(e.message, 'error') }
+  }
+
+  const writeOutreach = async () => {
+    setGenerating(true)
+    try {
+      await agents.run('outreach_writer')
+      showToast('Writing outreach emails in background — auto-refreshing…')
+      let attempts = 0
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(async () => {
+        attempts++
+        await load()
+        if (attempts >= 12) {
+          clearInterval(pollRef.current)
+          setGenerating(false)
+        }
+      }, 5000)
+    } catch (e) {
+      showToast(e.message, 'error')
+      setGenerating(false)
+    }
   }
 
   const sendAll = async () => {
@@ -133,6 +186,13 @@ export default function Outreach() {
         }`}>{toast.msg}</div>
       )}
 
+      {generating && (
+        <div className="bg-gold/10 border border-gold/30 rounded-xl px-4 py-3 text-sm text-gold flex items-center gap-2">
+          <span className="animate-pulse">●</span>
+          Writing outreach emails in background — this page refreshes automatically every 5 seconds.
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Outreach</h1>
@@ -141,6 +201,9 @@ export default function Outreach() {
         <div className="flex gap-2">
           <button onClick={load} disabled={loading} className="btn-ghost text-sm">
             {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+          <button onClick={writeOutreach} disabled={generating} className="btn-ghost text-sm">
+            {generating ? '✍️ Writing…' : '✍️ Write Outreach'}
           </button>
           {queue.length > 0 && (
             <button onClick={sendAll} className="btn-gold">

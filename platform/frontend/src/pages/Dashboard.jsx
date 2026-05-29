@@ -61,9 +61,8 @@ export default function Dashboard() {
     try {
       await agents.run(agent)
       if (agent === 'outreach_writer') {
-        // Give the background task a few seconds to write messages, then go to Outreach
-        setTimeout(() => navigate('/outreach'), 3000)
-        alert('Writing outreach emails in background. Opening Outreach page in 3 seconds...')
+        // Navigate to Outreach immediately — messages appear as background task completes
+        navigate('/outreach?generating=1')
       } else {
         alert(`${agent} started. Check agent logs for results.`)
       }

@@ -137,6 +137,27 @@ def run(lead_id: str) -> dict:
 
     lead = result.data
 
+    # Skip if a preview already exists for this lead — avoids duplicates from repeated runs
+    existing = (
+        db.table("previews")
+        .select("id", "preview_url")
+        .eq("lead_id", lead_id)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        existing_url = existing.data[0]["preview_url"]
+        logger.info(f"Preview already exists for lead {lead_id} — skipping generation")
+        # Ensure lead status is at least preview_ready
+        if lead.get("status") == "analyzing":
+            db.table("leads").update({"status": "preview_ready"}).eq("id", lead_id).execute()
+        return {
+            "status": "skipped",
+            "preview_url": existing_url,
+            "lead_id": lead_id,
+            "message": "Preview already exists",
+        }
+
     try:
         context = _build_context(lead)
         template = jinja_env.get_template("barber_site.html")
