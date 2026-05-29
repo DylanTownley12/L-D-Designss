@@ -183,7 +183,7 @@ def run(lead_id: str) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def run_batch(limit: int = 20) -> dict:
+def run_batch(limit: int = 100) -> dict:
     """Generate previews for a batch of preview_ready leads with no website."""
     db = get_db()
     result = (
