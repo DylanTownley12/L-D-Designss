@@ -289,13 +289,6 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
 
             body = _write_whatsapp(lead, preview_url)
 
-            # Build wa.me link
-            phone = lead["phone"].replace(" ", "").replace("+", "").replace("-", "")
-            if phone.startswith("0"):
-                phone = "44" + phone[1:]
-            encoded = body.replace(' ', '%20').replace('\n', '%0A')
-            wa_link = f"https://wa.me/{phone}?text={encoded}"
-
             db.table("outreach_messages").insert({
                 "lead_id": lead_id,
                 "channel": "whatsapp",
@@ -305,7 +298,6 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
                 "sequence_day": 1,
                 "ai_generated": True,
                 "approved_by_founder": True,
-                "metadata": {"wa_link": wa_link},
             }).execute()
 
             generated += 1

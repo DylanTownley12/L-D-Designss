@@ -69,8 +69,9 @@ function MessageCard({ msg, onApprove, onReject }) {
 }
 
 function WhatsAppCard({ msg, onDone }) {
-  const waLink = msg.metadata?.wa_link || msg.wa_link
   const [copied, setCopied] = useState(false)
+  const phone = (msg.leads?.phone || '').replace(/\s|-|\+/g, '').replace(/^0/, '44')
+  const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg.body)}` : null
 
   const copy = () => {
     navigator.clipboard.writeText(msg.body)
