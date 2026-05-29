@@ -15,6 +15,7 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 AGENTS = {
     "lead_finder": lead_finder.run,
     "website_analyzer": website_analyzer.run,
+    "extract_emails": website_analyzer.extract_emails_batch,
     "preview_generator": preview_generator.run,
     "outreach_writer": outreach_writer.run_batch,
     "followup_agent": followup_agent.run,

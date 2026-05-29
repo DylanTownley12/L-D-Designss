@@ -186,6 +186,7 @@ export default function Dashboard() {
           {[
             { agent: 'lead_finder',       label: 'Find New Leads',      icon: '🔍' },
             { agent: 'website_analyzer', label: 'Analyse Websites',    icon: '🔬' },
+            { agent: 'extract_emails',   label: 'Extract Emails',      icon: '📧' },
             { agent: 'preview_generator', label: 'Generate Previews',  icon: '🌐' },
             { agent: 'outreach_writer',  label: 'Write Outreach',      icon: '✍️' },
             { agent: 'followup_agent',   label: 'Check Follow-Ups',    icon: '🔁' },

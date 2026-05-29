@@ -34,6 +34,11 @@ BOOKING_KEYWORDS = [
 MOBILE_KEYWORDS = ["viewport", "responsive", "mobile"]
 CONTACT_KEYWORDS = ["contact", "phone", "email", "whatsapp", "call us"]
 
+EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
+# Exclude common false positives
+EMAIL_BLACKLIST = {"example.com", "sentry.io", "wixpress.com", "squarespace.com",
+                   "wordpress.com", "schema.org", "googleapis.com", "w3.org"}
+
 
 def _is_social_only(url: str) -> bool:
     if not url:
@@ -53,6 +58,7 @@ def _analyze_url(url: str) -> dict:
         "page_size_kb": None,
         "issues": [],
         "score": 0,
+        "email": None,
     }
 
     if not url or _is_social_only(url):
@@ -82,6 +88,14 @@ def _analyze_url(url: str) -> dict:
         result["has_mobile_meta"] = any(k in html for k in MOBILE_KEYWORDS)
         result["has_booking"] = any(k in html for k in BOOKING_KEYWORDS)
         result["has_contact"] = any(k in html for k in CONTACT_KEYWORDS)
+
+        # Extract email address from page
+        emails = EMAIL_RE.findall(r.text)
+        for e in emails:
+            domain = e.split("@")[-1].lower()
+            if domain not in EMAIL_BLACKLIST and not any(bad in domain for bad in EMAIL_BLACKLIST):
+                result["email"] = e.lower()
+                break
 
         # Issues
         if load_ms > 5000:
@@ -196,12 +210,15 @@ def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
             # none/weak = still a good lead (no site or bad site)
             # decent/good = they already have a real site, skip them
             new_status = "preview_ready" if website_status in ("none", "weak") else "not_interested"
-            db.table("leads").update({
+            update_data = {
                 "status": new_status,
                 "website_status": website_status,
                 "quality_score": lead_quality,
                 "analysis_data": analysis,
-            }).eq("id", lead["id"]).execute()
+            }
+            if analysis.get("email") and not lead.get("email"):
+                update_data["email"] = analysis["email"]
+            db.table("leads").update(update_data).eq("id", lead["id"]).execute()
 
             analyzed += 1
             time.sleep(0.5)
@@ -218,3 +235,32 @@ def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
     }, duration_ms)
 
     return {"analyzed": analyzed, "errors": errors}
+
+
+def extract_emails_batch(limit: int = 200) -> dict:
+    """
+    Go back over preview_ready leads that have a website but no email.
+    Re-visits the site and extracts email if present.
+    """
+    db = get_db()
+    result = (
+        db.table("leads")
+        .select("id,website,email")
+        .eq("status", "preview_ready")
+        .is_("email", "null")
+        .limit(limit)
+        .execute()
+    )
+    leads = [l for l in (result.data or []) if l.get("website")]
+    found = 0
+    for lead in leads:
+        try:
+            analysis = _analyze_url(lead["website"])
+            if analysis.get("email"):
+                db.table("leads").update({"email": analysis["email"]}).eq("id", lead["id"]).execute()
+                found += 1
+            time.sleep(0.3)
+        except Exception as e:
+            logger.error(f"Email extraction failed for lead {lead['id']}: {e}")
+    logger.info(f"Email extraction: {found} emails found from {len(leads)} leads with websites")
+    return {"found": found, "checked": len(leads)}
