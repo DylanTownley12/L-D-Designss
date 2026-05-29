@@ -256,7 +256,12 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
         .limit(limit)
         .execute()
     )
-    leads = [l for l in (result.data or []) if l.get("phone")]
+    # Only leads with a mobile number (07 or +447) — landlines won't work on WhatsApp
+    def _is_mobile(phone: str) -> bool:
+        p = phone.replace(" ", "").replace("-", "")
+        return p.startswith("07") or p.startswith("+447") or p.startswith("447")
+
+    leads = [l for l in (result.data or []) if l.get("phone") and _is_mobile(l["phone"])]
 
     generated = 0
     skipped = 0
@@ -286,6 +291,11 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
                 .execute()
             )
             preview_url = preview_result.data[0]["preview_url"] if preview_result.data else None
+
+            # Skip if preview URL is old format (file-based, now broken)
+            if not preview_url or "/previews/serve/" not in preview_url:
+                skipped += 1
+                continue
 
             body = _write_whatsapp(lead, preview_url)
 
