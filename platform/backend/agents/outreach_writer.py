@@ -213,24 +213,31 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
 
 
 _WHATSAPP_TEMPLATES = [
-    "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed you don't have a website — went ahead and built you a free preview to have a look at: {url}\n\nLmk what you think, cheers",
-    "Hiya, Dylan here. I was searching for local barbers and noticed you haven't got a website yet, so I built you a free one to check out: {url}\n\nWorth a look if you get a sec!",
-    "Hey, I'm Dylan — I build websites for barbers. Noticed you didn't have one so I put together a free preview for you: {url}\n\nLet me know what you reckon",
-    "Hiya mate, name's Dylan. Had a look for barbers near me and saw you didn't have a site, so I made you a free preview: {url}\n\nNo strings, just let me know if you like it",
-    "Hey, Dylan here. I noticed you don't have a website yet so I built you a free preview to have a look at: {url}\n\nLmk if you want it live, cheers",
+    "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed {name} doesn't have a website — went ahead and built you a free preview: {url}\n\nLmk what you think, cheers",
+    "Hey, Dylan here. Had a search for local barbers and {name} came up without a website so I built you a free one to check out: {url}\n\nWorth a look if you get a sec!",
+    "Hiya, I'm Dylan — I build websites for local barbers. Noticed {name} didn't have one so I put a free preview together for you: {url}\n\nLet me know what you reckon",
+    "Hiya mate, name's Dylan. Was searching for barbers near me and saw {name} didn't have a site, so I made you a free preview: {url}\n\nNo strings, just lmk if you like it",
+    "Hey, Dylan here. Noticed {name} doesn't have a website yet so I built you a free preview to have a look at: {url}\n\nLmk if you want it live, cheers",
 ]
+
+_WHATSAPP_TEMPLATES_NO_URL = [
+    "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed {name} doesn't have a website. I build free previews for local barbers — fancy one? Just reply and I'll sort it. Cheers",
+    "Hey, Dylan here. Noticed {name} hasn't got a website — I build them for local barbers, one-off price no monthly fees. Want me to put a free preview together for you?",
+    "Hiya, I'm Dylan. Had a look for barbers near me and saw {name} didn't have a site. I do free previews for local barbers if you're interested — just reply and I'll get one made. Cheers",
+]
+
 
 import random as _random
 
 def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
-    """Build a WhatsApp message directly — no AI, so the URL is always included."""
-    if not preview_url:
-        return (
-            "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed you don't have a website. "
-            "I build free previews for local barbers — fancy one? Just reply and I'll sort it. Cheers"
-        )
-    template = _random.choice(_WHATSAPP_TEMPLATES)
-    return template.format(url=preview_url)
+    """Build a WhatsApp message with the business name included."""
+    name = lead.get("business_name", "your shop")
+    if preview_url:
+        template = _random.choice(_WHATSAPP_TEMPLATES)
+        return template.format(name=name, url=preview_url)
+    else:
+        template = _random.choice(_WHATSAPP_TEMPLATES_NO_URL)
+        return template.format(name=name)
 
 
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
