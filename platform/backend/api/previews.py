@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import HTMLResponse
 from db.client import get_db
 from agents import preview_generator, notification_agent
 
@@ -63,6 +64,16 @@ async def list_previews(limit: int = 200):
         .execute()
     )
     return {"previews": result.data or []}
+
+
+@router.get("/serve/{preview_id}", response_class=HTMLResponse)
+async def serve_preview(preview_id: str):
+    """Serve a preview website directly from the database — survives redeploys."""
+    db = get_db()
+    result = db.table("previews").select("html_content").eq("id", preview_id).single().execute()
+    if not result.data or not result.data.get("html_content"):
+        raise HTTPException(status_code=404, detail="Preview not found")
+    return HTMLResponse(content=result.data["html_content"])
 
 
 @router.get("/{preview_id}")

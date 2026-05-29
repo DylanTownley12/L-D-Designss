@@ -5,7 +5,6 @@ Uses Jinja2 to fill in the HTML template with real lead data.
 The preview URL is what we send in outreach — "here's what your site could look like."
 """
 import os
-import uuid
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -17,8 +16,6 @@ from utils.helpers import log_agent_action
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-PREVIEW_DIR = Path(__file__).parent.parent / "static" / "previews"
-PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
 jinja_env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -137,63 +134,69 @@ def run(lead_id: str) -> dict:
 
     lead = result.data
 
-    # Skip if a preview already exists for this lead — avoids duplicates from repeated runs
+    # Check if a full preview already exists (html_content longer than 10KB means it's complete)
     existing = (
         db.table("previews")
-        .select("id", "preview_url")
+        .select("id", "preview_url", "html_content")
         .eq("lead_id", lead_id)
         .limit(1)
         .execute()
     )
     if existing.data:
-        existing_url = existing.data[0]["preview_url"]
-        logger.info(f"Preview already exists for lead {lead_id} — skipping generation")
-        # Ensure lead status is at least preview_ready
-        if lead.get("status") == "analyzing":
-            db.table("leads").update({"status": "preview_ready"}).eq("id", lead_id).execute()
-        return {
-            "status": "skipped",
-            "preview_url": existing_url,
-            "lead_id": lead_id,
-            "message": "Preview already exists",
-        }
+        html_stored = existing.data[0].get("html_content") or ""
+        if len(html_stored) > 10000:
+            # Full HTML already stored — no need to regenerate
+            logger.info(f"Full preview already exists for lead {lead_id} — skipping")
+            return {
+                "status": "skipped",
+                "preview_url": existing.data[0]["preview_url"],
+                "lead_id": lead_id,
+            }
+        # Truncated HTML stored — regenerate and update
+        existing_id = existing.data[0]["id"]
+    else:
+        existing_id = None
 
     try:
         context = _build_context(lead)
         template = jinja_env.get_template("barber_site.html")
         html = template.render(**context)
 
-        # Save HTML file
-        preview_id = str(uuid.uuid4())[:8]
-        filename = f"{preview_id}.html"
-        filepath = PREVIEW_DIR / filename
-        filepath.write_text(html, encoding="utf-8")
+        base = settings.PREVIEW_BASE_URL.replace("/previews", "").rstrip("/")
+        personalization = {
+            "business_name": lead.get("business_name"),
+            "city": lead.get("city"),
+            "phone": lead.get("phone"),
+        }
 
-        preview_url = f"{settings.PREVIEW_BASE_URL}/{filename}"
+        if existing_id:
+            # Update existing row with full HTML
+            preview_url = f"{base}/previews/serve/{existing_id}"
+            db.table("previews").update({
+                "preview_url": preview_url,
+                "html_content": html,
+                "personalization_data": personalization,
+            }).eq("id", existing_id).execute()
+        else:
+            # Insert new row — let Supabase generate the UUID, then update the URL
+            insert_result = db.table("previews").insert({
+                "lead_id": lead_id,
+                "html_content": html,
+                "personalization_data": personalization,
+            }).execute()
+            new_id = insert_result.data[0]["id"]
+            preview_url = f"{base}/previews/serve/{new_id}"
+            db.table("previews").update({"preview_url": preview_url}).eq("id", new_id).execute()
 
-        # Save to database
-        db.table("previews").insert({
-            "lead_id": lead_id,
-            "preview_url": preview_url,
-            "html_content": html[:5000],  # Store first 5KB for reference
-            "personalization_data": {
-                "business_name": lead.get("business_name"),
-                "city": lead.get("city"),
-                "phone": lead.get("phone"),
-            },
-        }).execute()
-
-        # Update lead status
         db.table("leads").update({"status": "preview_ready"}).eq("id", lead_id).execute()
 
         duration_ms = int((datetime.now() - start).total_seconds() * 1000)
         log_agent_action(db, "preview_generator", "generate_preview", lead_id, "success",
-                         {"preview_url": preview_url, "filename": filename}, duration_ms)
+                         {"preview_url": preview_url}, duration_ms)
 
         return {
             "status": "success",
             "preview_url": preview_url,
-            "filename": filename,
             "lead_id": lead_id,
         }
 
@@ -205,13 +208,12 @@ def run(lead_id: str) -> dict:
 
 
 def run_batch(limit: int = 100) -> dict:
-    """Generate previews for a batch of preview_ready leads with no website and no existing preview."""
+    """Generate/fix previews for preview_ready leads. Updates truncated previews from old runs."""
     db = get_db()
     result = (
         db.table("leads")
         .select("id")
         .eq("status", "preview_ready")
-        .eq("website_status", "none")
         .limit(limit)
         .execute()
     )
@@ -220,24 +222,12 @@ def run_batch(limit: int = 100) -> dict:
     skipped = 0
     errors = 0
     for lead in leads:
-        lead_id = lead["id"]
-        # Skip leads that already have a preview
-        existing = (
-            db.table("previews")
-            .select("id")
-            .eq("lead_id", lead_id)
-            .limit(1)
-            .execute()
-        )
-        if existing.data:
-            # Preview exists but lead is still preview_ready — move it forward
-            db.table("leads").update({"status": "outreach_queued"}).eq("id", lead_id).execute()
-            skipped += 1
-            continue
-        outcome = run(lead_id)
+        outcome = run(lead["id"])
         if outcome["status"] == "success":
             generated += 1
+        elif outcome["status"] == "skipped":
+            skipped += 1
         else:
             errors += 1
-    logger.info(f"Preview batch: {generated} generated, {skipped} already had preview, {errors} errors")
+    logger.info(f"Preview batch: {generated} generated/updated, {skipped} already full, {errors} errors")
     return {"generated": generated, "skipped": skipped, "errors": errors}
