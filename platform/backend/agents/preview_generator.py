@@ -144,15 +144,16 @@ def run(lead_id: str) -> dict:
     )
     if existing.data:
         html_stored = existing.data[0].get("html_content") or ""
-        if len(html_stored) > 10000:
-            # Full HTML already stored — no need to regenerate
+        existing_url = existing.data[0].get("preview_url") or ""
+        if len(html_stored) > 10000 and "/previews/serve/" in existing_url:
+            # Full HTML already stored with correct URL — no need to regenerate
             logger.info(f"Full preview already exists for lead {lead_id} — skipping")
             return {
                 "status": "skipped",
-                "preview_url": existing.data[0]["preview_url"],
+                "preview_url": existing_url,
                 "lead_id": lead_id,
             }
-        # Truncated HTML stored — regenerate and update
+        # Truncated HTML or old-format URL — regenerate and update
         existing_id = existing.data[0]["id"]
     else:
         existing_id = None
