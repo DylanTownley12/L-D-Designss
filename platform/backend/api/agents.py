@@ -37,13 +37,13 @@ async def run_agent(req: AgentRunRequest, background_tasks: BackgroundTasks):
     fn = AGENTS[req.agent]
     params = req.params or {}
 
-    # Preview generator: single lead or batch
+    # Preview generator: single lead or force-regenerate all with latest template
     if req.agent == "preview_generator":
         if req.lead_id:
-            background_tasks.add_task(fn, req.lead_id)
+            background_tasks.add_task(fn, req.lead_id, True)
         else:
-            background_tasks.add_task(preview_generator.run_batch, 1000)
-        return AgentRunResult(agent=req.agent, status="started", message="Generating previews in background")
+            background_tasks.add_task(preview_generator.run_batch, 1000, True)
+        return AgentRunResult(agent=req.agent, status="started", message="Regenerating all previews with latest template in background")
 
     if req.agent == "website_analyzer" and req.lead_id:
         background_tasks.add_task(fn, req.lead_id)

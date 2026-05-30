@@ -123,8 +123,10 @@ def _build_context(lead: dict) -> dict:
     }
 
 
-def run(lead_id: str) -> dict:
-    """Generate a preview website for a lead and save it."""
+def run(lead_id: str, force: bool = False) -> dict:
+    """Generate a preview website for a lead and save it.
+    force=True overwrites existing html_content even if it looks complete.
+    """
     start = datetime.now()
     db = get_db()
 
@@ -145,15 +147,14 @@ def run(lead_id: str) -> dict:
     if existing.data:
         html_stored = existing.data[0].get("html_content") or ""
         existing_url = existing.data[0].get("preview_url") or ""
-        if len(html_stored) > 10000 and "/previews/serve/" in existing_url:
-            # Full HTML already stored with correct URL — no need to regenerate
+        if not force and len(html_stored) > 10000 and "/previews/serve/" in existing_url:
+            # Full HTML already stored — skip unless force=True
             logger.info(f"Full preview already exists for lead {lead_id} — skipping")
             return {
                 "status": "skipped",
                 "preview_url": existing_url,
                 "lead_id": lead_id,
             }
-        # Truncated HTML or old-format URL — regenerate and update
         existing_id = existing.data[0]["id"]
     else:
         existing_id = None
@@ -208,27 +209,42 @@ def run(lead_id: str) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def run_batch(limit: int = 100) -> dict:
-    """Generate/fix previews for preview_ready leads. Updates truncated previews from old runs."""
+def run_batch(limit: int = 100, force: bool = False) -> dict:
+    """Generate previews for leads.
+    force=True regenerates ALL leads that have any preview (re-applies the current template).
+    force=False (default) only generates missing/broken previews.
+    """
     db = get_db()
-    result = (
-        db.table("leads")
-        .select("id")
-        .eq("status", "preview_ready")
-        .limit(limit)
-        .execute()
-    )
-    leads = result.data or []
+    if force:
+        # Get lead IDs that already have a preview row — regenerate all of them
+        result = (
+            db.table("previews")
+            .select("lead_id")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        lead_ids = list({r["lead_id"] for r in (result.data or []) if r.get("lead_id")})
+    else:
+        result = (
+            db.table("leads")
+            .select("id")
+            .eq("status", "preview_ready")
+            .limit(limit)
+            .execute()
+        )
+        lead_ids = [r["id"] for r in (result.data or [])]
+
     generated = 0
     skipped = 0
     errors = 0
-    for lead in leads:
-        outcome = run(lead["id"])
+    for lead_id in lead_ids:
+        outcome = run(lead_id, force=force)
         if outcome["status"] == "success":
             generated += 1
         elif outcome["status"] == "skipped":
             skipped += 1
         else:
             errors += 1
-    logger.info(f"Preview batch: {generated} generated/updated, {skipped} already full, {errors} errors")
+    logger.info(f"Preview batch (force={force}): {generated} regenerated, {skipped} skipped, {errors} errors")
     return {"generated": generated, "skipped": skipped, "errors": errors}
