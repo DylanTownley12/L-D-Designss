@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from db.client import get_db
 from models.schemas import MessageCreate, MessageApprove
 from agents import outreach_writer, qc_agent, outreach_sender, followup_agent
@@ -169,6 +169,39 @@ async def clear_invalid_whatsapp():
             db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
             deleted += 1
     return {"deleted": deleted}
+
+
+@router.post("/log-reply/{message_id}")
+async def log_reply(message_id: str, request: Request):
+    """Log a reply from a lead. Saves reply text, updates lead to replied, creates notification."""
+    body = await request.json()
+    reply_text = body.get("reply_text", "Reply received")
+
+    db = get_db()
+    msg_result = db.table("outreach_messages").select("lead_id, channel").eq("id", message_id).single().execute()
+    if not msg_result.data:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    lead_id = msg_result.data["lead_id"]
+    channel = msg_result.data.get("channel", "whatsapp")
+
+    # Save inbound reply as a new message row
+    db.table("outreach_messages").insert({
+        "lead_id": lead_id,
+        "channel": channel,
+        "direction": "inbound",
+        "body": reply_text,
+        "status": "replied",
+    }).execute()
+
+    # Update lead status
+    db.table("leads").update({"status": "replied"}).eq("id", lead_id).execute()
+
+    # Notify + stop follow-up
+    notification_agent.notify_reply_received(lead_id, reply_text)
+    followup_agent.stop_sequence(lead_id, reason="replied")
+
+    return {"status": "logged", "lead_id": lead_id}
 
 
 @router.post("/reject/{message_id}")
