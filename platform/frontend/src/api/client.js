@@ -40,7 +40,7 @@ export const outreach = {
 
 export const previews = {
   generate: (lead_id) => api.post(`/previews/generate/${lead_id}`),
-  list: () => api.get('/previews/'),
+  list: (params) => api.get('/previews/', { params }),
 }
 
 export const dashboard = {
