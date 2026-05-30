@@ -48,6 +48,13 @@ class Settings(BaseSettings):
         return self.APP_ENV == "production"
 
     @property
+    def preview_base_url_resolved(self) -> str:
+        """Return the correct preview base URL. Guards against the Railway env var still pointing to localhost."""
+        if "localhost" in self.PREVIEW_BASE_URL and self.is_production:
+            return "https://l-d-designss-production.up.railway.app/previews"
+        return self.PREVIEW_BASE_URL
+
+    @property
     def sms_enabled(self) -> bool:
         # TextMagic takes priority; fall back to Twilio
         if self.TEXTMAGIC_USERNAME and self.TEXTMAGIC_API_KEY:

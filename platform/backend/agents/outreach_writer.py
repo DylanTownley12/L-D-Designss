@@ -190,6 +190,107 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
     return msg
 
 
+_WHATSAPP_TEMPLATES = [
+    "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed {name} doesn't have a website — went ahead and built you a free preview: {url}\n\nLmk what you think, cheers",
+    "Hey, Dylan here. Had a search for local barbers and {name} came up without a website so I built you a free one to check out: {url}\n\nWorth a look if you get a sec!",
+    "Hiya, I'm Dylan — I build websites for local barbers. Noticed {name} didn't have one so I put a free preview together for you: {url}\n\nLet me know what you reckon",
+    "Hiya mate, name's Dylan. Was searching for barbers near me and saw {name} didn't have a site, so I made you a free preview: {url}\n\nNo strings, just lmk if you like it",
+    "Hey, Dylan here. Noticed {name} doesn't have a website yet so I built you a free preview to have a look at: {url}\n\nLmk if you want it live, cheers",
+]
+
+_WHATSAPP_TEMPLATES_NO_URL = [
+    "Hiya mate, I'm Dylan. Was having a look for barbers nearby and noticed {name} doesn't have a website. I build free previews for local barbers — fancy one? Just reply and I'll sort it. Cheers",
+    "Hey, Dylan here. Noticed {name} hasn't got a website — I build them for local barbers, one-off price no monthly fees. Want me to put a free preview together for you?",
+    "Hiya, I'm Dylan. Had a look for barbers near me and saw {name} didn't have a site. I do free previews for local barbers if you're interested — just reply and I'll get one made. Cheers",
+]
+
+import random as _random
+
+def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
+    name = lead.get("business_name", "your shop")
+    # Only use the URL if it's a real public URL (not localhost)
+    if preview_url and "localhost" in preview_url:
+        preview_url = None
+    if preview_url:
+        template = _random.choice(_WHATSAPP_TEMPLATES)
+        return template.format(name=name, url=preview_url)
+    else:
+        template = _random.choice(_WHATSAPP_TEMPLATES_NO_URL)
+        return template.format(name=name)
+
+
+def generate_whatsapp_campaign(limit: int = 50) -> dict:
+    """
+    Generate WhatsApp messages for preview_ready leads with mobile numbers.
+    Stored as queued outreach messages — Dylan clicks the wa.me link to send manually.
+    """
+    from db.client import get_db
+    db = get_db()
+
+    result = (
+        db.table("leads")
+        .select("*")
+        .eq("status", "preview_ready")
+        .limit(limit)
+        .execute()
+    )
+
+    def _is_mobile(phone: str) -> bool:
+        p = phone.replace(" ", "").replace("-", "")
+        return p.startswith("07") or p.startswith("+447") or p.startswith("447")
+
+    leads = [l for l in (result.data or []) if l.get("phone") and _is_mobile(l["phone"])]
+
+    generated = 0
+    skipped = 0
+
+    for lead in leads:
+        lead_id = lead["id"]
+        try:
+            existing = (
+                db.table("outreach_messages")
+                .select("id")
+                .eq("lead_id", lead_id)
+                .eq("channel", "whatsapp")
+                .in_("status", ["queued", "approved", "sent"])
+                .execute()
+            )
+            if existing.data:
+                skipped += 1
+                continue
+
+            preview_result = (
+                db.table("previews")
+                .select("preview_url")
+                .eq("lead_id", lead_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            preview_url = preview_result.data[0]["preview_url"] if preview_result.data else None
+
+            body = _write_whatsapp(lead, preview_url)
+
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "whatsapp",
+                "direction": "outbound",
+                "body": body,
+                "status": "queued",
+                "sequence_day": 1,
+                "ai_generated": False,
+                "approved_by_founder": True,
+            }).execute()
+
+            generated += 1
+
+        except Exception as e:
+            logger.error(f"WhatsApp generation failed for lead {lead_id}: {e}")
+
+    logger.info(f"WhatsApp campaign: {generated} generated, {skipped} skipped")
+    return {"generated": generated, "skipped": skipped}
+
+
 def generate_outreach(
     lead: dict,
     channel: str = "email",
@@ -199,12 +300,15 @@ def generate_outreach(
     """
     Main public function.
     Returns {'subject': ..., 'body': ...} for email
-    or {'body': ...} for SMS.
+    or {'body': ...} for SMS/WhatsApp.
     """
     if channel == "email":
         return _write_email(lead, preview_url, sequence_day)
     elif channel == "sms":
         body = _write_sms(lead, preview_url, sequence_day)
+        return {"body": body}
+    elif channel == "whatsapp":
+        body = _write_whatsapp(lead, preview_url)
         return {"body": body}
     else:
         raise ValueError(f"Unknown channel: {channel}")

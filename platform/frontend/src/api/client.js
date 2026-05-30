@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE = import.meta.env.VITE_API_URL || '/api'
+const BASE = import.meta.env.VITE_API_URL || 'https://l-d-designss-production.up.railway.app/api'
 
 const api = axios.create({
   baseURL: BASE,
@@ -26,12 +26,15 @@ export const leads = {
 
 export const outreach = {
   queue: (status) => api.get('/outreach/queue', { params: { status } }),
+  queueByChannel: (channel, status) => api.get('/outreach/queue', { params: { status, channel } }),
   history: (limit) => api.get('/outreach/history', { params: { limit } }),
   generate: (lead_id, channel, sequence_day) =>
     api.post('/outreach/generate', null, { params: { lead_id, channel, sequence_day } }),
   approve: (id) => api.post(`/outreach/approve/${id}`),
+  markSent: (id) => api.post(`/outreach/mark-sent/${id}`),
   reject: (id) => api.post(`/outreach/reject/${id}`),
   sendAllApproved: () => api.post('/outreach/send-all-approved'),
+  clearInvalidWhatsapp: () => api.post('/outreach/clear-invalid-whatsapp'),
   statsToday: () => api.get('/outreach/stats/today'),
 }
 

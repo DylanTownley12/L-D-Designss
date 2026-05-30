@@ -148,7 +148,7 @@ def run(lead_id: str) -> dict:
         filepath = PREVIEW_DIR / filename
         filepath.write_text(html, encoding="utf-8")
 
-        preview_url = f"{settings.PREVIEW_BASE_URL}/{filename}"
+        preview_url = f"{settings.preview_base_url_resolved}/{filename}"
 
         # Save to database
         db.table("previews").insert({

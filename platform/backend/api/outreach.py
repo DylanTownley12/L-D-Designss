@@ -8,16 +8,18 @@ router = APIRouter(prefix="/outreach", tags=["outreach"])
 
 
 @router.get("/queue")
-async def get_queue(status: str = "queued"):
+async def get_queue(status: str = "queued", channel: str = None):
     db = get_db()
-    result = (
+    q = (
         db.table("outreach_messages")
         .select("*, leads(business_name, city, email, phone, status)")
         .eq("status", status)
         .eq("direction", "outbound")
         .order("created_at")
-        .execute()
     )
+    if channel:
+        q = q.eq("channel", channel)
+    result = q.execute()
     return {"messages": result.data or []}
 
 
@@ -124,6 +126,47 @@ async def approve_message(message_id: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(outreach_sender.send_message, message_id)
 
     return {"status": "approved", "sending": True}
+
+
+@router.post("/mark-sent/{message_id}")
+async def mark_manually_sent(message_id: str):
+    """Mark a WhatsApp message as manually sent by the founder."""
+    from datetime import datetime
+    db = get_db()
+    msg = db.table("outreach_messages").select("lead_id").eq("id", message_id).single().execute()
+    db.table("outreach_messages").update({
+        "status": "sent",
+        "sent_at": datetime.utcnow().isoformat(),
+        "approved_by_founder": True,
+    }).eq("id", message_id).execute()
+    if msg.data:
+        db.table("leads").update({"status": "outreach_sent"}).eq("id", msg.data["lead_id"]).execute()
+    return {"status": "sent"}
+
+
+@router.post("/clear-invalid-whatsapp")
+async def clear_invalid_whatsapp():
+    """Delete queued WhatsApp messages with broken or localhost preview URLs."""
+    db = get_db()
+    result = (
+        db.table("outreach_messages")
+        .select("id,body")
+        .eq("channel", "whatsapp")
+        .eq("status", "queued")
+        .execute()
+    )
+    deleted = 0
+    for msg in (result.data or []):
+        body = msg.get("body", "")
+        should_delete = (
+            "localhost" in body or
+            "(insert link)" in body.lower() or
+            "[link]" in body.lower()
+        )
+        if should_delete:
+            db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
+            deleted += 1
+    return {"deleted": deleted}
 
 
 @router.post("/reject/{message_id}")
