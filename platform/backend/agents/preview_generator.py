@@ -163,7 +163,7 @@ def run(lead_id: str) -> dict:
         template = jinja_env.get_template("barber_site.html")
         html = template.render(**context)
 
-        base = settings.PREVIEW_BASE_URL.replace("/previews", "").rstrip("/")
+        base = settings.preview_base_url_resolved.replace("/previews", "").rstrip("/")
         personalization = {
             "business_name": lead.get("business_name"),
             "city": lead.get("city"),

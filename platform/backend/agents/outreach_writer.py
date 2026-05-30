@@ -226,12 +226,13 @@ _WHATSAPP_TEMPLATES_NO_URL = [
     "Hiya, I'm Dylan. Had a look for barbers near me and saw {name} didn't have a site. I do free previews for local barbers if you're interested — just reply and I'll get one made. Cheers",
 ]
 
-
 import random as _random
 
 def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
-    """Build a WhatsApp message with the business name included."""
     name = lead.get("business_name", "your shop")
+    # Only use the URL if it's a real public URL (not localhost)
+    if preview_url and "localhost" in preview_url:
+        preview_url = None
     if preview_url:
         template = _random.choice(_WHATSAPP_TEMPLATES)
         return template.format(name=name, url=preview_url)
@@ -242,9 +243,8 @@ def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
 
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
     """
-    Generate WhatsApp messages for preview_ready leads with phone numbers.
-    Stores them as queued outreach messages with channel='whatsapp'.
-    These are for manual sending — Dylan clicks the wa.me link.
+    Generate WhatsApp messages for preview_ready leads with mobile numbers.
+    Stored as queued outreach messages — Dylan clicks the wa.me link to send manually.
     """
     from db.client import get_db
     db = get_db()
@@ -275,7 +275,7 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
                 .select("id")
                 .eq("lead_id", lead_id)
                 .eq("channel", "whatsapp")
-                .in_("status", ["queued", "approved"])
+                .in_("status", ["queued", "approved", "sent"])
                 .execute()
             )
             if existing.data:
@@ -292,8 +292,8 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
             )
             preview_url = preview_result.data[0]["preview_url"] if preview_result.data else None
 
-            # Only include preview URL if it's the new DB-served format
-            if preview_url and "/previews/serve/" not in preview_url:
+            # Only include preview URL if it's the DB-served format pointing to a public host
+            if preview_url and ("/previews/serve/" not in preview_url or "localhost" in preview_url):
                 preview_url = None
 
             body = _write_whatsapp(lead, preview_url)
@@ -305,7 +305,7 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
                 "body": body,
                 "status": "queued",
                 "sequence_day": 1,
-                "ai_generated": True,
+                "ai_generated": False,
                 "approved_by_founder": True,
             }).execute()
 
@@ -327,7 +327,7 @@ def generate_outreach(
     """
     Main public function.
     Returns {'subject': ..., 'body': ...} for email
-    or {'body': ...} for SMS.
+    or {'body': ...} for SMS/WhatsApp.
     """
     if channel == "email":
         return _write_email(lead, preview_url, sequence_day)

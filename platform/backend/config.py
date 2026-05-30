@@ -18,10 +18,14 @@ class Settings(BaseSettings):
     # Google Places API (optional — enables lead finder)
     GOOGLE_PLACES_API_KEY: Optional[str] = None
 
-    # Twilio (optional)
+    # Twilio (optional — legacy, replaced by TextMagic)
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_FROM_NUMBER: Optional[str] = None
+
+    # TextMagic (preferred SMS provider — no UK regulatory approval needed)
+    TEXTMAGIC_USERNAME: Optional[str] = None
+    TEXTMAGIC_API_KEY: Optional[str] = None
 
     # Business
     FOUNDER_PHONE: str = "07301181878"
@@ -44,8 +48,26 @@ class Settings(BaseSettings):
         return self.APP_ENV == "production"
 
     @property
+    def preview_base_url_resolved(self) -> str:
+        """Return the correct preview base URL. Guards against the Railway env var still pointing to localhost."""
+        if "localhost" in self.PREVIEW_BASE_URL and self.is_production:
+            return "https://l-d-designss-production.up.railway.app/previews"
+        return self.PREVIEW_BASE_URL
+
+    @property
     def sms_enabled(self) -> bool:
+        # TextMagic takes priority; fall back to Twilio
+        if self.TEXTMAGIC_USERNAME and self.TEXTMAGIC_API_KEY:
+            return True
         return bool(self.TWILIO_ACCOUNT_SID and self.TWILIO_AUTH_TOKEN and self.TWILIO_FROM_NUMBER)
+
+    @property
+    def sms_provider(self) -> str:
+        if self.TEXTMAGIC_USERNAME and self.TEXTMAGIC_API_KEY:
+            return "textmagic"
+        if self.TWILIO_ACCOUNT_SID and self.TWILIO_AUTH_TOKEN and self.TWILIO_FROM_NUMBER:
+            return "twilio"
+        return "none"
 
     class Config:
         env_file = ".env"

@@ -144,16 +144,9 @@ async def mark_manually_sent(message_id: str):
     return {"status": "sent"}
 
 
-@router.post("/reject/{message_id}")
-async def reject_message(message_id: str):
-    db = get_db()
-    db.table("outreach_messages").update({"status": "draft"}).eq("id", message_id).execute()
-    return {"status": "rejected"}
-
-
 @router.post("/clear-invalid-whatsapp")
 async def clear_invalid_whatsapp():
-    """Delete queued WhatsApp messages with broken preview URLs (old .html format)."""
+    """Delete queued WhatsApp messages with broken or localhost preview URLs."""
     db = get_db()
     result = (
         db.table("outreach_messages")
@@ -166,6 +159,7 @@ async def clear_invalid_whatsapp():
     for msg in (result.data or []):
         body = msg.get("body", "")
         should_delete = (
+            "localhost" in body or
             (".html" in body and "/previews/serve/" not in body) or
             "(insert link)" in body.lower() or
             "[link]" in body.lower() or
@@ -175,6 +169,13 @@ async def clear_invalid_whatsapp():
             db.table("outreach_messages").delete().eq("id", msg["id"]).execute()
             deleted += 1
     return {"deleted": deleted}
+
+
+@router.post("/reject/{message_id}")
+async def reject_message(message_id: str):
+    db = get_db()
+    db.table("outreach_messages").update({"status": "draft"}).eq("id", message_id).execute()
+    return {"status": "rejected"}
 
 
 @router.patch("/{message_id}")
