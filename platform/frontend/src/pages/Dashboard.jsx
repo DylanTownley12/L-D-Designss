@@ -98,6 +98,60 @@ export default function Dashboard() {
         <p className="text-white/40 text-sm">Your agency at a glance</p>
       </div>
 
+      {/* Today's Tasks */}
+      <div className="card p-5 rounded-xl border border-gold/15 bg-gold/3">
+        <h2 className="font-semibold mb-4 text-sm text-gold/80 uppercase tracking-wider">Today's Tasks</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            {
+              label: 'WhatsApp to Send',
+              value: stats.whatsapp_queued,
+              icon: '💬',
+              link: '/outreach',
+              urgent: stats.whatsapp_queued > 0,
+              empty: 'None queued',
+            },
+            {
+              label: 'Instagram DMs Ready',
+              value: stats.instagram_ready,
+              icon: '📸',
+              link: '/outreach',
+              urgent: stats.instagram_ready > 0,
+              empty: 'None ready',
+            },
+            {
+              label: 'Follow-ups Pending',
+              value: stats.followups_waiting,
+              icon: '🔁',
+              link: '/leads',
+              urgent: false,
+              empty: 'All clear',
+            },
+            {
+              label: 'Need Attention',
+              value: stats.need_attention,
+              icon: '🔥',
+              link: '/leads',
+              urgent: stats.need_attention > 0,
+              empty: 'No replies yet',
+            },
+          ].map(t => (
+            <a key={t.label} href={t.link}
+               className={`rounded-xl p-4 text-center transition-all hover:scale-[1.02] cursor-pointer block ${
+                 t.urgent && t.value > 0
+                   ? 'bg-gold/10 border border-gold/30'
+                   : 'bg-white/3 border border-white/8'
+               }`}>
+              <div className="text-2xl mb-1">{t.icon}</div>
+              <div className={`text-2xl font-bold ${t.urgent && t.value > 0 ? 'text-gold' : 'text-white/60'}`}>
+                {t.value > 0 ? t.value : '—'}
+              </div>
+              <div className="text-white/40 text-xs mt-1">{t.value > 0 ? t.label : t.empty}</div>
+            </a>
+          ))}
+        </div>
+      </div>
+
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
         <StatCard label="Total Leads"     value={stats.total_leads}       icon="🎯" color="gold" />

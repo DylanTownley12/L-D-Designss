@@ -341,6 +341,74 @@ def generate_outreach(
         raise ValueError(f"Unknown channel: {channel}")
 
 
+_INSTAGRAM_DM_TEMPLATES = [
+    "Hey! Noticed {name} doesn't have a website yet — I build them for local barbers, one-off price, no monthly fees. Happy to put a free preview together if you fancy it? — Dylan",
+    "Hi! Had a look for barbers nearby and saw {name} doesn't have a site. I do free website previews for barbers — want me to make one for you? — Dylan from Wigan",
+    "Hey, I'm Dylan — I build websites for barbers. Noticed {name} doesn't have one yet, happy to put a free preview together. No catch, just reply if you want a look 👍",
+    "Hi! I build websites for local barber shops — saw {name} doesn't have one. One-off price, no monthly fees, quick turnaround. Fancy a free preview? — Dylan",
+    "Hey! Was looking for barbers near me and {name} came up without a website. I make free previews for barbers — no strings, just reply if you're interested. Cheers, Dylan",
+]
+
+
+def generate_instagram_campaign(limit: int = 50) -> dict:
+    """
+    Generate Instagram DM scripts for preview_ready leads that have an instagram_url.
+    Stored as queued outreach_messages with channel='instagram' — copy only, not sent automatically.
+    """
+    from db.client import get_db
+    db = get_db()
+
+    # Fetch a wide batch and filter for instagram_url in Python
+    result = (
+        db.table("leads")
+        .select("*")
+        .eq("status", "preview_ready")
+        .limit(limit * 4)
+        .execute()
+    )
+    leads = [l for l in (result.data or []) if l.get("instagram_url")][:limit]
+
+    generated = 0
+    skipped = 0
+
+    for lead in leads:
+        lead_id = lead["id"]
+        try:
+            existing = (
+                db.table("outreach_messages")
+                .select("id")
+                .eq("lead_id", lead_id)
+                .eq("channel", "instagram")
+                .in_("status", ["queued", "sent"])
+                .execute()
+            )
+            if existing.data:
+                skipped += 1
+                continue
+
+            name = lead.get("business_name", "your shop")
+            body = _random.choice(_INSTAGRAM_DM_TEMPLATES).format(name=name)
+
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "instagram",
+                "direction": "outbound",
+                "body": body,
+                "status": "queued",
+                "sequence_day": 1,
+                "ai_generated": False,
+                "approved_by_founder": True,
+            }).execute()
+
+            generated += 1
+
+        except Exception as e:
+            logger.error(f"Instagram DM generation failed for lead {lead_id}: {e}")
+
+    logger.info(f"Instagram campaign: {generated} generated, {skipped} skipped")
+    return {"generated": generated, "skipped": skipped}
+
+
 def run_batch(limit: int = 50) -> dict:
     """Write outreach emails for leads that have a preview but no outreach yet."""
     from db.client import get_db

@@ -56,6 +56,10 @@ export const agents = {
   logs: (agent) => api.get('/agents/logs', { params: { agent } }),
 }
 
+export const instagram = {
+  queue: () => api.get('/outreach/queue', { params: { status: 'queued', channel: 'instagram' } }),
+}
+
 export const webhooks = {
   logReply: (lead_id, message) => api.post(`/webhooks/manual-reply/${lead_id}`, { message }),
 }

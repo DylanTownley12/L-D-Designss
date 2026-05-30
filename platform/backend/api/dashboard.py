@@ -37,6 +37,12 @@ async def get_stats():
     emails_today      = count_gte("outreach_messages", "sent_at", f"{today}T00:00:00",
                                   channel="email", status="sent")
 
+    # Today's tasks
+    whatsapp_queued  = count("outreach_messages", status="queued",  channel="whatsapp",  direction="outbound")
+    instagram_ready  = count("outreach_messages", status="queued",  channel="instagram", direction="outbound")
+    followups_waiting = count("leads", status="outreach_sent")
+    need_attention   = count("leads", status="replied") + count("leads", status="interested")
+
     # Revenue
     revenue_result = db.table("deployed_websites").select("payment_amount").eq("payment_received", True).execute()
     revenue_total = sum(r["payment_amount"] or 0 for r in (revenue_result.data or []))
@@ -85,6 +91,10 @@ async def get_stats():
         "activity": activity,
         "notifications": notifs.data or [],
         "unread_notifications": len(notifs.data or []),
+        "whatsapp_queued": whatsapp_queued,
+        "instagram_ready": instagram_ready,
+        "followups_waiting": followups_waiting,
+        "need_attention": need_attention,
     }
 
 

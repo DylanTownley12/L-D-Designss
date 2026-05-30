@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { outreach as outreachApi, agents, webhooks } from '../api/client'
+import { outreach as outreachApi, agents, webhooks, instagram as instagramApi } from '../api/client'
 
 function MessageCard({ msg, onApprove, onReject }) {
   const [expanded, setExpanded] = useState(false)
@@ -171,10 +171,57 @@ function WhatsAppSentCard({ msg, onLogReply }) {
   )
 }
 
+function InstagramCard({ msg }) {
+  const [copied, setCopied] = useState(false)
+  const igUrl = msg.leads?.instagram_url
+
+  const copy = () => {
+    navigator.clipboard.writeText(msg.body)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="card rounded-xl p-4 border border-purple-500/20 bg-purple-500/3">
+      <div className="flex items-start gap-3">
+        <div className="text-xl flex-shrink-0">📸</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-medium text-sm">{msg.leads?.business_name || 'Unknown'}</span>
+            <span className="text-white/30 text-xs">·</span>
+            <span className="text-white/40 text-xs">{msg.leads?.city}</span>
+            {igUrl && (
+              <a href={igUrl} target="_blank" rel="noopener noreferrer"
+                 className="text-purple-400 text-xs ml-auto hover:text-purple-300 truncate max-w-32">
+                {igUrl.replace('https://www.instagram.com/', '@').replace('https://instagram.com/', '@').replace(/\/$/, '')}
+              </a>
+            )}
+          </div>
+          <div className="text-white/70 text-sm leading-relaxed bg-white/5 rounded-lg p-3">
+            {msg.body}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-3 pt-3 border-t border-white/6">
+        {igUrl && (
+          <a href={igUrl} target="_blank" rel="noopener noreferrer"
+             className="btn-ghost flex-1 py-2 text-sm text-center text-purple-400 hover:text-purple-300">
+            Open Instagram
+          </a>
+        )}
+        <button onClick={copy} className="btn-gold flex-1 py-2 text-sm">
+          {copied ? '✓ Copied!' : '📋 Copy DM'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Outreach() {
   const [queue, setQueue] = useState([])
   const [whatsappQueue, setWhatsappQueue] = useState([])
   const [whatsappSent, setWhatsappSent] = useState([])
+  const [instagramQueue, setInstagramQueue] = useState([])
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
   const [tab, setTab] = useState('whatsapp')
@@ -192,10 +239,11 @@ export default function Outreach() {
   const load = async () => {
     setLoading(true)
     try {
-      const [q, wa, waSent, h, s] = await Promise.all([
+      const [q, wa, waSent, ig, h, s] = await Promise.all([
         outreachApi.queue('queued'),
         outreachApi.queueByChannel('whatsapp', 'queued'),
         outreachApi.queueByChannel('whatsapp', 'sent'),
+        instagramApi.queue(),
         outreachApi.history(50),
         outreachApi.statsToday(),
       ])
@@ -207,6 +255,7 @@ export default function Outreach() {
           .slice(-30)
           .reverse()
       )
+      setInstagramQueue(ig.messages || [])
       setHistory(h.messages || [])
       setStats(s)
     } catch (e) {
@@ -301,6 +350,14 @@ export default function Outreach() {
 
   const waTotal = whatsappQueue.length + whatsappSent.length
 
+  const generateInstagram = async () => {
+    try {
+      await agents.run('instagram_campaign')
+      showToast('Generating Instagram DMs in background…')
+      setTimeout(load, 3000)
+    } catch (e) { showToast(e.message, 'error') }
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {toast && (
@@ -365,9 +422,10 @@ export default function Outreach() {
       {/* Tabs */}
       <div className="flex gap-1 bg-dark-2 rounded-lg p-1 w-fit">
         {[
-          { key: 'whatsapp', label: `💬 WhatsApp (${waTotal})` },
-          { key: 'queue',    label: `📧 Email Queue (${queue.length})` },
-          { key: 'history',  label: `History (${history.length})` },
+          { key: 'whatsapp',   label: `💬 WhatsApp (${waTotal})` },
+          { key: 'instagram',  label: `📸 Instagram (${instagramQueue.length})` },
+          { key: 'queue',      label: `📧 Email Queue (${queue.length})` },
+          { key: 'history',    label: `History (${history.length})` },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
@@ -409,6 +467,26 @@ export default function Outreach() {
                 ))}
               </div>
             )}
+          </div>
+        )
+      ) : tab === 'instagram' ? (
+        instagramQueue.length === 0 ? (
+          <div className="card rounded-xl p-12 text-center">
+            <div className="text-4xl mb-3">📸</div>
+            <div className="text-white/40 text-sm">No Instagram DM scripts generated yet.</div>
+            <div className="text-white/25 text-xs mt-2 mb-4">
+              Generates scripts for preview-ready leads that have an Instagram page.
+            </div>
+            <button onClick={generateInstagram} className="btn-gold text-sm">
+              Generate Instagram DMs
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-xs text-white/30 pb-1">
+              Copy the DM, open their Instagram, send manually. {instagramQueue.length} scripts ready.
+            </div>
+            {instagramQueue.map(msg => <InstagramCard key={msg.id} msg={msg} />)}
           </div>
         )
       ) : tab === 'queue' ? (
