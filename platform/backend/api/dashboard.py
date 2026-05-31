@@ -1,6 +1,9 @@
 from fastapi import APIRouter
 from datetime import date, timedelta
 from db.client import get_db
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -42,6 +45,10 @@ async def get_stats():
     instagram_ready  = count("outreach_messages", status="queued",  channel="instagram", direction="outbound")
     followups_waiting = count("leads", status="outreach_sent")
     need_attention   = count("leads", status="replied") + count("leads", status="interested")
+
+    # Converted clients (wins)
+    wins_result = db.table("leads").select("business_name, city").eq("status", "converted").limit(20).execute()
+    wins = wins_result.data or []
 
     # Revenue
     revenue_result = db.table("deployed_websites").select("payment_amount").eq("payment_received", True).execute()
@@ -95,6 +102,7 @@ async def get_stats():
         "instagram_ready": instagram_ready,
         "followups_waiting": followups_waiting,
         "need_attention": need_attention,
+        "wins": wins,
     }
 
 
@@ -113,6 +121,52 @@ async def mark_notifications_read():
     from agents.notification_agent import mark_all_read
     mark_all_read()
     return {"ok": True}
+
+
+@router.get("/health")
+async def health_check():
+    """Quick health snapshot — check from your phone at any time."""
+    try:
+        db = get_db()
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+        def _count(table, **filters):
+            q = db.table(table).select("id", count="exact")
+            for k, v in filters.items():
+                q = q.eq(k, v)
+            return q.execute().count or 0
+
+        preview_result = db.table("previews").select("preview_url").limit(2000).execute()
+        valid_previews = sum(
+            1 for p in (preview_result.data or [])
+            if '/previews/serve/' in (p.get("preview_url") or '')
+            and 'localhost' not in (p.get("preview_url") or '')
+        )
+
+        replied_24h = (
+            db.table("leads").select("id", count="exact")
+            .gte("updated_at", f"{yesterday}T00:00:00")
+            .in_("status", ["replied", "interested"])
+            .execute().count or 0
+        )
+
+        return {
+            "status": "ok",
+            "leads": {
+                "new":           _count("leads", status="new"),
+                "preview_ready": _count("leads", status="preview_ready"),
+                "sent":          _count("leads", status="outreach_sent"),
+                "replied":       _count("leads", status="replied"),
+                "interested":    _count("leads", status="interested"),
+                "converted":     _count("leads", status="converted"),
+            },
+            "whatsapp_queued":  _count("outreach_messages", status="queued", channel="whatsapp", direction="outbound"),
+            "valid_previews":   valid_previews,
+            "replies_24h":      replied_24h,
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {"status": "error", "detail": str(e)}
 
 
 @router.get("/activity")

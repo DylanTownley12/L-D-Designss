@@ -274,13 +274,16 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     for lead in leads:
         lead_id = lead["id"]
         try:
-            # Skip if already has a pending whatsapp message
+            # Skip if already has a WhatsApp message sent within the last 30 days
+            from datetime import datetime, timedelta
+            cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
             existing = (
                 db.table("outreach_messages")
                 .select("id")
                 .eq("lead_id", lead_id)
                 .eq("channel", "whatsapp")
                 .in_("status", ["queued", "approved", "sent"])
+                .gte("created_at", cutoff)
                 .execute()
             )
             if existing.data:

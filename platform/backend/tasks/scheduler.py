@@ -1,12 +1,7 @@
 """
-Background task scheduler
-Runs recurring jobs:
-- Every hour: process outreach queue
-- Every 6 hours: check follow-up sequences
-- Every 12 hours: run website analyzer on new leads
-- Daily: run lead finder for new leads
-
-Uses APScheduler — simple, no Redis needed.
+Background task scheduler — Europe/London timezone
+Daily pipeline: 5:55am health check → 6am leads → 6:30am previews → 7am WhatsApp → 9am follow-ups
+Each job is independently error-handled so one failure never stops the others.
 """
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -14,127 +9,175 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 logger = logging.getLogger(__name__)
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone='Europe/London')
+
+TZ = 'Europe/London'
 
 
-async def _process_queue():
-    from agents.outreach_sender import process_queue
-    result = process_queue(max_send=50)
-    logger.info(f"Queue processed: {result}")
+# ── Health check ────────────────────────────────────────────────────────────
+
+async def _morning_health_check():
+    try:
+        from db.client import get_db
+        from datetime import date, timedelta
+        db = get_db()
+        today = date.today().isoformat()
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+        def _count(table, **filters):
+            q = db.table(table).select("id", count="exact")
+            for k, v in filters.items():
+                q = q.eq(k, v)
+            return q.execute().count or 0
+
+        statuses = ['new', 'preview_ready', 'outreach_sent', 'replied', 'interested', 'converted']
+        leads_by_status = {s: _count("leads", status=s) for s in statuses}
+
+        wa_queued = _count("outreach_messages", status="queued", channel="whatsapp", direction="outbound")
+
+        preview_result = db.table("previews").select("preview_url").limit(2000).execute()
+        valid_previews = sum(
+            1 for p in (preview_result.data or [])
+            if 'railway' in (p.get("preview_url") or '') or '/previews/serve/' in (p.get("preview_url") or '')
+        )
+
+        replied_24h = (
+            db.table("leads").select("id", count="exact")
+            .gte("updated_at", f"{yesterday}T00:00:00")
+            .in_("status", ["replied", "interested"])
+            .execute().count or 0
+        )
+
+        logger.info(
+            "\n" + "=" * 55 + "\n"
+            f"  MORNING HEALTH CHECK — {today}\n"
+            + "=" * 55 + "\n"
+            f"  Leads:          {leads_by_status}\n"
+            f"  WA queued:      {wa_queued}\n"
+            f"  Valid previews: {valid_previews}\n"
+            f"  Replies (24h):  {replied_24h}\n"
+            + "=" * 55
+        )
+    except Exception as e:
+        logger.error(f"[health_check] Failed: {e}", exc_info=True)
+
+
+# ── Pipeline jobs ────────────────────────────────────────────────────────────
+
+async def _find_new_leads():
+    try:
+        import random
+        from agents.lead_finder import run, UK_CITIES
+        cities = random.sample(UK_CITIES, min(20, len(UK_CITIES)))
+        result = run(cities=cities, pages_per_city=3)
+        logger.info(f"[lead_finder] {result}")
+    except Exception as e:
+        logger.error(f"[lead_finder] Failed: {e}", exc_info=True)
 
 
 async def _generate_previews():
-    from agents.preview_generator import run_batch
-    result = run_batch(limit=50)
-    logger.info(f"Preview batch: {result}")
-
-
-async def _write_outreach():
-    from agents.outreach_writer import run_batch
-    result = run_batch(limit=50)
-    logger.info(f"Outreach batch: {result}")
-
-
-async def _check_followups():
-    from agents.followup_agent import run
-    result = run()
-    logger.info(f"Follow-ups checked: {result}")
-
-
-async def _analyze_new_leads():
-    from agents.website_analyzer import run
-    result = run(batch_size=100)
-    logger.info(f"Website analysis batch: {result}")
-
-
-async def _find_new_leads():
-    from agents.lead_finder import run
-    # Only search 3 cities per day to stay polite and avoid blocks
-    import random
-    from agents.lead_finder import UK_CITIES
-    cities = random.sample(UK_CITIES, min(20, len(UK_CITIES)))
-    result = run(cities=cities, pages_per_city=3)
-    logger.info(f"Lead finder result: {result}")
+    try:
+        from agents.preview_generator import run_batch
+        result = run_batch(limit=50)
+        logger.info(f"[preview_generator] {result}")
+    except Exception as e:
+        logger.error(f"[preview_generator] Failed: {e}", exc_info=True)
 
 
 async def _whatsapp_campaign():
-    from agents.outreach_writer import generate_whatsapp_campaign
-    result = generate_whatsapp_campaign(limit=30)
-    logger.info(f"WhatsApp campaign: {result}")
+    try:
+        from agents.outreach_writer import generate_whatsapp_campaign
+        result = generate_whatsapp_campaign(limit=30)
+        logger.info(f"[whatsapp_campaign] {result}")
+    except Exception as e:
+        logger.error(f"[whatsapp_campaign] Failed: {e}", exc_info=True)
 
 
 async def _instagram_campaign():
-    from agents.outreach_writer import generate_instagram_campaign
-    result = generate_instagram_campaign(limit=30)
-    logger.info(f"Instagram campaign: {result}")
+    try:
+        from agents.outreach_writer import generate_instagram_campaign
+        result = generate_instagram_campaign(limit=30)
+        logger.info(f"[instagram_campaign] {result}")
+    except Exception as e:
+        logger.error(f"[instagram_campaign] Failed: {e}", exc_info=True)
 
+
+async def _check_followups():
+    try:
+        from agents.followup_agent import run
+        result = run()
+        logger.info(f"[followup_agent] {result}")
+    except Exception as e:
+        logger.error(f"[followup_agent] Failed: {e}", exc_info=True)
+
+
+async def _process_queue():
+    try:
+        from agents.outreach_sender import process_queue
+        result = process_queue(max_send=50)
+        logger.info(f"[outreach_sender] {result}")
+    except Exception as e:
+        logger.error(f"[outreach_sender] Failed: {e}", exc_info=True)
+
+
+async def _analyze_new_leads():
+    try:
+        from agents.website_analyzer import run
+        result = run(batch_size=100)
+        logger.info(f"[website_analyzer] {result}")
+    except Exception as e:
+        logger.error(f"[website_analyzer] Failed: {e}", exc_info=True)
+
+
+async def _write_outreach():
+    try:
+        from agents.outreach_writer import run_batch
+        result = run_batch(limit=50)
+        logger.info(f"[outreach_writer] {result}")
+    except Exception as e:
+        logger.error(f"[outreach_writer] Failed: {e}", exc_info=True)
+
+
+# ── Scheduler setup ──────────────────────────────────────────────────────────
 
 def start_scheduler():
-    # 6:00am — find new leads (≈50 leads across a few cities)
-    scheduler.add_job(
-        _find_new_leads,
-        trigger=CronTrigger(hour=6, minute=0),
-        id="find_leads",
-        replace_existing=True,
-        misfire_grace_time=600,
-    )
+    def job(fn, **kwargs):
+        return dict(func=fn, replace_existing=True, misfire_grace_time=600, **kwargs)
+
+    # 5:55am — morning health check
+    scheduler.add_job(**job(_morning_health_check, id="health_check",
+        trigger=CronTrigger(hour=5, minute=55, timezone=TZ)))
+
+    # 6:00am — find new leads
+    scheduler.add_job(**job(_find_new_leads, id="find_leads",
+        trigger=CronTrigger(hour=6, minute=0, timezone=TZ)))
 
     # 6:30am — generate previews for new leads
-    scheduler.add_job(
-        _generate_previews,
-        trigger=CronTrigger(hour=6, minute=30),
-        id="generate_previews",
-        replace_existing=True,
-        misfire_grace_time=600,
-    )
+    scheduler.add_job(**job(_generate_previews, id="generate_previews",
+        trigger=CronTrigger(hour=6, minute=30, timezone=TZ)))
 
-    # 7:00am — generate WhatsApp campaign messages
-    scheduler.add_job(
-        _whatsapp_campaign,
-        trigger=CronTrigger(hour=7, minute=0),
-        id="whatsapp_campaign",
-        replace_existing=True,
-        misfire_grace_time=600,
-    )
+    # 7:00am — generate WhatsApp messages
+    scheduler.add_job(**job(_whatsapp_campaign, id="whatsapp_campaign",
+        trigger=CronTrigger(hour=7, minute=0, timezone=TZ)))
 
     # 7:15am — generate Instagram DM scripts
-    scheduler.add_job(
-        _instagram_campaign,
-        trigger=CronTrigger(hour=7, minute=15),
-        id="instagram_campaign",
-        replace_existing=True,
-        misfire_grace_time=600,
-    )
+    scheduler.add_job(**job(_instagram_campaign, id="instagram_campaign",
+        trigger=CronTrigger(hour=7, minute=15, timezone=TZ)))
 
     # 9:00am — process follow-up sequences
-    scheduler.add_job(
-        _check_followups,
-        trigger=CronTrigger(hour=9, minute=0),
-        id="check_followups",
-        replace_existing=True,
-        misfire_grace_time=300,
-    )
+    scheduler.add_job(**job(_check_followups, id="check_followups",
+        trigger=CronTrigger(hour=9, minute=0, timezone=TZ), misfire_grace_time=300))
 
-    # Hourly — send approved email queue
-    scheduler.add_job(
-        _process_queue,
-        trigger=CronTrigger(minute=30),
-        id="process_queue",
-        replace_existing=True,
-        misfire_grace_time=300,
-    )
+    # Every 30 mins — send approved email queue
+    scheduler.add_job(**job(_process_queue, id="process_queue",
+        trigger=CronTrigger(minute=30, timezone=TZ), misfire_grace_time=300))
 
-    # Every 2 hours — analyze websites for new leads
-    scheduler.add_job(
-        _analyze_new_leads,
-        trigger=IntervalTrigger(hours=2),
-        id="analyze_leads",
-        replace_existing=True,
-        misfire_grace_time=600,
-    )
+    # Every 2 hours — analyse new leads' websites
+    scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
+        trigger=IntervalTrigger(hours=2)))
 
     scheduler.start()
-    logger.info("Scheduler started: daily pipeline at 6am/6:30am/7am/9am + hourly queue")
+    logger.info("Scheduler started (Europe/London): 5:55am health → 6am leads → 6:30am previews → 7am WhatsApp → 9am follow-ups")
 
 
 def stop_scheduler():

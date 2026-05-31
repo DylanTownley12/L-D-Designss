@@ -123,7 +123,9 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    """Lightweight health check — also available at /api/dashboard/health for full stats."""
+    from api.dashboard import health_check
+    return await health_check()
 
 
 # ── Global error handler ──────────────────────────────────────────────────────
