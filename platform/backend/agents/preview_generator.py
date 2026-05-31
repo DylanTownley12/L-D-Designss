@@ -35,12 +35,12 @@ DEFAULT_GALLERY = [
 ]
 
 DEFAULT_SERVICES = [
-    {"icon": "✂️", "name": "Classic Cut", "description": "A timeless cut tailored to your style. Includes wash and styling.", "price": "from £15", "duration": "30 min"},
-    {"icon": "🪒", "name": "Skin Fade", "description": "Sharp fade down to the skin. Clean lines every time.", "price": "from £18", "duration": "40 min"},
-    {"icon": "👶", "name": "Kids Cut", "description": "Patient and friendly cuts for the little ones.", "price": "from £10", "duration": "25 min"},
-    {"icon": "🧔", "name": "Beard Trim", "description": "Shape and define your beard to perfection.", "price": "from £8", "duration": "20 min"},
-    {"icon": "💆", "name": "Full Groom", "description": "Cut + beard combo for the full treatment.", "price": "from £25", "duration": "60 min"},
-    {"icon": "💈", "name": "Hot Towel Shave", "description": "Traditional straight razor shave with hot towel finish.", "price": "from £20", "duration": "45 min"},
+    {"icon": "✂️", "name": "Classic Cut", "description": "Sharp, clean cut that works for any occasion. We'll work with your hair type, sort the shape, and finish with a wash and style. You leave looking proper.", "price": "from £15", "duration": "30 min"},
+    {"icon": "🪒", "name": "Skin Fade", "description": "Faded tight to the skin with crisp, clean lines. No guess work — just a sharp fade done properly every single time.", "price": "from £18", "duration": "40 min"},
+    {"icon": "👶", "name": "Kids Cut", "description": "Relaxed, no-fuss cuts for kids of all ages. We're patient, friendly, and we make it easy for them — and for you.", "price": "from £10", "duration": "25 min"},
+    {"icon": "🧔", "name": "Beard Trim", "description": "We'll shape your beard to suit your face — clean edges, defined lines, and a proper finish. Makes a bigger difference than you think.", "price": "from £8", "duration": "20 min"},
+    {"icon": "💆", "name": "Full Groom", "description": "The works. Fresh cut, beard shaped, the lot. Leave looking and feeling your absolute best. Ideal before a big occasion or just because.", "price": "from £25", "duration": "60 min"},
+    {"icon": "💈", "name": "Hot Towel Shave", "description": "Old school straight razor shave with a steaming hot towel and premium products. Proper luxury — the kind you can't do at home.", "price": "from £20", "duration": "45 min"},
 ]
 
 DEFAULT_HOURS = [
