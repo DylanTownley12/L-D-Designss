@@ -166,11 +166,11 @@ def start_scheduler():
 
     # 9:00am — process follow-up sequences
     scheduler.add_job(**job(_check_followups, id="check_followups",
-        trigger=CronTrigger(hour=9, minute=0, timezone=TZ), misfire_grace_time=300))
+        trigger=CronTrigger(hour=9, minute=0, timezone=TZ)))
 
     # Every 30 mins — send approved email queue
     scheduler.add_job(**job(_process_queue, id="process_queue",
-        trigger=CronTrigger(minute=30, timezone=TZ), misfire_grace_time=300))
+        trigger=CronTrigger(minute=30, timezone=TZ)))
 
     # Every 2 hours — analyse new leads' websites
     scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
