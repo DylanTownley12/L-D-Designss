@@ -381,6 +381,20 @@ export default function Outreach() {
     } catch (e) { showToast(e.message, 'error'); setGenerating(false) }
   }
 
+  const generateWhatsApp = async () => {
+    setGenerating(true)
+    try {
+      await agents.run('whatsapp_campaign')
+      showToast('Generating WhatsApp messages — refreshing…')
+      let attempts = 0
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(async () => {
+        attempts++; await load()
+        if (attempts >= 12) { clearInterval(pollRef.current); setGenerating(false) }
+      }, 5000)
+    } catch (e) { showToast(e.message, 'error'); setGenerating(false) }
+  }
+
   const generateInstagram = async () => {
     try { await agents.run('instagram_campaign'); showToast('Generating Instagram DMs…'); setTimeout(load, 3000) }
     catch (e) { showToast(e.message, 'error') }
@@ -409,14 +423,20 @@ export default function Outreach() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={load} disabled={loading} className="btn-ghost text-xs">{loading ? 'Loading…' : '↻ Refresh'}</button>
-          <button onClick={writeOutreach} disabled={generating} className="btn-ghost text-xs">{generating ? '✍️ Writing…' : '✍️ Write Emails'}</button>
-          {tab === 'whatsapp' && (
-            <button onClick={async () => { await outreachApi.clearInvalidWhatsapp(); showToast('Cleared invalid'); load() }}
-                    className="btn-ghost text-xs text-red-400/60 hover:text-red-400">🗑 Clear Invalid</button>
-          )}
-          {tab === 'queue' && queue.length > 0 && (
-            <button onClick={sendAll} className="btn-gold text-xs">Send All ({queue.length})</button>
-          )}
+          {tab === 'whatsapp' ? (
+            <>
+              <button onClick={generateWhatsApp} disabled={generating} className="btn-gold text-xs">
+                {generating ? '⏳ Generating…' : '💬 Generate WhatsApp'}
+              </button>
+              <button onClick={async () => { await outreachApi.clearInvalidWhatsapp(); showToast('Cleared invalid'); load() }}
+                      className="btn-ghost text-xs text-red-400/60 hover:text-red-400">🗑 Clear Invalid</button>
+            </>
+          ) : tab === 'queue' ? (
+            <>
+              <button onClick={writeOutreach} disabled={generating} className="btn-ghost text-xs">{generating ? '✍️ Writing…' : '✍️ Write Emails'}</button>
+              {queue.length > 0 && <button onClick={sendAll} className="btn-gold text-xs">Send All ({queue.length})</button>}
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -461,10 +481,17 @@ export default function Outreach() {
         <div className="space-y-6">
           {/* Queue to send */}
           {whatsappQueue.length === 0 ? (
-            <div className="card rounded-xl p-12 text-center">
+            <div className="card rounded-xl p-12 text-center space-y-4">
               <div className="text-4xl mb-3">💬</div>
               <div className="text-white/40 text-sm">No WhatsApp messages queued.</div>
-              <div className="text-white/25 text-xs mt-2">Run "WhatsApp Campaign" from the Dashboard to generate messages.</div>
+              <div className="text-white/25 text-xs">Leads need a preview generated first, then click below.</div>
+              <button
+                onClick={generateWhatsApp}
+                disabled={generating}
+                className="btn-gold px-6 py-3 text-sm font-semibold disabled:opacity-50"
+              >
+                {generating ? '⏳ Generating…' : '💬 Generate WhatsApp Messages'}
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
