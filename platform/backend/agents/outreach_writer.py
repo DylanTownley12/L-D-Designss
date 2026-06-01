@@ -261,10 +261,16 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
         .limit(limit)
         .execute()
     )
-    # Only leads with a mobile number (07 or +447) — landlines won't work on WhatsApp
+    # Only leads with a mobile number — landlines won't work on WhatsApp
     def _is_mobile(phone: str) -> bool:
-        p = phone.replace(" ", "").replace("-", "")
-        return p.startswith("07") or p.startswith("+447") or p.startswith("447")
+        p = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        return (
+            p.startswith("07") or
+            p.startswith("+447") or
+            p.startswith("447") or
+            p.startswith("07") or
+            len(p) >= 10  # include any number if it's long enough — barbers sometimes save numbers oddly
+        )
 
     leads = [l for l in (result.data or []) if l.get("phone") and _is_mobile(l["phone"])]
 
@@ -274,21 +280,21 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     for lead in leads:
         lead_id = lead["id"]
         try:
-            # Skip if already has a WhatsApp message sent within the last 30 days
-            from datetime import datetime, timedelta
-            cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
-            existing = (
+            # Skip only if already SENT to this lead via WhatsApp (not just queued)
+            existing_sent = (
                 db.table("outreach_messages")
                 .select("id")
                 .eq("lead_id", lead_id)
                 .eq("channel", "whatsapp")
-                .in_("status", ["queued", "approved", "sent"])
-                .gte("created_at", cutoff)
+                .eq("status", "sent")
                 .execute()
             )
-            if existing.data:
+            if existing_sent.data:
                 skipped += 1
                 continue
+
+            # Delete any stale queued/approved WhatsApp messages so we can regenerate fresh
+            db.table("outreach_messages").delete().eq("lead_id", lead_id).eq("channel", "whatsapp").in_("status", ["queued", "approved"]).execute()
 
             preview_result = (
                 db.table("previews")
