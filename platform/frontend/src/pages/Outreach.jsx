@@ -329,13 +329,34 @@ export default function Outreach() {
             {generating ? '✍️ Writing…' : '✍️ Write Emails'}
           </button>
           {tab === 'whatsapp' && (
-            <button onClick={async () => {
-              await outreachApi.clearInvalidWhatsapp()
-              showToast('Cleared invalid messages')
-              load()
-            }} className="btn-ghost text-sm text-red-400/60 hover:text-red-400">
-              🗑 Clear Invalid
-            </button>
+            <>
+              <button onClick={async () => {
+                setGenerating(true)
+                try {
+                  await outreachApi.generateWhatsappCampaign()
+                  showToast('Generating WhatsApp messages — refreshing…')
+                  let attempts = 0
+                  if (pollRef.current) clearInterval(pollRef.current)
+                  pollRef.current = setInterval(async () => {
+                    attempts++
+                    await load()
+                    if (attempts >= 12) { clearInterval(pollRef.current); setGenerating(false) }
+                  }, 3000)
+                } catch (e) {
+                  showToast(e.message, 'error')
+                  setGenerating(false)
+                }
+              }} disabled={generating} className="btn-gold text-sm disabled:opacity-50">
+                {generating ? '⏳ Generating…' : '💬 Generate WhatsApps'}
+              </button>
+              <button onClick={async () => {
+                await outreachApi.clearInvalidWhatsapp()
+                showToast('Cleared invalid messages')
+                load()
+              }} className="btn-ghost text-sm text-red-400/60 hover:text-red-400">
+                🗑 Clear Invalid
+              </button>
+            </>
           )}
           {tab === 'queue' && queue.length > 0 && (
             <button onClick={sendAll} className="btn-gold">
@@ -387,7 +408,7 @@ export default function Outreach() {
             <div className="text-4xl mb-3">💬</div>
             <div className="text-white/40 text-sm">No WhatsApp messages generated yet.</div>
             <div className="text-white/25 text-xs mt-2">
-              Click "WhatsApp Campaign" on the Dashboard to generate messages for leads with phone numbers.
+              Click "Generate WhatsApps" above — it'll create messages for all leads with a mobile number.
             </div>
           </div>
         ) : (

@@ -35,6 +35,7 @@ export const outreach = {
   reject: (id) => api.post(`/outreach/reject/${id}`),
   sendAllApproved: () => api.post('/outreach/send-all-approved'),
   clearInvalidWhatsapp: () => api.post('/outreach/clear-invalid-whatsapp'),
+  generateWhatsappCampaign: () => api.post('/outreach/generate-whatsapp-campaign'),
   statsToday: () => api.get('/outreach/stats/today'),
 }
 

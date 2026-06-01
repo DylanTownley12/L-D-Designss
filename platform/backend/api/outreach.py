@@ -187,6 +187,13 @@ async def edit_message(message_id: str, body: str, subject: str = None):
     return {"updated": True}
 
 
+@router.post("/generate-whatsapp-campaign")
+async def generate_whatsapp_campaign(background_tasks: BackgroundTasks, limit: int = 50):
+    """Generate WhatsApp messages for all preview_ready leads with mobile numbers."""
+    background_tasks.add_task(outreach_writer.generate_whatsapp_campaign, limit)
+    return {"status": "started", "message": "Generating WhatsApp messages in background — refresh in a few seconds"}
+
+
 @router.post("/send-all-approved")
 async def send_all_approved(background_tasks: BackgroundTasks):
     """Send all approved messages in the queue."""
