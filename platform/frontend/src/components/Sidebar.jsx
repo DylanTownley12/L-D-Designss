@@ -7,6 +7,7 @@ const nav = [
   { to: '/leads',     icon: '🎯', label: 'Leads' },
   { to: '/outreach',  icon: '📤', label: 'Outreach' },
   { to: '/previews',  icon: '🌐', label: 'Previews' },
+  { to: '/missed-call', icon: '📞', label: 'Text-Back' },
   { to: '/settings',  icon: '⚙️', label: 'Settings' },
 ]
 
