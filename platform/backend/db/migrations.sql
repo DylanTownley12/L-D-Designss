@@ -133,6 +133,34 @@ CREATE TABLE IF NOT EXISTS agent_logs (
     created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── MISSED CALL TEXT-BACK CLIENTS ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS textback_clients (
+    id                    UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    business_name         TEXT NOT NULL,
+    owner_name            TEXT,
+    phone                 TEXT NOT NULL,         -- client's business phone
+    trade                 TEXT DEFAULT 'default', -- plumber, electrician, builder, etc.
+    custom_message        TEXT,                  -- optional custom SMS template
+    active                BOOLEAN DEFAULT TRUE,
+    monthly_fee           DECIMAL(10,2) DEFAULT 49.00,
+    total_textbacks_sent  INTEGER DEFAULT 0,
+    last_textback_at      TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── MISSED CALL TEXT-BACK EVENTS ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS textback_events (
+    id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id       UUID REFERENCES textback_clients(id) ON DELETE CASCADE,
+    caller_number   TEXT NOT NULL,
+    message_sent    TEXT,
+    success         BOOLEAN DEFAULT FALSE,
+    error           TEXT,
+    provider_sid    TEXT,
+    fired_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ── INDEXES ───────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_leads_status       ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_city         ON leads(city);
@@ -145,6 +173,8 @@ CREATE INDEX IF NOT EXISTS idx_outreach_scheduled ON outreach_messages(scheduled
                                                    WHERE status = 'queued';
 CREATE INDEX IF NOT EXISTS idx_notif_unread       ON notifications(read, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_logs         ON agent_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_textback_clients   ON textback_clients(active);
+CREATE INDEX IF NOT EXISTS idx_textback_events    ON textback_events(client_id, fired_at DESC);
 
 -- ── UPDATED_AT TRIGGER ────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()

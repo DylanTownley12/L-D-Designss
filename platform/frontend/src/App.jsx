@@ -5,6 +5,7 @@ import Leads from './pages/Leads'
 import Outreach from './pages/Outreach'
 import Previews from './pages/Previews'
 import Settings from './pages/Settings'
+import MissedCall from './pages/MissedCall'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/leads" element={<Leads />} />
             <Route path="/outreach" element={<Outreach />} />
             <Route path="/previews" element={<Previews />} />
+            <Route path="/missed-call" element={<MissedCall />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
