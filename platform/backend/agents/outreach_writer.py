@@ -261,16 +261,10 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
         .limit(limit)
         .execute()
     )
-    # Only leads with a mobile number — landlines won't work on WhatsApp
+    # Only leads with a UK mobile number — landlines won't work on WhatsApp
     def _is_mobile(phone: str) -> bool:
         p = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-        return (
-            p.startswith("07") or
-            p.startswith("+447") or
-            p.startswith("447") or
-            p.startswith("07") or
-            len(p) >= 10  # include any number if it's long enough — barbers sometimes save numbers oddly
-        )
+        return p.startswith("07") or p.startswith("+447") or p.startswith("447")
 
     leads = [l for l in (result.data or []) if l.get("phone") and _is_mobile(l["phone"])]
 
