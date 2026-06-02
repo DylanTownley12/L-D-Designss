@@ -10,6 +10,7 @@ from agents import (
     outreach_sender,
     orchestrator,
     lead_enricher,
+    ceo_agent,
 )
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -25,6 +26,7 @@ AGENTS = {
     "followup_agent": followup_agent.run,
     "outreach_queue": outreach_sender.process_queue,
     "lead_enricher": lead_enricher.run,
+    "ceo_agent": ceo_agent.run,
 }
 
 
@@ -127,6 +129,30 @@ async def run_full_pipeline(lead_id: str, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_pipeline)
     return {"status": "pipeline_started", "lead_id": lead_id}
+
+
+@router.get("/ceo/status")
+async def ceo_status():
+    """Return the most recent CEO agent health check result."""
+    from db.client import get_db
+    db = get_db()
+    result = (
+        db.table("agent_logs")
+        .select("*")
+        .eq("agent_name", "ceo_agent")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    logs = result.data or []
+    if not logs:
+        return {"status": "never_run", "checked_at": None, "report": None}
+    log = logs[0]
+    return {
+        "status": log.get("status"),
+        "checked_at": log.get("created_at"),
+        "report": log.get("details") or {},
+    }
 
 
 @router.post("/orchestrate")

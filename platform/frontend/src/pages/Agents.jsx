@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { agents as agentsApi, outreach as outreachApi } from '../api/client'
 
 const AGENT_META = {
+  ceo_agent:         { icon: '👔', label: 'CEO',                desc: 'System health — checks every 2h' },
   orchestrator:      { icon: '🧠', label: 'Orchestrator',       desc: 'Decides what runs and when' },
   lead_finder:       { icon: '🔍', label: 'Lead Finder',        desc: 'Finds barbers with no website' },
   website_analyzer:  { icon: '🔬', label: 'Website Analyzer',   desc: 'Checks site quality + contact info' },
@@ -21,6 +22,7 @@ const TASK_OPTIONS = [
 ]
 
 const AGENT_COLORS = {
+  ceo_agent:         '#C9A84C',
   orchestrator:      '#C9A84C',
   lead_finder:       '#3b82f6',
   website_analyzer:  '#8b5cf6',
@@ -87,6 +89,120 @@ function LogLine({ log }) {
       </span>
       <span className="text-xs text-white/60 flex-1 leading-relaxed">{log.action}</span>
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: dotColor }} />
+    </div>
+  )
+}
+
+function CeoPanel() {
+  const [data, setData] = useState(null)
+  const [running, setRunning] = useState(false)
+
+  const fetchStatus = async () => {
+    try {
+      const res = await agentsApi.ceoStatus()
+      setData(res)
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 120_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleCheck = async () => {
+    setRunning(true)
+    try {
+      await agentsApi.run('ceo_agent')
+      await new Promise(r => setTimeout(r, 3500))
+      await fetchStatus()
+    } catch {}
+    setRunning(false)
+  }
+
+  const report = data?.report || {}
+  const overall = report.overall || (data?.status === 'never_run' ? 'never_run' : null)
+  const issues = report.issues || []
+  const warnings = report.warnings || []
+  const stats = report.stats || {}
+  const checkedAt = data?.checked_at
+    ? new Date(data.checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : null
+
+  const statusConfig = {
+    ok:       { color: '#10b981', dot: 'bg-green-400', pulse: true,  label: 'All systems operational' },
+    warning:  { color: '#f59e0b', dot: 'bg-yellow-400', pulse: false, label: `${warnings.length} warning${warnings.length !== 1 ? 's' : ''}` },
+    error:    { color: '#ef4444', dot: 'bg-red-400',   pulse: false, label: `${issues.length} issue${issues.length !== 1 ? 's' : ''} detected` },
+    never_run:{ color: '#6b7280', dot: 'bg-white/20',  pulse: false, label: 'Never checked' },
+  }[overall || 'never_run'] || { color: '#6b7280', dot: 'bg-white/20', pulse: false, label: 'Unknown' }
+
+  return (
+    <div
+      className="bg-dark-2 border rounded-xl overflow-hidden mb-6"
+      style={{ borderColor: statusConfig.color + '44' }}
+    >
+      <div className="px-4 py-3 border-b border-white/6 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">👔</span>
+          <span className="text-sm font-semibold text-white/80">CEO — System Health</span>
+          <span
+            className={`w-2 h-2 rounded-full ${statusConfig.dot} ${statusConfig.pulse ? 'animate-pulse' : ''} inline-block`}
+          />
+          <span className="text-xs font-medium" style={{ color: statusConfig.color }}>
+            {statusConfig.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {checkedAt && (
+            <span className="text-xs text-white/25">last check {checkedAt}</span>
+          )}
+          <button
+            onClick={handleCheck}
+            disabled={running}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+            style={{ background: '#C9A84C22', color: '#C9A84C', border: '1px solid #C9A84C44' }}
+          >
+            {running ? 'Checking...' : 'Run Check'}
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 py-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {stats.pipeline && (
+          <>
+            <Stat label="Preview Ready" value={stats.pipeline.preview_ready ?? 0} />
+            <Stat label="Outreach Sent" value={stats.pipeline.outreach_sent ?? 0} />
+            <Stat label="Replied" value={(stats.pipeline.replied ?? 0) + (stats.pipeline.interested ?? 0)} />
+            <Stat label="WA Queued" value={stats.whatsapp_queued ?? 0} />
+          </>
+        )}
+      </div>
+
+      {(issues.length > 0 || warnings.length > 0) && (
+        <div className="border-t border-white/6 px-4 py-2.5 flex flex-col gap-1">
+          {issues.map((msg, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-red-400">
+              <span className="flex-shrink-0 mt-0.5">✕</span>
+              <span>{msg}</span>
+            </div>
+          ))}
+          {warnings.map((msg, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-yellow-400">
+              <span className="flex-shrink-0 mt-0.5">⚠</span>
+              <span>{msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-white/30">{label}</span>
+      <span className="text-lg font-bold text-white">{value}</span>
     </div>
   )
 }
@@ -266,6 +382,9 @@ export default function Agents() {
           {error}
         </div>
       )}
+
+      {/* CEO health panel */}
+      <CeoPanel />
 
       {/* Agent cards */}
       <div className="grid grid-cols-3 gap-3 mb-6 lg:grid-cols-7">

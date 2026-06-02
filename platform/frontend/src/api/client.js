@@ -60,6 +60,7 @@ export const agents = {
   logs: (agent, limit) => api.get('/agents/logs', { params: { agent, limit } }),
   orchestrate: (task = 'auto') => api.post('/agents/orchestrate', null, { params: { task } }),
   sessions: () => api.get('/agents/orchestrate/sessions'),
+  ceoStatus: () => api.get('/agents/ceo/status'),
 }
 
 export const instagram = {

@@ -129,6 +129,15 @@ async def _analyze_new_leads():
         logger.error(f"[website_analyzer] Failed: {e}", exc_info=True)
 
 
+async def _ceo_check():
+    try:
+        from agents.ceo_agent import run
+        result = run()
+        logger.info(f"[ceo_agent] {result['overall'].upper()} — {len(result['issues'])} issues, {len(result['warnings'])} warnings")
+    except Exception as e:
+        logger.error(f"[ceo_agent] Failed: {e}", exc_info=True)
+
+
 async def _write_outreach():
     try:
         from agents.outreach_writer import run_batch
@@ -175,6 +184,10 @@ def start_scheduler():
     # Every 2 hours — analyse new leads' websites
     scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
         trigger=IntervalTrigger(hours=2)))
+
+    # Every 2 hours — CEO system health check
+    scheduler.add_job(**job(_ceo_check, id="ceo_check",
+        trigger=IntervalTrigger(hours=2, start_date=None)))
 
     scheduler.start()
     logger.info("Scheduler started (Europe/London): 5:55am health → 6am leads → 6:30am previews → 7am WhatsApp → 9am follow-ups")
