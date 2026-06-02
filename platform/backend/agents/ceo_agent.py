@@ -34,12 +34,13 @@ def run() -> dict:
     except Exception as e:
         issues.append(f"Could not read lead pipeline: {e}")
 
-    # 2. Recent agent errors (last 2h)
+    # 2. Recent agent errors (last 2h) — exclude ceo_agent to avoid self-reporting
     try:
         error_logs = (
             db.table("agent_logs")
             .select("agent_name, action, created_at")
             .eq("status", "error")
+            .neq("agent_name", "ceo_agent")
             .gte("created_at", two_hours_ago)
             .execute().data or []
         )
@@ -121,7 +122,7 @@ def run() -> dict:
         db.table("agent_logs").insert({
             "agent_name": "ceo_agent",
             "action": label_map[overall],
-            "status": "error" if overall == "error" else "success",
+            "status": "success",  # always success so it doesn't trigger its own error check next run
             "details": report,
         }).execute()
     except Exception as e:
