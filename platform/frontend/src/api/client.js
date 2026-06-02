@@ -38,6 +38,7 @@ export const outreach = {
   logReply: (message_id, reply_text) => api.post(`/outreach/log-reply/${message_id}`, { reply_text }),
   generateWhatsappCampaign: () => api.post('/outreach/generate-whatsapp-campaign'),
   statsToday: () => api.get('/outreach/stats/today'),
+  templateStats: () => api.get('/outreach/template-stats'),
 }
 
 export const previews = {

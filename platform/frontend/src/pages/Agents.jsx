@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { agents as agentsApi } from '../api/client'
+import { agents as agentsApi, outreach as outreachApi } from '../api/client'
 
 const AGENT_META = {
   orchestrator:      { icon: '🧠', label: 'Orchestrator',       desc: 'Decides what runs and when' },
@@ -87,6 +87,56 @@ function LogLine({ log }) {
       </span>
       <span className="text-xs text-white/60 flex-1 leading-relaxed">{log.action}</span>
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: dotColor }} />
+    </div>
+  )
+}
+
+function TemplateStats() {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    outreachApi.templateStats().then(setStats).catch(() => {})
+  }, [])
+
+  if (!stats?.variants?.length) return null
+
+  const best = [...stats.variants].sort((a, b) => (b.reply_rate || 0) - (a.reply_rate || 0))[0]
+
+  return (
+    <div className="bg-dark-2 border border-white/6 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-white/6 flex items-center justify-between">
+        <span className="text-sm font-semibold text-white/70">A/B Test — WhatsApp Openers</span>
+        {best?.sent > 0 && (
+          <span className="text-xs text-gold">Best: V{best.variant} ({best.reply_rate?.toFixed(1) ?? 0}% reply rate)</span>
+        )}
+      </div>
+      <div className="divide-y divide-white/4">
+        {stats.variants.map(v => {
+          const rate = v.reply_rate ?? 0
+          const maxRate = Math.max(...stats.variants.map(x => x.reply_rate ?? 0), 1)
+          return (
+            <div key={v.variant} className="px-4 py-3 flex items-center gap-4">
+              <span className="text-xs font-mono text-white/40 w-5">V{v.variant}</span>
+              <span className="text-xs text-white/50 flex-1 truncate">{v.preview}</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gold transition-all"
+                    style={{ width: `${maxRate > 0 ? (rate / maxRate) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="text-xs text-white/60 w-8 text-right">{v.sent}</span>
+                <span className={`text-xs w-14 text-right font-semibold ${rate > 0 ? 'text-gold' : 'text-white/25'}`}>
+                  {rate.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="px-4 py-2 border-t border-white/4 text-xs text-white/25">
+        sent · reply rate &nbsp;·&nbsp; {stats.unmatched ?? 0} unmatched (sent before tracking)
+      </div>
     </div>
   )
 }
@@ -228,6 +278,9 @@ export default function Agents() {
           />
         ))}
       </div>
+
+      {/* A/B stats */}
+      <TemplateStats />
 
       {/* Activity log */}
       <div className="bg-dark-2 border border-white/6 rounded-xl overflow-hidden">
