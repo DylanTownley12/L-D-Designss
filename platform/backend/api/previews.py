@@ -53,6 +53,23 @@ async def generate_batch(limit: int = 10, background_tasks: BackgroundTasks = No
     return {"generated": generated, "total": len(lead_ids)}
 
 
+@router.get("/by-lead/{lead_id}")
+async def get_preview_by_lead(lead_id: str):
+    """Get the latest preview URL for a lead."""
+    db = get_db()
+    result = (
+        db.table("previews")
+        .select("id, preview_url, created_at")
+        .eq("lead_id", lead_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No preview found for this lead")
+    return result.data[0]
+
+
 @router.get("/")
 async def list_previews(limit: int = 50, offset: int = 0):
     db = get_db()
