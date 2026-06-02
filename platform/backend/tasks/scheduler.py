@@ -138,6 +138,14 @@ async def _ceo_check():
         logger.error(f"[ceo_agent] Failed: {e}", exc_info=True)
 
 
+async def _ceo_daily_briefing():
+    try:
+        from agents.ceo_agent import send_daily_briefing
+        send_daily_briefing()
+    except Exception as e:
+        logger.error(f"[ceo_agent] Daily briefing failed: {e}", exc_info=True)
+
+
 async def _write_outreach():
     try:
         from agents.outreach_writer import run_batch
@@ -185,9 +193,13 @@ def start_scheduler():
     scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
         trigger=IntervalTrigger(hours=2)))
 
-    # Every 2 hours — CEO system health check
+    # Every 2 hours — CEO system health check + auto-fix
     scheduler.add_job(**job(_ceo_check, id="ceo_check",
         trigger=IntervalTrigger(hours=2, start_date=None)))
+
+    # 8:00am — CEO daily briefing email to founder
+    scheduler.add_job(**job(_ceo_daily_briefing, id="ceo_briefing",
+        trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
 
     scheduler.start()
     logger.info("Scheduler started (Europe/London): 5:55am health → 6am leads → 6:30am previews → 7am WhatsApp → 9am follow-ups")

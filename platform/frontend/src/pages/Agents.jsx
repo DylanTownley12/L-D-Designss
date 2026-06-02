@@ -124,6 +124,7 @@ function CeoPanel() {
   const overall = report.overall || (data?.status === 'never_run' ? 'never_run' : null)
   const issues = report.issues || []
   const warnings = report.warnings || []
+  const actions = report.actions_taken || []
   const stats = report.stats || {}
   const checkedAt = data?.checked_at
     ? new Date(data.checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
@@ -178,7 +179,7 @@ function CeoPanel() {
         )}
       </div>
 
-      {(issues.length > 0 || warnings.length > 0) && (
+      {(issues.length > 0 || warnings.length > 0 || actions.length > 0) && (
         <div className="border-t border-white/6 px-4 py-2.5 flex flex-col gap-1">
           {issues.map((msg, i) => (
             <div key={i} className="flex items-start gap-2 text-xs text-red-400">
@@ -189,6 +190,12 @@ function CeoPanel() {
           {warnings.map((msg, i) => (
             <div key={i} className="flex items-start gap-2 text-xs text-yellow-400">
               <span className="flex-shrink-0 mt-0.5">⚠</span>
+              <span>{msg}</span>
+            </div>
+          ))}
+          {actions.map((msg, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-green-400">
+              <span className="flex-shrink-0 mt-0.5">↻</span>
               <span>{msg}</span>
             </div>
           ))}
