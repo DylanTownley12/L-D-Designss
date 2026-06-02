@@ -71,7 +71,7 @@ def run(task: str = "auto") -> dict:
     agent_fns = {
         "lead_finder":       lead_finder.run,
         "website_analyzer":  website_analyzer.run,
-        "preview_generator": preview_generator.run,
+        "preview_generator": preview_generator.run_batch,
         "whatsapp_campaign": outreach_writer.generate_whatsapp_campaign,
         "followup_agent":    followup_agent.run,
     }
