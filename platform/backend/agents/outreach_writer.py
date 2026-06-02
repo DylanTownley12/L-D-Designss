@@ -34,10 +34,13 @@ NEVER mention: SEO, Lighthouse scores, website analysis, tech stack, metrics, or
 
 Your offer:
 - You build websites for barbers
-- Prices start from £150 one-off, no monthly fees
+- £150 to build, then £15/month for hosting and updates
 - Quick turnaround (a few days)
 - You handle everything — they just give you info and approve it
 - Customers can book directly, find opening hours, see services
+- They show up on Google "barber near me" searches
+- Tap-to-book/call button for mobile customers
+- Looks more professional than competitors with no site
 
 Always mention the preview website link if provided."""
 
@@ -185,8 +188,8 @@ def _fallback_email(name: str, city: str, preview_url: str | None, day: int) -> 
         body = (
             f"Hiya,\n\n"
             f"I noticed {name} doesn't have a proper website yet.\n\n"
-            f"I build websites for local barbers — one-off price, no monthly fees, "
-            f"and I handle everything start to finish.\n\n"
+            f"I build websites for local barbers — £150 to build, then £15/month for hosting and updates. "
+            f"I handle everything start to finish.\n\n"
         )
         if preview_url:
             body += f"I've actually made a free preview of what yours could look like: {preview_url}\n\n"
@@ -212,34 +215,32 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
     return msg
 
 
+# A/B test templates — 5 variants, rotated in order for even distribution.
+# Variant index is stored in the message body's first word pattern so reply rate
+# can be calculated per variant later via /api/outreach/template-stats.
 _WHATSAPP_TEMPLATES = [
+    # V1 — short hook, no name drop
     "Hey, you the owner of {name}? Got a quick idea for getting you more bookings — worth a message?",
-    "Hey, came across {name} — looks class. Do you have a website yet? Reason I ask, I build them for barbers round here.",
-    "Hey, you the owner of {name}? Got something that might help get more customers through the door — worth a quick chat?",
+    # V2 — Opus pick: personal intro + free preview offer (hypothesis: best reply rate)
+    "Hiya {name} — I'm Dylan, I make websites for barbers. Was looking for one in {city} and noticed you don't have a site. Happy to put a free preview together if you're interested, no strings. Just reply and I'll sort it",
+    # V3 — social proof angle
+    "Hey, came across {name} — do you have a website? I build them for local barbers, a few in {city} have got theirs through me. Happy to put a free one together so you can see what it'd look like",
+    # V4 — original city question
     "Hi, came across {name} in {city} — do you have a website? I build them for local barbers, just wondering if it's something you'd want.",
-]
-
-_WHATSAPP_TEMPLATES_NO_URL = [
-    "Hey, you the owner of {name}? Got a quick idea for getting you more bookings — worth a message?",
-    "Hey, came across {name} — looks class. Do you have a website yet? Reason I ask, I build them for barbers round here.",
+    # V5 — curiosity hook
     "Hey, you the owner of {name}? Got something that might help get more customers through the door — worth a quick chat?",
-    "Hi, came across {name} in {city} — do you have a website? I build them for local barbers, just wondering if it's something you'd want.",
 ]
 
 import random as _random
 
-def _write_whatsapp(lead: dict, preview_url: str | None = None) -> str:
+def _write_whatsapp(lead: dict, preview_url: str | None = None, variant_index: int | None = None) -> str:
     name = lead.get("business_name", "your shop")
     city = lead.get("city", "your area")
-    # Only use the URL if it's a real public URL (not localhost)
     if preview_url and "localhost" in preview_url:
         preview_url = None
-    if preview_url:
-        template = _random.choice(_WHATSAPP_TEMPLATES)
-        return template.format(name=name, city=city, url=preview_url)
-    else:
-        template = _random.choice(_WHATSAPP_TEMPLATES_NO_URL)
-        return template.format(name=name, city=city)
+    # Use provided variant index for A/B rotation, else fall back to random
+    idx = variant_index % len(_WHATSAPP_TEMPLATES) if variant_index is not None else _random.randrange(len(_WHATSAPP_TEMPLATES))
+    return _WHATSAPP_TEMPLATES[idx].format(name=name, city=city)
 
 
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
@@ -266,6 +267,7 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
 
     generated = 0
     skipped = 0
+    variant_counter = 0
 
     for lead in leads:
         lead_id = lead["id"]
@@ -300,7 +302,8 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
             if preview_url and ("/previews/serve/" not in preview_url or "localhost" in preview_url):
                 preview_url = None
 
-            body = _write_whatsapp(lead, preview_url)
+            body = _write_whatsapp(lead, preview_url, variant_index=variant_counter)
+            variant_counter += 1
 
             db.table("outreach_messages").insert({
                 "lead_id": lead_id,
@@ -348,10 +351,10 @@ def generate_outreach(
 
 
 _INSTAGRAM_DM_TEMPLATES = [
-    "Hey! Noticed {name} doesn't have a website yet — I build them for local barbers, one-off price, no monthly fees. Happy to put a free preview together if you fancy it? — Dylan",
+    "Hey! Noticed {name} doesn't have a website yet — I build them for local barbers, £150 then £15/month hosting. Happy to put a free preview together if you fancy it? — Dylan",
     "Hi! Had a look for barbers nearby and saw {name} doesn't have a site. I do free website previews for barbers — want me to make one for you? — Dylan from Wigan",
     "Hey, I'm Dylan — I build websites for barbers. Noticed {name} doesn't have one yet, happy to put a free preview together. No catch, just reply if you want a look 👍",
-    "Hi! I build websites for local barber shops — saw {name} doesn't have one. One-off price, no monthly fees, quick turnaround. Fancy a free preview? — Dylan",
+    "Hi! I build websites for local barber shops — saw {name} doesn't have one. £150 to build, £15/month after, quick turnaround. Fancy a free preview? — Dylan",
     "Hey! Was looking for barbers near me and {name} came up without a website. I make free previews for barbers — no strings, just reply if you're interested. Cheers, Dylan",
 ]
 

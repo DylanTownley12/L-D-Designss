@@ -265,3 +265,58 @@ async def today_stats():
         "email_limit": settings.MAX_EMAILS_PER_DAY,
         "sms_limit": settings.MAX_SMS_PER_DAY,
     }
+
+
+@router.get("/template-stats")
+async def template_stats():
+    """A/B test reply rates per WhatsApp opener template."""
+    from agents.outreach_writer import _WHATSAPP_TEMPLATES
+    db = get_db()
+
+    # All sent WhatsApp outbound messages with lead status
+    result = (
+        db.table("outreach_messages")
+        .select("body, leads(status)")
+        .eq("channel", "whatsapp")
+        .eq("direction", "outbound")
+        .eq("status", "sent")
+        .execute()
+    )
+    messages = result.data or []
+
+    # Match each sent message to a template variant by checking which template it came from
+    def identify_variant(body: str) -> int | None:
+        for i, tmpl in enumerate(_WHATSAPP_TEMPLATES):
+            # Compare first 30 chars of the template (before any {placeholders})
+            prefix = tmpl.split("{")[0][:30].strip()
+            if body.startswith(prefix):
+                return i
+        return None
+
+    counts = {i: {"sent": 0, "replied": 0} for i in range(len(_WHATSAPP_TEMPLATES))}
+    unmatched = 0
+
+    for msg in messages:
+        variant = identify_variant(msg.get("body", ""))
+        if variant is None:
+            unmatched += 1
+            continue
+        counts[variant]["sent"] += 1
+        lead_status = (msg.get("leads") or {}).get("status", "")
+        if lead_status in ("replied", "interested", "converted"):
+            counts[variant]["replied"] += 1
+
+    stats = []
+    for i, data in counts.items():
+        sent = data["sent"]
+        replied = data["replied"]
+        preview = _WHATSAPP_TEMPLATES[i][:60] + "..."
+        stats.append({
+            "variant": i + 1,
+            "preview": preview,
+            "sent": sent,
+            "replied": replied,
+            "reply_rate": round(replied / sent * 100, 1) if sent > 0 else None,
+        })
+
+    return {"variants": stats, "unmatched": unmatched}
