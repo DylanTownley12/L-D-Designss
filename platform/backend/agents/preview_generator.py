@@ -22,16 +22,37 @@ jinja_env = Environment(
     autoescape=select_autoescape(["html"]),
 )
 
-# Default gallery images (Unsplash — free, no attribution required for preview)
-DEFAULT_GALLERY = [
+# Hero image pool — picked per lead so previews look different
+HERO_IMAGE_POOL = [
+    "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1200",
+    "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=1200",
+    "https://images.unsplash.com/photo-1621605815971-8ca28ed73af1?w=1200",
+    "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200",
+    "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=1200",
+    "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=1200",
+    "https://images.unsplash.com/photo-1536520002442-39284f7a4a43?w=1200",
+    "https://images.unsplash.com/photo-1512864084360-7c0d0fd46562?w=1200",
+]
+
+BARBER_IMAGE_POOL = [
+    "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=600",
+    "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600",
+    "https://images.unsplash.com/photo-1621605815971-8ca28ed73af1?w=600",
+    "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=600",
+]
+
+# Gallery image pool — 10 unique images, pick 6 per lead
+GALLERY_POOL = [
     {"url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400", "alt": "Fresh haircut"},
     {"url": "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=400", "alt": "Barber at work"},
     {"url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=400", "alt": "Classic cut"},
     {"url": "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=400", "alt": "Styling session"},
     {"url": "https://images.unsplash.com/photo-1621605815971-8ca28ed73af1?w=400", "alt": "Fade cut"},
     {"url": "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400", "alt": "Barber shop"},
-    {"url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400", "alt": "Premium cut"},
     {"url": "https://images.unsplash.com/photo-1559771561-0caf62b5a8a5?w=400", "alt": "Style finish"},
+    {"url": "https://images.unsplash.com/photo-1536520002442-39284f7a4a43?w=400", "alt": "Sharp lines"},
+    {"url": "https://images.unsplash.com/photo-1512864084360-7c0d0fd46562?w=400", "alt": "Premium finish"},
+    {"url": "https://images.unsplash.com/photo-1593702288056-f9454ce28b07?w=400", "alt": "Clean fade"},
 ]
 
 DEFAULT_SERVICES = [
@@ -53,11 +74,28 @@ DEFAULT_HOURS = [
     {"day": "Sunday", "hours": "Closed", "closed": True},
 ]
 
-DEFAULT_TESTIMONIALS = [
-    {"rating": 5, "text": "Best barbers in the area by far. Always leave looking fresh and the lads are sound.", "author": "James M."},
-    {"rating": 5, "text": "Been coming here for years. Wouldn't go anywhere else. Proper quality cuts every time.", "author": "Ryan T."},
-    {"rating": 5, "text": "Brilliant service, really friendly atmosphere. Kids love coming here too!", "author": "Sarah K."},
+TESTIMONIAL_POOL = [
+    {"rating": 5, "text": "Best barbers round here by a mile. Always leave looking proper fresh. The lads know what they're doing.", "author": "Jake M."},
+    {"rating": 5, "text": "Been coming here years and wouldn't go anywhere else. Consistent quality every single time.", "author": "Aaron T."},
+    {"rating": 5, "text": "Great atmosphere, friendly staff and a brilliant cut. My son loves coming here too.", "author": "Dean W."},
+    {"rating": 5, "text": "Walked in not knowing what I wanted and left looking class. Proper skilled barbers.", "author": "Liam H."},
+    {"rating": 5, "text": "Reasonable prices and top quality. Never had a bad cut here. Highly recommend.", "author": "Marcus B."},
+    {"rating": 5, "text": "Always on time and always delivers. The fade is immaculate every visit.", "author": "Kyle R."},
+    {"rating": 5, "text": "Friendly, quick and genuinely talented. Best shop in the area without question.", "author": "Tom G."},
+    {"rating": 5, "text": "First time in and they smashed it. Will definitely be back. Really welcoming place.", "author": "Josh P."},
 ]
+
+
+def _pick(pool: list, seed: str, offset: int = 0) -> object:
+    """Deterministically pick from a pool based on a string seed."""
+    idx = (hash(seed + str(offset)) & 0x7FFFFFFF) % len(pool)
+    return pool[idx]
+
+
+def _pick_n(pool: list, seed: str, n: int) -> list:
+    """Pick n unique items from pool deterministically."""
+    indices = sorted(range(len(pool)), key=lambda i: hash(seed + str(i)) & 0x7FFFFFFF)
+    return [pool[i] for i in indices[:n]]
 
 
 def _build_context(lead: dict) -> dict:
@@ -66,10 +104,28 @@ def _build_context(lead: dict) -> dict:
     city = lead.get("city", "Your Town")
     phone = lead.get("phone", "")
     address = lead.get("address", city)
+    seed = name + city
 
     whatsapp_number = (phone or "").replace(" ", "").replace("+", "").replace("-", "")
     if whatsapp_number.startswith("0"):
         whatsapp_number = "44" + whatsapp_number[1:]
+
+    taglines = [
+        f"Trusted by {city}'s finest — fresh cuts, no compromises.",
+        f"The go-to barbers in {city}. Walk in, leave looking class.",
+        f"Quality cuts in the heart of {city}. Walk-ins always welcome.",
+        f"{city}'s favourite barbers. Sharp fades, clean lines, every time.",
+        f"Serving {city} with premium cuts since day one.",
+    ]
+
+    about_texts = [
+        (f"{name} has been cutting hair for the {city} community for years. "
+         f"We know what it takes to keep our regulars coming back — great cuts, fair prices, and a shop you actually want to spend time in."),
+        (f"We're {name} — a proper barber shop in {city} that does things the right way. "
+         f"No waiting around, no disappointing cuts. Just skilled barbers who take pride in every single client."),
+        (f"At {name} we keep it simple: great haircuts, honest prices, friendly service. "
+         f"That's why {city} keeps coming back to us week after week."),
+    ]
 
     return {
         "business_name": name,
@@ -83,42 +139,36 @@ def _build_context(lead: dict) -> dict:
         "instagram_url": lead.get("instagram_url", ""),
         "facebook_url": lead.get("facebook_url", ""),
         "meta_description": f"Book your haircut at {name} in {city}. Professional barbers, walk-ins welcome.",
-        "tagline": f"Professional barbers serving {city} and the surrounding area.",
-        "hero_image_url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1200",
-        "barber_image_url": "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=600",
+        "tagline": _pick(taglines, seed),
+        "hero_image_url": _pick(HERO_IMAGE_POOL, seed),
+        "barber_image_url": _pick(BARBER_IMAGE_POOL, seed, offset=1),
         "booking_url": f"https://wa.me/{whatsapp_number}?text=Hi%2C%20I%27d%20like%20to%20book%20an%20appointment",
         "whatsapp_url": f"https://wa.me/{whatsapp_number}",
-        "about_heading": f"Your Local Barbers in {city}",
-        "about_text": (
-            f"{name} is a trusted local barbershop serving the {city} community. "
-            "We pride ourselves on quality cuts, a welcoming atmosphere, and making sure every client "
-            "leaves looking and feeling their best."
-        ),
+        "about_heading": f"The Barbers {city} Trusts",
+        "about_text": _pick(about_texts, seed, offset=2),
         "highlights": [
-            f"Serving {city} and surrounding areas",
-            "Walk-ins always welcome",
-            "Friendly, experienced barbers",
-            "Competitive prices, no hidden fees",
+            f"Serving {city} and the surrounding area",
+            "Walk-ins welcome — no appointment needed",
+            "Experienced barbers who care about the finish",
+            "Honest prices, no hidden extras",
         ],
-        "years_experience": "5",
-        "happy_clients": "500",
+        "years_experience": str(_pick([5, 6, 7, 8, 10], seed, offset=3)),
+        "happy_clients": str(_pick([400, 500, 600, 750, 1000], seed, offset=4)),
         "services": DEFAULT_SERVICES,
-        "gallery_images": DEFAULT_GALLERY,
-        "testimonials": DEFAULT_TESTIMONIALS,
+        "gallery_images": _pick_n(GALLERY_POOL, seed, 6),
+        "testimonials": _pick_n(TESTIMONIAL_POOL, seed, 3),
         "opening_hours": DEFAULT_HOURS,
         "google_maps_embed": "",
         "social_links": {
             "instagram": lead.get("instagram_url", ""),
             "facebook": lead.get("facebook_url", ""),
         },
-        # Watermark/credit
         "agency_name": settings.BUSINESS_NAME,
         "agency_url": settings.BUSINESS_WEBSITE,
-        # Preview notice (shown at top)
         "is_preview": True,
         "preview_message": (
-            f"👋 Hi {name}! This is a FREE preview website I built for you. "
-            "Want it live? Reply to my message and I'll get it sorted."
+            f"👋 This is a free preview site I built for {name}. "
+            "Like what you see? WhatsApp me and I'll get it live — Dylan"
         ),
     }
 
