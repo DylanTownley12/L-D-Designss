@@ -102,6 +102,24 @@ def _scrape_email_from_url(url: str) -> str | None:
     return None
 
 
+_IG_SKIP = {"p", "reel", "explore", "stories", "accounts", "hashtag", "tv", "direct", "share"}
+
+def _google_search_instagram(business_name: str, city: str) -> str | None:
+    """Search Google for the barber's Instagram when they have no website."""
+    try:
+        query = f'"{business_name}" barber "{city}" site:instagram.com'
+        url = f"https://www.google.com/search?q={requests.utils.quote(query)}&num=5&hl=en"
+        resp = requests.get(url, headers=HEADERS, timeout=8)
+        if resp.status_code != 200:
+            return None
+        for handle in INSTAGRAM_RE.findall(resp.text):
+            if handle.lower() not in _IG_SKIP and len(handle) > 2:
+                return f"https://www.instagram.com/{handle}/"
+    except Exception:
+        pass
+    return None
+
+
 def _enrich_lead(lead: dict) -> dict:
     """Return a dict of fields to update for this lead. Empty dict = nothing found."""
     updates = {}
@@ -128,7 +146,7 @@ def _enrich_lead(lead: dict) -> dict:
         ig_match = INSTAGRAM_RE.search(website)
         if ig_match:
             handle = ig_match.group(1)
-            if handle.lower() not in ("p", "reel", "explore", "stories"):
+            if handle.lower() not in _IG_SKIP:
                 updates["instagram_url"] = f"https://www.instagram.com/{handle}/"
         else:
             # Scrape website for email
@@ -143,10 +161,16 @@ def _enrich_lead(lead: dict) -> dict:
                     ig_match = INSTAGRAM_RE.search(resp.text)
                     if ig_match:
                         handle = ig_match.group(1)
-                        if handle.lower() not in ("p", "reel", "explore", "stories"):
+                        if handle.lower() not in _IG_SKIP:
                             updates["instagram_url"] = f"https://www.instagram.com/{handle}/"
                 except Exception:
                     pass
+
+    # No website found — search Google directly for their Instagram
+    if not updates.get("instagram_url") and not lead.get("instagram_url"):
+        ig = _google_search_instagram(name, city)
+        if ig:
+            updates["instagram_url"] = ig
 
     return updates
 
