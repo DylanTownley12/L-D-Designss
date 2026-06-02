@@ -9,6 +9,7 @@ const nav = [
   { to: '/outreach',  icon: '📤', label: 'Outreach' },
   { to: '/previews',  icon: '🌐', label: 'Previews' },
   { to: '/missed-call', icon: '📞', label: 'Text-Back' },
+  { to: '/plan',      icon: '📅', label: 'Plan' },
   { to: '/settings',  icon: '⚙️', label: 'Settings' },
 ]
 

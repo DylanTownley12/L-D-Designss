@@ -7,6 +7,7 @@ import Previews from './pages/Previews'
 import Settings from './pages/Settings'
 import MissedCall from './pages/MissedCall'
 import Agents from './pages/Agents'
+import Plan from './pages/Plan'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/missed-call" element={<MissedCall />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/agents" element={<Agents />} />
+            <Route path="/plan" element={<Plan />} />
           </Routes>
         </main>
       </div>
