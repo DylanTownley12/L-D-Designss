@@ -33,7 +33,7 @@ def _log(db, session_id: str, agent: str, action: str, status: str = "success", 
 
 def run(task: str = "auto") -> dict:
     from db.client import get_db
-    from agents import lead_finder, website_analyzer, preview_generator, outreach_writer, followup_agent
+    from agents import lead_finder, website_analyzer, preview_generator, outreach_writer, followup_agent, lead_enricher
 
     db = get_db()
     session_id = str(uuid.uuid4())[:8]
@@ -59,8 +59,11 @@ def run(task: str = "auto") -> dict:
         f"Pipeline: {new_count} new, {preview_ready} preview_ready, "
         f"{sent_count} sent, {replied_count} replied")
 
+    # Check how many leads need enriching
+    needs_enrichment = sum(1 for l in all_leads if l.get("status") == "preview_ready")
+
     # Decide plan
-    plan = _build_plan(task, new_count, preview_ready)
+    plan = _build_plan(task, new_count, preview_ready, needs_enrichment)
 
     if not plan:
         log("orchestrator", "Nothing to do — pipeline is up to date")
@@ -72,7 +75,9 @@ def run(task: str = "auto") -> dict:
         "lead_finder":       lead_finder.run,
         "website_analyzer":  website_analyzer.run,
         "preview_generator": preview_generator.run_batch,
+        "lead_enricher":     lead_enricher.run,
         "whatsapp_campaign": outreach_writer.generate_whatsapp_campaign,
+        "instagram_campaign": outreach_writer.generate_instagram_campaign,
         "followup_agent":    followup_agent.run,
     }
 
@@ -106,7 +111,7 @@ def run(task: str = "auto") -> dict:
     return {"session_id": session_id, "results": results, "message": "Pipeline complete"}
 
 
-def _build_plan(task: str, new_count: int, preview_ready: int) -> list:
+def _build_plan(task: str, new_count: int, preview_ready: int, needs_enrichment: int = 0) -> list:
     if task == "find_leads":
         return ["lead_finder"]
     if task == "generate_previews":
@@ -115,13 +120,18 @@ def _build_plan(task: str, new_count: int, preview_ready: int) -> list:
         return ["whatsapp_campaign"]
     if task == "followup":
         return ["followup_agent"]
+    if task == "enrich":
+        return ["lead_enricher", "instagram_campaign"]
     # auto / full_pipeline — run whatever the pipeline needs
     plan = []
     if new_count > 0:
         plan.append("website_analyzer")
     if new_count > 0 or preview_ready > 0:
         plan.append("preview_generator")
+    if needs_enrichment > 0:
+        plan.append("lead_enricher")
     plan.append("whatsapp_campaign")
+    plan.append("instagram_campaign")
     return plan
 
 
@@ -136,6 +146,8 @@ def _summarize(agent_name: str, result) -> str:
         return f"Generated {result.get('generated', 0)} previews, {result.get('skipped', 0)} skipped"
     if agent_name == "whatsapp_campaign":
         return f"Queued {result.get('generated', 0)} WhatsApp messages, {result.get('skipped', 0)} already done"
+    if agent_name == "lead_enricher":
+        return f"Checked {result.get('checked', 0)} leads — {result.get('emails_found', 0)} emails, {result.get('instagram_found', 0)} Instagram URLs found"
     if agent_name == "followup_agent":
         return f"Sent {result.get('sent', 0)} follow-ups"
     return "Completed"

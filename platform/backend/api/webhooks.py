@@ -83,6 +83,47 @@ async def inbound_email_webhook(request: Request):
     return {"status": "ok"}
 
 
+@router.post("/whatsapp-reply")
+async def whatsapp_reply(request: Request):
+    """
+    Called by OpenClaw when a barber replies on WhatsApp.
+    Looks up the lead by phone number and marks them as replied.
+    """
+    body = await request.json()
+    phone = (body.get("phone") or "").strip()
+    message = body.get("message", "")
+
+    if not phone:
+        raise HTTPException(status_code=400, detail="phone required")
+
+    db = get_db()
+
+    # Normalise to last 9 digits for matching (handles +44/07 variants)
+    clean = phone.replace("+44", "0").replace("+", "").replace(" ", "").replace("-", "")
+    result = db.table("leads").select("*").ilike("phone", f"%{clean[-9:]}%").execute()
+
+    if not result.data:
+        return {"status": "lead_not_found", "phone": phone}
+
+    lead = result.data[0]
+    lead_id = lead["id"]
+
+    # Only update if not already replied/interested/converted
+    if lead.get("status") not in ("replied", "interested", "converted"):
+        db.table("outreach_messages").insert({
+            "lead_id": lead_id,
+            "channel": "whatsapp",
+            "direction": "inbound",
+            "body": message,
+            "status": "replied",
+        }).execute()
+
+        notification_agent.notify_reply_received(lead_id, message)
+        followup_agent.stop_sequence(lead_id, reason="replied")
+
+    return {"status": "ok", "lead_id": lead_id, "business_name": lead.get("business_name")}
+
+
 @router.post("/manual-reply/{lead_id}")
 async def log_manual_reply(lead_id: str, request: Request):
     """

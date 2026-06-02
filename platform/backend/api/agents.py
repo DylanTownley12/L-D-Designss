@@ -9,6 +9,7 @@ from agents import (
     notification_agent,
     outreach_sender,
     orchestrator,
+    lead_enricher,
 )
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -23,6 +24,7 @@ AGENTS = {
     "instagram_campaign": outreach_writer.generate_instagram_campaign,
     "followup_agent": followup_agent.run,
     "outreach_queue": outreach_sender.process_queue,
+    "lead_enricher": lead_enricher.run,
 }
 
 

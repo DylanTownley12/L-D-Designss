@@ -6,6 +6,7 @@ const AGENT_META = {
   lead_finder:       { icon: '🔍', label: 'Lead Finder',        desc: 'Finds barbers with no website' },
   website_analyzer:  { icon: '🔬', label: 'Website Analyzer',   desc: 'Checks site quality + contact info' },
   preview_generator: { icon: '🎨', label: 'Preview Generator',  desc: 'Builds free preview websites' },
+  lead_enricher:     { icon: '💎', label: 'Lead Enricher',      desc: 'Finds emails + Instagram handles' },
   outreach_writer:   { icon: '✉️',  label: 'Outreach Writer',    desc: 'Writes WhatsApp & email messages' },
   followup_agent:    { icon: '🔁', label: 'Follow-up Agent',    desc: 'Sends 48hr follow-ups' },
 }
@@ -23,6 +24,7 @@ const AGENT_COLORS = {
   lead_finder:       '#3b82f6',
   website_analyzer:  '#8b5cf6',
   preview_generator: '#06b6d4',
+  lead_enricher:     '#ec4899',
   outreach_writer:   '#10b981',
   followup_agent:    '#f59e0b',
 }
@@ -214,7 +216,7 @@ export default function Agents() {
       )}
 
       {/* Agent cards */}
-      <div className="grid grid-cols-3 gap-3 mb-6 lg:grid-cols-6">
+      <div className="grid grid-cols-3 gap-3 mb-6 lg:grid-cols-7">
         {Object.keys(AGENT_META).map(name => (
           <AgentCard
             key={name}
