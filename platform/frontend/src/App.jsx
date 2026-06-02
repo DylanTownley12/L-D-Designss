@@ -6,6 +6,7 @@ import Outreach from './pages/Outreach'
 import Previews from './pages/Previews'
 import Settings from './pages/Settings'
 import MissedCall from './pages/MissedCall'
+import Agents from './pages/Agents'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
             <Route path="/previews" element={<Previews />} />
             <Route path="/missed-call" element={<MissedCall />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/agents" element={<Agents />} />
           </Routes>
         </main>
       </div>

@@ -8,6 +8,7 @@ from agents import (
     followup_agent,
     notification_agent,
     outreach_sender,
+    orchestrator,
 )
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -124,3 +125,42 @@ async def run_full_pipeline(lead_id: str, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_pipeline)
     return {"status": "pipeline_started", "lead_id": lead_id}
+
+
+@router.post("/orchestrate")
+async def run_orchestrator(background_tasks: BackgroundTasks, task: str = "auto"):
+    """Run the orchestrator — it checks pipeline state and dispatches agents as needed."""
+    background_tasks.add_task(orchestrator.run, task)
+    return {"status": "started", "task": task}
+
+
+@router.get("/orchestrate/sessions")
+async def orchestrate_sessions(limit: int = 10):
+    """Return recent orchestrator sessions grouped by session_id."""
+    from db.client import get_db
+    db = get_db()
+
+    result = (
+        db.table("agent_logs")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(500)
+        .execute()
+    )
+    logs = result.data or []
+
+    # Group by session_id (stored in details.session_id)
+    sessions: dict = {}
+    ungrouped = []
+    for log in logs:
+        details = log.get("details") or {}
+        sid = details.get("session_id")
+        if sid:
+            if sid not in sessions:
+                sessions[sid] = {"session_id": sid, "logs": [], "started_at": log["created_at"]}
+            sessions[sid]["logs"].append(log)
+        else:
+            ungrouped.append(log)
+
+    sorted_sessions = sorted(sessions.values(), key=lambda s: s["started_at"], reverse=True)
+    return {"sessions": sorted_sessions[:limit], "recent_logs": logs[:100]}

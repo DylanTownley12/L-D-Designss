@@ -4,6 +4,7 @@ import { dashboard as dashApi } from '../api/client'
 
 const nav = [
   { to: '/dashboard', icon: '📊', label: 'Dashboard' },
+  { to: '/agents',    icon: '🧠', label: 'Agents' },
   { to: '/leads',     icon: '🎯', label: 'Leads' },
   { to: '/outreach',  icon: '📤', label: 'Outreach' },
   { to: '/previews',  icon: '🌐', label: 'Previews' },

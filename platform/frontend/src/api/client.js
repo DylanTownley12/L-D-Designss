@@ -55,7 +55,9 @@ export const dashboard = {
 export const agents = {
   run: (agent, lead_id, params) => api.post('/agents/run', { agent, lead_id, params }),
   runPipeline: (lead_id) => api.post(`/agents/full-pipeline/${lead_id}`),
-  logs: (agent) => api.get('/agents/logs', { params: { agent } }),
+  logs: (agent, limit) => api.get('/agents/logs', { params: { agent, limit } }),
+  orchestrate: (task = 'auto') => api.post('/agents/orchestrate', null, { params: { task } }),
+  sessions: () => api.get('/agents/orchestrate/sessions'),
 }
 
 export const instagram = {
