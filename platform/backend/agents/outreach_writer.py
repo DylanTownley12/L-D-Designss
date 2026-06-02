@@ -317,6 +317,8 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
                 "approved_by_founder": True,
             }).execute()
 
+            db.table("leads").update({"status": "outreach_queued"}).eq("id", lead_id).execute()
+
             generated += 1
 
         except Exception as e:
