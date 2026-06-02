@@ -163,6 +163,7 @@ def _build_context(lead: dict) -> dict:
             "instagram": lead.get("instagram_url", ""),
             "facebook": lead.get("facebook_url", ""),
         },
+        "google_place_id": lead.get("google_place_id", ""),
         "agency_name": settings.BUSINESS_NAME,
         "agency_url": settings.BUSINESS_WEBSITE,
         "is_preview": True,

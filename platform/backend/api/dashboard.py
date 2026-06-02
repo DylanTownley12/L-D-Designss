@@ -39,6 +39,13 @@ async def get_stats():
     outreach_queued   = count("outreach_messages", status="queued", direction="outbound")
     emails_today      = count_gte("outreach_messages", "sent_at", f"{today}T00:00:00",
                                   channel="email", status="sent")
+    whatsapp_today    = count_gte("outreach_messages", "sent_at", f"{today}T00:00:00",
+                                  channel="whatsapp", status="sent")
+
+    # Last WA message sent (for Baz health)
+    last_wa = db.table("outreach_messages").select("sent_at").eq("channel", "whatsapp").eq(
+        "status", "sent").order("sent_at", desc=True).limit(1).execute()
+    last_whatsapp_sent_at = (last_wa.data[0]["sent_at"] if last_wa.data else None)
 
     # Today's tasks
     whatsapp_queued  = count("outreach_messages", status="queued",  channel="whatsapp",  direction="outbound")
@@ -93,6 +100,8 @@ async def get_stats():
         "previews_generated": previews_total,
         "outreach_queued": outreach_queued,
         "emails_today": emails_today,
+        "whatsapp_today": whatsapp_today,
+        "last_whatsapp_sent_at": last_whatsapp_sent_at,
         "revenue_total": float(revenue_total),
         "pipeline": pipeline,
         "activity": activity,

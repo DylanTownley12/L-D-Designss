@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { dashboard as dashApi, agents } from '../api/client'
+import { dashboard as dashApi, agents, outreach as outreachApi } from '../api/client'
 import StatCard from '../components/StatCard'
 
 const MAX_RETRIES = 4
@@ -56,6 +56,8 @@ export default function Dashboard() {
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState(null)
   const [running, setRunning] = useState(null)
+  const [templateStats, setTemplateStats] = useState(null)
+  const [conversations, setConversations] = useState([])
   const navigate = useNavigate()
 
   const load = async (silent = false) => {
@@ -77,6 +79,8 @@ export default function Dashboard() {
   useEffect(() => {
     load()
     const t = setInterval(() => load(true), 30000)
+    outreachApi.templateStats().then(d => setTemplateStats(d)).catch(() => {})
+    outreachApi.conversations(5).then(d => setConversations(d.conversations || [])).catch(() => {})
     return () => clearInterval(t)
   }, [])
 
@@ -150,6 +154,119 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* ── BAZ HEALTH + TODAY'S SENDS + WINNING OPENER ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {/* Baz health */}
+        {(() => {
+          const lastSent = stats.last_whatsapp_sent_at
+          const minsAgo = lastSent ? Math.floor((Date.now() - new Date(lastSent)) / 60000) : null
+          const hoursAgo = minsAgo !== null ? Math.floor(minsAgo / 60) : null
+          const isStale = minsAgo === null || minsAgo > 60 * 20
+          const label = minsAgo === null ? 'Never sent' : hoursAgo >= 1 ? `${hoursAgo}h ago` : `${minsAgo}m ago`
+          return (
+            <div className={`card rounded-xl p-4 border ${isStale ? 'border-red-500/30 bg-red-500/5' : 'border-green-400/20 bg-green-400/5'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Baz Status</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isStale ? 'bg-red-500/20 text-red-400' : 'bg-green-400/20 text-green-400'}`}>
+                  {isStale ? 'Check Session' : 'Sending'}
+                </span>
+              </div>
+              <div className={`text-xl font-bold ${isStale ? 'text-red-400' : 'text-green-400'}`}>
+                {isStale ? '⚠️ Inactive' : '✓ Active'}
+              </div>
+              <div className="text-white/40 text-xs mt-1">Last WA sent: {label}</div>
+              {isStale && (
+                <div className="mt-2 text-xs text-red-400/70 font-mono bg-red-500/10 rounded px-2 py-1">
+                  ! openclaw channels login --channel whatsapp
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Today's WA sends */}
+        {(() => {
+          const sent = stats.whatsapp_today || 0
+          const limit = 20
+          const pct = Math.min((sent / limit) * 100, 100)
+          return (
+            <div className="card rounded-xl p-4 border border-white/6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Today's Sends</span>
+                <span className="text-xs text-white/30">/20 limit</span>
+              </div>
+              <div className="text-2xl font-bold text-gold tabular-nums">{sent}</div>
+              <div className="w-full bg-white/5 rounded-full h-2 mt-2">
+                <div className="h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%`, background: sent >= limit ? '#10b981' : '#C9A84C' }} />
+              </div>
+              <div className="text-white/30 text-xs mt-1.5">
+                {sent >= limit ? 'Daily limit reached ✓' : `${limit - sent} remaining today`}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Winning opener */}
+        {(() => {
+          const variants = templateStats?.variants || []
+          const withData = variants.filter(v => v.sent > 0 && v.reply_rate !== null)
+          const best = withData.sort((a, b) => b.reply_rate - a.reply_rate)[0]
+          return (
+            <div className="card rounded-xl p-4 border border-purple-400/20 bg-purple-400/5">
+              <div className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Winning Opener</div>
+              {best ? (
+                <>
+                  <div className="text-xl font-bold text-purple-400">{best.reply_rate}% reply rate</div>
+                  <div className="text-white/40 text-xs mt-1">Template {best.variant} · {best.sent} sent · {best.replied} replied</div>
+                  <div className="text-white/25 text-xs mt-2 italic truncate">"{best.preview}"</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-white/40 text-sm">No data yet</div>
+                  <div className="text-white/25 text-xs mt-1">Send more messages to see which opener wins</div>
+                </>
+              )}
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* ── BAZ CONVERSATION FEED ── */}
+      {conversations.length > 0 && (
+        <div className="card p-5 rounded-xl">
+          <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Recent Replies — Baz Conversations</h2>
+          <div className="space-y-3">
+            {conversations.map((c, i) => (
+              <div key={i} className="bg-white/3 border border-white/6 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <span className="text-sm font-medium text-white/80">{c.lead?.business_name || 'Unknown'}</span>
+                    <span className="text-white/30 text-xs ml-2">{c.lead?.city}</span>
+                  </div>
+                  <span className="text-white/20 text-xs">
+                    {c.at ? new Date(c.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {c.we_sent && (
+                    <div className="flex gap-2">
+                      <span className="text-xs text-gold/60 flex-shrink-0 w-12 text-right">Dylan</span>
+                      <div className="bg-gold/10 border border-gold/15 rounded-lg px-3 py-1.5 text-xs text-white/60 flex-1">{c.we_sent}</div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <span className="text-xs text-blue-400/60 flex-shrink-0 w-12 text-right">Barber</span>
+                    <div className="bg-blue-400/10 border border-blue-400/15 rounded-lg px-3 py-1.5 text-xs text-white/80 flex-1">{c.barber_said}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── WINS — only shown if there are converted clients ── */}
       {hasWins ? (

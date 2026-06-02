@@ -39,6 +39,7 @@ export const outreach = {
   generateWhatsappCampaign: () => api.post('/outreach/generate-whatsapp-campaign'),
   statsToday: () => api.get('/outreach/stats/today'),
   templateStats: () => api.get('/outreach/template-stats'),
+  conversations: (limit = 5) => api.get('/outreach/conversations', { params: { limit } }),
 }
 
 export const previews = {

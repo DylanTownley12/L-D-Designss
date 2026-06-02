@@ -267,6 +267,29 @@ async def today_stats():
     }
 
 
+@router.get("/conversations")
+async def recent_conversations(limit: int = 5):
+    """Last N inbound replies with the outbound message that preceded them."""
+    db = get_db()
+    inbound = db.table("outreach_messages").select(
+        "id, lead_id, body, created_at, leads(business_name, city, phone)"
+    ).eq("direction", "inbound").order("created_at", desc=True).limit(limit).execute()
+
+    convos = []
+    for msg in (inbound.data or []):
+        lead_id = msg.get("lead_id")
+        outbound = db.table("outreach_messages").select("body, sent_at").eq(
+            "lead_id", lead_id).eq("direction", "outbound").eq("status", "sent"
+        ).order("sent_at", desc=True).limit(1).execute()
+        convos.append({
+            "lead": msg.get("leads") or {},
+            "barber_said": msg.get("body", ""),
+            "we_sent": outbound.data[0]["body"] if outbound.data else "",
+            "at": msg.get("created_at", ""),
+        })
+    return {"conversations": convos}
+
+
 @router.get("/template-stats")
 async def template_stats():
     """A/B test reply rates per WhatsApp opener template."""

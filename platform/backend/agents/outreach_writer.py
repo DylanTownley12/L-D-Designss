@@ -219,13 +219,13 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
 # Variant index is stored in the message body's first word pattern so reply rate
 # can be calculated per variant later via /api/outreach/template-stats.
 _WHATSAPP_TEMPLATES = [
-    # V1 — short hook, no name drop
+    # V1 — short hook
     "Hey, you the owner of {name}? Got a quick idea for getting you more bookings — worth a message?",
-    # V2 — Opus pick: personal intro + free preview offer (hypothesis: best reply rate)
-    "Hiya {name} — I'm Dylan, I make websites for barbers. Was looking for one in {city} and noticed you don't have a site. Happy to put a free preview together if you're interested, no strings. Just reply and I'll sort it",
-    # V3 — social proof angle
-    "Hey, came across {name} — do you have a website? I build them for local barbers, a few in {city} have got theirs through me. Happy to put a free one together so you can see what it'd look like",
-    # V4 — original city question
+    # V2 — personal intro + preview link (best hypothesis; {preview_suffix} is ": <url>" or "")
+    "Hiya {name} — I'm Dylan, I build websites for barbers. I've already put a free preview together of what yours could look like{preview_suffix}. No strings — just let me know if you want it live",
+    # V3 — social proof + preview link
+    "Hey, came across {name} — I build websites for barbers and I've already made a free preview for yours{preview_suffix}. Reply if you want a look, happy to send it over",
+    # V4 — simple question
     "Hi, came across {name} in {city} — do you have a website? I build them for local barbers, just wondering if it's something you'd want.",
     # V5 — curiosity hook
     "Hey, you the owner of {name}? Got something that might help get more customers through the door — worth a quick chat?",
@@ -238,9 +238,10 @@ def _write_whatsapp(lead: dict, preview_url: str | None = None, variant_index: i
     city = lead.get("city", "your area")
     if preview_url and "localhost" in preview_url:
         preview_url = None
-    # Use provided variant index for A/B rotation, else fall back to random
     idx = variant_index % len(_WHATSAPP_TEMPLATES) if variant_index is not None else _random.randrange(len(_WHATSAPP_TEMPLATES))
-    return _WHATSAPP_TEMPLATES[idx].format(name=name, city=city)
+    # V2 and V3 embed the preview URL directly; others don't reference it
+    preview_suffix = f": {preview_url}" if preview_url else ""
+    return _WHATSAPP_TEMPLATES[idx].format(name=name, city=city, preview_suffix=preview_suffix)
 
 
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
