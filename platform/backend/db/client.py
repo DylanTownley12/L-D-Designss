@@ -50,6 +50,18 @@ class _QueryBuilder:
         self._filters.append((column, f"gte.{value}"))
         return self
 
+    def lte(self, column: str, value: Any):
+        self._filters.append((column, f"lte.{value}"))
+        return self
+
+    def lt(self, column: str, value: Any):
+        self._filters.append((column, f"lt.{value}"))
+        return self
+
+    def gt(self, column: str, value: Any):
+        self._filters.append((column, f"gt.{value}"))
+        return self
+
     def in_(self, column: str, values: list):
         val_str = ",".join(str(v) for v in values)
         self._filters.append((column, f"in.({val_str})"))
