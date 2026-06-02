@@ -3,11 +3,11 @@ import { useState, useEffect } from 'react'
 const PLAN = [
   {
     day: 1, date: '2026-06-03', label: 'Wed 3 Jun', week: 1,
-    focus: 'Get WA back online + set friend up',
+    focus: 'Get WA back + both of you set up and building',
     tasks: {
       you: [
         'Scan QR at 3pm — ! openclaw channels login --channel whatsapp',
-        'Give friend a list of 50 leads with phone numbers and opener script',
+        'Give friend access to the GitHub repo and Railway dashboard',
         '30 min: 15 Instagram DMs to barbers from your own account',
       ],
       me: [
@@ -15,7 +15,10 @@ const PLAN = [
         'Check enricher ran at 6am and found Instagram handles',
       ],
       friend: [
-        'Start today — send 15 manual WhatsApp DMs using the opener',
+        'Clone the L&D repo and get Claude Code running on it',
+        'Send 15 manual WhatsApp DMs using the opener Dylan gives you',
+        'Use Claude Code to run the lead finder — ask it to find 100 more barbers in a new city',
+        'Check the leads came in on the dashboard',
       ],
       openclaw: [
         'Back online, handling all inbound replies automatically',
@@ -25,7 +28,7 @@ const PLAN = [
   },
   {
     day: 2, date: '2026-06-04', label: 'Thu 4 Jun', week: 1,
-    focus: 'Order SIMs — biggest leverage this week',
+    focus: 'Order SIMs + friend builds their first feature',
     tasks: {
       you: [
         'Order 3 PAYG SIMs — Giffgaff or Lebara, £1 each',
@@ -37,6 +40,8 @@ const PLAN = [
       ],
       friend: [
         'Send 15 manual WhatsApp DMs',
+        'Use Claude Code to build a Facebook Groups scraper — find barbers posting in "barbers UK" groups',
+        'This is a new lead source the main system doesn\'t have yet — adds to the pipeline',
       ],
       openclaw: [
         'Auto-replying to all inbound',
@@ -45,7 +50,7 @@ const PLAN = [
   },
   {
     day: 3, date: '2026-06-05', label: 'Fri 5 Jun', week: 1,
-    focus: 'Post first TikTok',
+    focus: 'TikTok + friend builds aesthetics AI landing page',
     tasks: {
       you: [
         'Film a 60-second TikTok — screen record building a barber preview, show before/after',
@@ -54,10 +59,13 @@ const PLAN = [
       ],
       me: [
         'Write 3 new WhatsApp opener variants based on reply data',
-        'Check reply rate from week so far',
+        'Check reply rate from the week so far',
       ],
       friend: [
-        'Send 15 DMs. Post the TikTok on their account too if they\'re up for it',
+        'Send 15 DMs. Post the TikTok on their account too',
+        'Use Claude Code to build a landing page for the aesthetics AI product',
+        'Single page: headline, what it does, pricing placeholder, "book a demo" button',
+        'Deploy to Vercel — this is what you send clinics when they ask for more info',
       ],
       openclaw: [
         'Running. Handling mid-conversation follow-ups',
@@ -66,18 +74,21 @@ const PLAN = [
   },
   {
     day: 4, date: '2026-06-06', label: 'Sat 6 Jun', week: 1,
-    focus: 'Improve the barber preview template',
+    focus: 'Preview improvements + friend deploys aesthetics AI backend',
     tasks: {
       you: [
-        'Open 5 barber previews and look at them honestly — what looks weak?',
-        'Decide: better headline, stronger social proof, sharper CTA',
+        'Open 5 barber previews — decide what needs improving (headline, images, CTA)',
+        'Tell me what to change and I\'ll implement it',
       ],
       me: [
-        'Implement the preview improvements you decide on',
+        'Implement preview improvements',
         'Push to Railway',
       ],
       friend: [
-        'Day off or keep DMing — their call',
+        'Use Claude Code to deploy the aesthetics AI backend to Railway',
+        'Create a new Railway project, set the env vars from .env.example',
+        'Run the Supabase migrations for the aesthetics DB',
+        'Verify /health endpoint returns ok',
       ],
       openclaw: [
         'Running',
@@ -86,18 +97,21 @@ const PLAN = [
   },
   {
     day: 5, date: '2026-06-07', label: 'Sun 7 Jun', week: 1,
-    focus: 'Research aesthetics clinics',
+    focus: 'Research + VAPI setup',
     tasks: {
       you: [
         'Find 20 aesthetics clinics on Instagram — Manchester, Liverpool, Leeds',
-        'Note: follower count, do they have a booking link in bio, how active',
+        'Note: follower count, booking link in bio, how active they are',
         'Don\'t message yet — just build the list',
       ],
       me: [
         'Nothing unless something breaks',
       ],
       friend: [
-        'Day off',
+        'Sign up for VAPI.ai free trial',
+        'Use Claude Code to call POST /api/calls/setup-assistant/glow-manchester on the deployed aesthetics backend',
+        'Do a test call to the VAPI number — does Sophie answer? Does she sound right?',
+        'Note any issues for fixing Monday',
       ],
       openclaw: [
         'Running',
@@ -106,20 +120,22 @@ const PLAN = [
   },
   {
     day: 6, date: '2026-06-08', label: 'Mon 8 Jun', week: 1,
-    focus: 'SIMs arrive — set up new WhatsApp accounts',
+    focus: 'SIMs arrive + fix anything broken from weekend',
     tasks: {
       you: [
-        'Set up WhatsApp on each SIM — text a few real contacts first to warm it up',
+        'Set up WhatsApp on each new SIM — text a few real contacts first to warm up',
         'Wait 24h before outreach on new numbers',
-        'Read through all this week\'s reply threads — spot patterns in objections',
+        'Read through all reply threads — spot patterns in objections',
         '30 min: 15 Instagram DMs',
       ],
       me: [
-        'Deploy new opener A/B variants',
-        'Update Baz playbook if you\'ve spotted gaps in how he handles objections',
+        'Deploy new A/B opener variants',
+        'Update Baz playbook if objection patterns spotted',
       ],
       friend: [
-        'Keep going — 15 DMs/day',
+        'Fix any VAPI issues from Sunday test',
+        'Use Claude Code to wire up Cal.com to the test clinic — real availability check working',
+        'Send 15 manual DMs',
       ],
       openclaw: [
         'Running with updated playbook if changed',
@@ -128,20 +144,22 @@ const PLAN = [
   },
   {
     day: 7, date: '2026-06-09', label: 'Tue 9 Jun', week: 1,
-    focus: 'Week 1 review',
+    focus: 'Week 1 review — both of you',
     tasks: {
       you: [
         'Count total replies — what\'s the reply rate per opener?',
-        'List the 5 warmest leads — people who replied but didn\'t convert',
-        'Write down the top 3 objections you\'ve heard',
+        'List the 5 warmest leads',
+        'Write down the top 3 objections barbers give',
         '30 min: 15 Instagram DMs',
       ],
       me: [
         'Pull full stats — template performance, reply rates, enricher results',
-        'Give you a clean summary of what\'s working and what isn\'t',
+        'Clean summary of what\'s working',
       ],
       friend: [
-        '15 DMs. Should have 100+ total sent by now',
+        'Review landing page — does it explain the aesthetics product clearly? Update copy',
+        'Use Claude Code to add a simple "demo request" form that emails you when someone fills it in',
+        '15 DMs — should have 100+ total sent now',
       ],
       openclaw: [
         'Running',
@@ -150,20 +168,24 @@ const PLAN = [
   },
   {
     day: 8, date: '2026-06-10', label: 'Wed 10 Jun', week: 2,
-    focus: 'Personal follow-ups on warm leads',
+    focus: 'Personal follow-ups + aesthetics AI voice tested end-to-end',
     tasks: {
       you: [
-        'Message the 5 warmest leads yourself — not through Baz',
-        '"Hey, did you get a chance to look at the preview? Happy to change anything on it."',
-        'New SIMs active today — 80 messages/day total now',
+        'Message the 5 warmest barber leads yourself — not through Baz',
+        '"Hey, did you get a chance to look at the preview? Happy to change anything."',
+        'New SIMs active — 80 messages/day total now',
         '30 min: 15 Instagram DMs',
       ],
       me: [
-        'Start deploying aesthetics AI to Railway',
-        'Set up VAPI trial account',
+        'Review aesthetics AI deployment — fix any gaps',
+        'Write the full demo script for the aesthetics product',
       ],
       friend: [
-        'Keep going — 15 DMs/day',
+        'Do a full end-to-end test call on the aesthetics AI',
+        'Call the VAPI number, try to book an appointment, check Cal.com, check Stripe link sent',
+        'Test the under-18 refusal — say you\'re 16 wanting Botox',
+        'Test the medical question refusal — ask "is it safe with my medication?"',
+        'Log every bug in a note and fix them with Claude Code',
       ],
       openclaw: [
         'Running',
@@ -172,19 +194,21 @@ const PLAN = [
   },
   {
     day: 9, date: '2026-06-11', label: 'Thu 11 Jun', week: 2,
-    focus: 'Aesthetics AI outreach starts',
+    focus: 'Aesthetics outreach starts — both channels',
     tasks: {
       you: [
-        'DM 5 aesthetics clinics from your Sunday research list',
-        '"Hey, I\'ve built an AI receptionist for aesthetics clinics — handles bookings and chases no-shows. Happy to show you a quick demo?"',
+        'DM 5 aesthetics clinics from your Sunday list',
+        '"Hey, built an AI receptionist for aesthetics clinics — handles bookings, chases no-shows. Happy to show you a demo?"',
         '30 min: 15 barber Instagram DMs',
       ],
       me: [
-        'Get aesthetics AI fully deployed and tested',
-        'Do a test call via VAPI — voice, booking, and owner alert working end to end',
+        'Fix any bugs from friend\'s end-to-end test',
+        'Make sure owner WhatsApp alerts are firing correctly',
       ],
       friend: [
-        'Keep DMing barbers',
+        'DM 5 different aesthetics clinics — split the list so you\'re not doubling up',
+        'Use Claude Code to build a simple dashboard page for the aesthetics AI — shows bookings, calls, no-shows per clinic',
+        'Send 15 barber DMs',
       ],
       openclaw: [
         'Running',
@@ -193,19 +217,22 @@ const PLAN = [
   },
   {
     day: 10, date: '2026-06-12', label: 'Fri 12 Jun', week: 2,
-    focus: 'Aesthetics AI live',
+    focus: 'Polish and follow-ups',
     tasks: {
       you: [
-        'Follow up on any aesthetics clinic replies',
-        'Check in on warm barber leads — any close to paying?',
+        'Follow up on aesthetics clinic replies',
+        'Check warm barber leads — any close to paying?',
         '30 min: 15 Instagram DMs',
       ],
       me: [
-        'Fix any bugs from VAPI test',
-        'Build a simple aesthetics AI demo script — what to show, what to say',
+        'Review and improve the aesthetics AI system prompt based on test call findings',
+        'Add any missing FAQ handling',
       ],
       friend: [
-        'Keep going',
+        'Follow up on their 5 aesthetics clinic DMs',
+        'Use Claude Code to add SMS reminders to the aesthetics AI — 24h and 2h before appointment',
+        'Test a reminder fires correctly',
+        'Send 15 barber DMs',
       ],
       openclaw: [
         'Running',
@@ -214,18 +241,19 @@ const PLAN = [
   },
   {
     day: 11, date: '2026-06-13', label: 'Sat 13 Jun', week: 2,
-    focus: 'Second TikTok',
+    focus: 'Content day',
     tasks: {
       you: [
-        'Post a second TikTok — "Building a web design agency at 17 from my bedroom"',
-        'Authentic, honest, show the dashboard, show the automation',
-        'This builds an audience while you build the business',
+        'Post second TikTok — "Building a web design agency at 17 from my bedroom"',
+        'Authentic, show the dashboard and automation, honest about the journey',
       ],
       me: [
         'Nothing unless there are bugs',
       ],
       friend: [
-        'Day off or keep going',
+        'Post their own TikTok — "Helping my mate build an AI business, here\'s what we\'ve built"',
+        'Different angle, different audience — doubles the reach',
+        'Use Claude Code to build the no-show recovery flow — mark no-shows and auto-text to rebook',
       ],
       openclaw: [
         'Running',
@@ -237,29 +265,35 @@ const PLAN = [
     focus: 'Rest + review',
     tasks: {
       you: [
-        'Day off — check for any Baz alerts',
-        'Think about what you\'ve learned — what would you do differently from day 1?',
+        'Day off — check for any Baz 🔥 alerts',
+        'Think about what you\'d do differently from day 1',
       ],
       me: ['Nothing'],
-      friend: ['Day off'],
+      friend: [
+        'Day off',
+        'Optional: use Claude Code to run the reactivation flow on the test clinic — check it sends correctly',
+      ],
       openclaw: ['Running'],
     },
   },
   {
     day: 13, date: '2026-06-15', label: 'Mon 15 Jun', week: 2,
-    focus: 'Aesthetics clinic follow-ups',
+    focus: 'Aesthetics follow-ups + monthly ROI report working',
     tasks: {
       you: [
-        'Follow up on the 5 clinic DMs from Thursday',
-        'Find 5 more aesthetics clinics and message them',
+        'Follow up on all 10 clinic DMs (yours + friend\'s)',
+        'Find 5 more clinics and message them',
         '30 min: 15 barber Instagram DMs',
       ],
       me: [
-        'Write the full aesthetics AI demo script',
-        'Pricing recommendation for the aesthetics product',
+        'Pricing recommendations for aesthetics AI — what to charge',
+        'Draft the aesthetics AI sales pitch in 3 sentences',
       ],
       friend: [
-        'Keep DMing barbers — should have 200+ total by now',
+        'Use Claude Code to get the monthly ROI report working — POST /api/dashboard/{clinic_id}/monthly-report',
+        'Verify the WhatsApp summary sends to the owner number',
+        'DM 5 more aesthetics clinics',
+        'Send 15 barber DMs',
       ],
       openclaw: [
         'Running',
@@ -268,19 +302,21 @@ const PLAN = [
   },
   {
     day: 14, date: '2026-06-16', label: 'Tue 16 Jun', week: 2,
-    focus: 'End of 2-week plan — review and plan week 3',
+    focus: 'End of 2-week plan — review together',
     tasks: {
       you: [
-        'Count results: deposits received, warm leads, aesthetics clinic interest',
-        'Decide: double down on barbers, push aesthetics, or both?',
-        'Message me and we\'ll plan the next 2 weeks based on what worked',
+        'Count results: deposits, warm leads, aesthetics clinic interest',
+        'Decide together: double down on barbers, push aesthetics, or both?',
+        'Message me and we\'ll plan week 3',
       ],
       me: [
-        'Full stats review — reply rates, conversion, what channels worked',
+        'Full stats review — all channels, conversion rates, what worked',
         'Draft week 3 plan based on results',
       ],
       friend: [
-        'Review together — what messages got the best responses?',
+        'Review together — what messages got the best response?',
+        'Is the aesthetics AI demo-ready? Could you show it to a real clinic today?',
+        'Use Claude Code to write up a summary of everything built in 2 weeks',
       ],
       openclaw: [
         'Running',
