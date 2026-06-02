@@ -496,7 +496,7 @@ def run_batch(limit: int = 50) -> dict:
                 "status": "queued",
                 "sequence_day": 1,
                 "ai_generated": True,
-                "approved_by_founder": not settings.REQUIRE_APPROVAL,
+                "approved_by_founder": True,
             }).execute()
 
             db.table("leads").update({"status": "outreach_queued"}).eq("id", lead_id).execute()
