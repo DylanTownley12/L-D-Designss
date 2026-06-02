@@ -213,21 +213,19 @@ def _fallback_sms(name: str, preview_url: str | None) -> str:
 
 
 _WHATSAPP_TEMPLATES = [
-    "Hiya {name}! I'm Dylan. Was searching for barbers in {city} on Google and couldn't find you — turns out you haven't got a website. I build them for local barbers, just done one for a shop nearby. Went ahead and made you a free preview: {url}\n\nLet me know what you think, no pressure",
-    "Hey {name}, Dylan here. Had a look for barbers in {city} and you weren't coming up on Google — I make websites for barber shops so I put a free one together for you: {url}\n\nWorth a look if you get 2 mins, cheers",
-    "Hiya {name} — I'm Dylan, I build websites for local barbers. Was searching for one in {city} and noticed you don't have a site, so I made you a free preview: {url}\n\nNo strings attached, lmk what you reckon",
-    "Hey {name}! Name's Dylan. Was googling barbers in {city} and you weren't showing up — I do websites for barber shops, recently done one for a place nearby. Made you a free preview: {url}\n\nLmk if you want it live",
-    "Hiya {name}, I'm Dylan from Wigan. Had a search for barbers in {city} and couldn't find you online — I make websites for local barbers and just done one for a shop near you. Put a free preview together: {url}\n\nLet me know what you think",
-    "Hey {name}! Dylan here. Was looking for a barber in {city} and {name} wasn't coming up on Google — I build barber websites, one-off price no monthly fees. Made you a free preview: {url}\n\nLmk if you want it sorting, cheers",
-    "Hiya {name} — I'm Dylan, I do websites for local barbers. Was searching for one in {city} and noticed you didn't have a site, so I built you a free preview to have a look at: {url}\n\nReply if you want it live, no stress",
-    "Hey {name}! Had a Google for barbers in {city} and you weren't showing up — I make barber websites and just finished one for a shop near you. Went ahead and made you a free preview: {url}\n\nLet me know what you reckon, cheers Dylan",
+    "Hey {name}, you the owner? Got a quick idea for getting you more bookings — made you a free preview of what a website could look like: {url}\n\nWorth a look, cheers Dylan",
+    "Hey, came across {name} — looks class. Made you a free website preview to show what yours could look like: {url}\n\nLmk what you think — Dylan",
+    "Hey {name}, I build websites for barbers. Made you a quick free preview: {url}\n\nNo strings, just reply if you want it live — Dylan",
+    "Hey, you the owner of {name}? Got a quick idea for getting you more bookings online — want me to send over a free preview I built? — Dylan",
+    "Hey, came across {name} — do you have a website yet? I build them for barbers round here, happy to show you a free preview: {url}\n\nCheers, Dylan",
+    "Hey {name}! I build websites for barbers. Made you a free preview to have a look at: {url}\n\nLmk if you want it sorting — Dylan",
 ]
 
 _WHATSAPP_TEMPLATES_NO_URL = [
-    "Hiya {name}! I'm Dylan. Was searching for barbers in {city} on Google and couldn't find you — turns out you haven't got a website. I build them for local barbers, one-off price. Want me to put a free preview together? Just reply and I'll get one sorted",
-    "Hey {name}, Dylan here. Had a look for barbers in {city} and you weren't coming up online — I do websites for barber shops, recently done one nearby. Fancy a free preview? Just say the word, cheers",
-    "Hiya {name} — I'm Dylan, I make websites for barbers. Was looking for one in {city} and noticed you don't have a site. Happy to put a free preview together if you're interested, no strings. Just reply and I'll sort it",
-    "Hey {name}! Name's Dylan. Was googling barbers in {city} and you weren't showing up — I build barber websites, just done one for a shop near you. Want me to make you a free preview? Lmk",
+    "Hey {name}, you the owner? Got a quick idea for getting you more bookings — worth a message?",
+    "Hey, came across {name} — looks class. Do you have a website yet? Reason I ask, I build them for barbers round here.",
+    "Hey {name}, I build websites for barbers. Want me to send over a free preview of what yours could look like?",
+    "Hey, you the owner of {name}? I build websites for local barbers — happy to put a free preview together, no strings. Lmk",
 ]
 
 import random as _random
