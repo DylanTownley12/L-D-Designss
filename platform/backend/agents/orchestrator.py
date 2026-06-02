@@ -33,7 +33,7 @@ def _log(db, session_id: str, agent: str, action: str, status: str = "success", 
 
 def run(task: str = "auto") -> dict:
     from db.client import get_db
-    from agents import lead_finder, website_analyzer, preview_generator, outreach_writer, followup_agent, lead_enricher
+    from agents import lead_finder, website_analyzer, preview_generator, outreach_writer, followup_agent, lead_enricher, outreach_sender
 
     db = get_db()
     session_id = str(uuid.uuid4())[:8]
@@ -72,13 +72,15 @@ def run(task: str = "auto") -> dict:
     log("orchestrator", "Plan: " + " → ".join(AGENT_LABELS.get(a, a) for a in plan))
 
     agent_fns = {
-        "lead_finder":       lead_finder.run,
-        "website_analyzer":  website_analyzer.run,
-        "preview_generator": preview_generator.run_batch,
-        "lead_enricher":     lead_enricher.run,
-        "whatsapp_campaign": outreach_writer.generate_whatsapp_campaign,
+        "lead_finder":        lead_finder.run,
+        "website_analyzer":   website_analyzer.run,
+        "preview_generator":  preview_generator.run_batch,
+        "lead_enricher":      lead_enricher.run,
+        "whatsapp_campaign":  outreach_writer.generate_whatsapp_campaign,
         "instagram_campaign": outreach_writer.generate_instagram_campaign,
-        "followup_agent":    followup_agent.run,
+        "email_outreach":     outreach_writer.run_batch,
+        "send_emails":        outreach_sender.process_queue,
+        "followup_agent":     followup_agent.run,
     }
 
     results = []
@@ -132,6 +134,7 @@ def _build_plan(task: str, new_count: int, preview_ready: int, needs_enrichment:
         plan.append("lead_enricher")
     plan.append("whatsapp_campaign")
     plan.append("instagram_campaign")
+    plan.append("email_outreach")
     return plan
 
 
@@ -148,6 +151,10 @@ def _summarize(agent_name: str, result) -> str:
         return f"Queued {result.get('generated', 0)} WhatsApp messages, {result.get('skipped', 0)} already done"
     if agent_name == "lead_enricher":
         return f"Checked {result.get('checked', 0)} leads — {result.get('emails_found', 0)} emails, {result.get('instagram_found', 0)} Instagram URLs found"
+    if agent_name == "email_outreach":
+        return f"Generated {result.get('generated', 0)} email drafts ({result.get('skipped', 0)} skipped)"
+    if agent_name == "send_emails":
+        return f"Sent {result.get('sent', 0)} emails, {result.get('failed', 0)} failed"
     if agent_name == "followup_agent":
         return f"Sent {result.get('sent', 0)} follow-ups"
     return "Completed"

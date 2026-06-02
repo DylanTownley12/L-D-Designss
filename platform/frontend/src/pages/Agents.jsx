@@ -8,6 +8,7 @@ const AGENT_META = {
   preview_generator: { icon: '🎨', label: 'Preview Generator',  desc: 'Builds free preview websites' },
   lead_enricher:     { icon: '💎', label: 'Lead Enricher',      desc: 'Finds emails + Instagram handles' },
   outreach_writer:   { icon: '✉️',  label: 'Outreach Writer',    desc: 'Writes WhatsApp & email messages' },
+  email_outreach:    { icon: '📧', label: 'Email Outreach',     desc: 'Generates email drafts for approval' },
   followup_agent:    { icon: '🔁', label: 'Follow-up Agent',    desc: 'Sends 48hr follow-ups' },
 }
 
@@ -26,6 +27,7 @@ const AGENT_COLORS = {
   preview_generator: '#06b6d4',
   lead_enricher:     '#ec4899',
   outreach_writer:   '#10b981',
+  email_outreach:    '#6366f1',
   followup_agent:    '#f59e0b',
 }
 
