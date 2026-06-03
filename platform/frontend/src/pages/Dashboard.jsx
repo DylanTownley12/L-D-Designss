@@ -5,7 +5,7 @@ import { dashboard as dashApi, agents as agentsApi, outreach as outreachApi } fr
 import {
   Crown, Map, Megaphone, Briefcase, Code2, BarChart2, Network,
   Search, ScanSearch, Palette, Gem, Mail, RotateCcw, RefreshCcw,
-  Activity, Cpu, TrendingUp, MessageSquare, Bell, Play,
+  Activity, Cpu, TrendingUp, MessageSquare, Bell, Play, Send,
   CheckCircle2, AlertCircle, Zap, ChevronRight, Globe, Camera,
 } from 'lucide-react'
 
