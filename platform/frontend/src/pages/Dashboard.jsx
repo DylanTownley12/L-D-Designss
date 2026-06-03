@@ -740,7 +740,7 @@ function CenterColumn({ stats, logs }) {
             }}>
               <div style={{ ...label({ color: C.cyan }), marginBottom: 2 }}>REVENUE FORECAST</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: C.green, fontFamily: C.mono, textShadow: `0 0 20px ${C.green}70` }}>
-                £{((stats?.converted || 0) * 15 + 2400).toLocaleString()}/mo
+                £{((stats?.converted || 0) * 15).toLocaleString()}/mo
               </div>
             </div>
           </div>
@@ -1009,7 +1009,7 @@ function BazPanel({ stats }) {
 function PredictiveIntelligence({ stats }) {
   const outreach  = stats?.outreach_sent || 0
   const converted = stats?.converted || 0
-  const rate      = outreach > 0 ? converted / outreach : 0.04
+  const rate      = outreach > 0 ? converted / outreach : 0
 
   const horizons = [
     { label: '30 DAYS',  multiplier: 1.0, confidence: 72 },
