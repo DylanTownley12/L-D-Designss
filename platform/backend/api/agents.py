@@ -11,6 +11,11 @@ from agents import (
     orchestrator,
     lead_enricher,
     ceo_agent,
+    research_agent,
+    cmo_agent,
+    sales_agent,
+    dev_agent,
+    analyst_agent,
 )
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -27,6 +32,11 @@ AGENTS = {
     "outreach_queue": outreach_sender.process_queue,
     "lead_enricher": lead_enricher.run,
     "ceo_agent": ceo_agent.run,
+    "research_agent": research_agent.run,
+    "cmo_agent": cmo_agent.run,
+    "sales_agent": sales_agent.run,
+    "dev_agent": dev_agent.run,
+    "analyst_agent": analyst_agent.run,
 }
 
 

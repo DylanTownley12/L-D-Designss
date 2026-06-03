@@ -146,13 +146,49 @@ async def _ceo_daily_briefing():
         logger.error(f"[ceo_agent] Daily briefing failed: {e}", exc_info=True)
 
 
-async def _write_outreach():
+async def _research_run():
     try:
-        from agents.outreach_writer import run_batch
-        result = run_batch(limit=50)
-        logger.info(f"[outreach_writer] {result}")
+        from agents.research_agent import run
+        result = run()
+        logger.info(f"[research_agent] {result.get('cities_analysed', 0)} cities analysed")
     except Exception as e:
-        logger.error(f"[outreach_writer] Failed: {e}", exc_info=True)
+        logger.error(f"[research_agent] Failed: {e}", exc_info=True)
+
+
+async def _cmo_run():
+    try:
+        from agents.cmo_agent import run
+        result = run()
+        logger.info(f"[cmo_agent] trend={result.get('trend')}, reply_rate={result.get('overall_reply_rate')}%")
+    except Exception as e:
+        logger.error(f"[cmo_agent] Failed: {e}", exc_info=True)
+
+
+async def _sales_run():
+    try:
+        from agents.sales_agent import run
+        result = run()
+        logger.info(f"[sales_agent] drafted={result.get('drafted', 0)}")
+    except Exception as e:
+        logger.error(f"[sales_agent] Failed: {e}", exc_info=True)
+
+
+async def _dev_run():
+    try:
+        from agents.dev_agent import run
+        result = run()
+        logger.info(f"[dev_agent] {len(result.get('alerts', []))} alerts")
+    except Exception as e:
+        logger.error(f"[dev_agent] Failed: {e}", exc_info=True)
+
+
+async def _analyst_run():
+    try:
+        from agents.analyst_agent import run
+        result = run()
+        logger.info(f"[analyst_agent] {len(result.get('insights', []))} insights")
+    except Exception as e:
+        logger.error(f"[analyst_agent] Failed: {e}", exc_info=True)
 
 
 # ── Scheduler setup ──────────────────────────────────────────────────────────
@@ -201,8 +237,28 @@ def start_scheduler():
     scheduler.add_job(**job(_ceo_daily_briefing, id="ceo_briefing",
         trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
 
+    # 1:00am — CMO marketing analysis
+    scheduler.add_job(**job(_cmo_run, id="cmo_agent",
+        trigger=CronTrigger(hour=1, minute=0, timezone=TZ)))
+
+    # 2:00am — Research agent city intelligence
+    scheduler.add_job(**job(_research_run, id="research_agent",
+        trigger=CronTrigger(hour=2, minute=0, timezone=TZ)))
+
+    # 3:00am — Data analyst nightly report
+    scheduler.add_job(**job(_analyst_run, id="analyst_agent",
+        trigger=CronTrigger(hour=3, minute=0, timezone=TZ)))
+
+    # Every 3 hours — Dev agent technical monitoring
+    scheduler.add_job(**job(_dev_run, id="dev_agent",
+        trigger=IntervalTrigger(hours=3)))
+
+    # Every 6 hours — Sales agent closes interested leads
+    scheduler.add_job(**job(_sales_run, id="sales_agent",
+        trigger=IntervalTrigger(hours=6)))
+
     scheduler.start()
-    logger.info("Scheduler started (Europe/London): 5:55am health → 6am leads → 6:30am previews → 7am WhatsApp → 9am follow-ups")
+    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst | morning: 5:55am health, 6am leads, 6:30am previews, 7am WA, 8am briefing, 9am followups | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
 
 
 def stop_scheduler():

@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { agents as agentsApi, outreach as outreachApi } from '../api/client'
 
 const AGENT_META = {
-  ceo_agent:         { icon: '👔', label: 'CEO',                desc: 'System health — checks every 2h' },
+  ceo_agent:         { icon: '👔', label: 'CEO',                desc: 'System health + auto-fix every 2h' },
+  research_agent:    { icon: '🗺️', label: 'Research',           desc: 'City & opportunity intelligence' },
+  cmo_agent:         { icon: '📣', label: 'CMO',                desc: 'Reply rates, trends & strategy' },
+  sales_agent:       { icon: '💼', label: 'Sales Rep',          desc: 'Closes interested leads' },
+  dev_agent:         { icon: '⚙️',  label: 'Developer',          desc: 'Error patterns & missed jobs' },
+  analyst_agent:     { icon: '📊', label: 'Data Analyst',       desc: 'Funnel stats & city performance' },
   orchestrator:      { icon: '🧠', label: 'Orchestrator',       desc: 'Decides what runs and when' },
   lead_finder:       { icon: '🔍', label: 'Lead Finder',        desc: 'Finds barbers with no website' },
   website_analyzer:  { icon: '🔬', label: 'Website Analyzer',   desc: 'Checks site quality + contact info' },
@@ -23,6 +28,11 @@ const TASK_OPTIONS = [
 
 const AGENT_COLORS = {
   ceo_agent:         '#C9A84C',
+  research_agent:    '#14b8a6',
+  cmo_agent:         '#f97316',
+  sales_agent:       '#22c55e',
+  dev_agent:         '#94a3b8',
+  analyst_agent:     '#a855f7',
   orchestrator:      '#C9A84C',
   lead_finder:       '#3b82f6',
   website_analyzer:  '#8b5cf6',
@@ -394,7 +404,7 @@ export default function Agents() {
       <CeoPanel />
 
       {/* Agent cards */}
-      <div className="grid grid-cols-3 gap-3 mb-6 lg:grid-cols-7">
+      <div className="grid grid-cols-3 gap-3 mb-6 sm:grid-cols-4 lg:grid-cols-7">
         {Object.keys(AGENT_META).map(name => (
           <AgentCard
             key={name}
