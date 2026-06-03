@@ -98,6 +98,7 @@ async def get_stats():
         "interested": interested,
         "converted": converted,
         "previews_generated": previews_total,
+        "preview_ready": preview_ready,
         "outreach_queued": outreach_queued,
         "emails_today": emails_today,
         "whatsapp_today": whatsapp_today,

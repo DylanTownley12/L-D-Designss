@@ -37,7 +37,7 @@ const CRON_OPS = [
 
 const getThoughts = (s) => [
   `Scanning ${s?.total_leads || 0} barber profiles for website deficiencies across the UK...`,
-  `Neural pathway: optimising ${s?.preview_ready || 0} personalised preview deployments`,
+  `Neural pathway: optimising ${s?.preview_ready || s?.previews_generated || 0} personalised preview deployments`,
   `WhatsApp delivery window analysis — morning outreach showing +23% engagement lift`,
   `Barber niche market model: 94.2% of addressable territory still unconverted`,
   `Geographic intelligence: Yorkshire cluster identified as highest-intent zone`,
@@ -151,7 +151,7 @@ function CommandBar({ stats, logs, onRefresh }) {
   }, [stats?.outreach_sent, stats?.total_leads])
 
   const total       = stats?.total_leads || 0
-  const previews    = stats?.preview_ready || 0
+  const previews    = stats?.preview_ready || stats?.previews_generated || 0
   const outreach    = stats?.outreach_sent || 0
   const converted   = stats?.converted || 0
   const pipeline    = outreach * 150
@@ -446,7 +446,7 @@ function LeftColumn({ stats, logs }) {
 
 function IntelMetrics({ stats, logs }) {
   const total     = stats?.total_leads || 0
-  const previews  = stats?.preview_ready || 0
+  const previews  = stats?.preview_ready || stats?.previews_generated || 0
   const outreach  = stats?.outreach_sent || 0
   const converted = stats?.converted || 0
 
@@ -660,7 +660,7 @@ function UKIntelMap({ stats }) {
 
 function CenterColumn({ stats, logs }) {
   const total    = stats?.total_leads || 0
-  const previews = stats?.preview_ready || 0
+  const previews = stats?.preview_ready || stats?.previews_generated || 0
   const outreach = stats?.outreach_sent || 0
 
   return (
@@ -842,7 +842,7 @@ function CEOPanel() {
 
 function PipelineFunnel({ stats }) {
   const total     = stats?.total_leads || 0
-  const previews  = stats?.preview_ready || 0
+  const previews  = stats?.preview_ready || stats?.previews_generated || 0
   const outreach  = stats?.outreach_sent || 0
   const replies   = (stats?.replies || 0) + (stats?.interested || 0)
   const converted = stats?.converted || 0
