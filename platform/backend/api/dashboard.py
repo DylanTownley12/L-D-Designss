@@ -189,3 +189,44 @@ async def get_recent_activity(limit: int = 20):
         .execute()
     )
     return {"activity": result.data or []}
+
+
+@router.get("/yesterday")
+async def yesterday_summary():
+    """What each agent did yesterday — shown on the dashboard recap section."""
+    db = get_db()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    yesterday_start = f"{yesterday}T00:00:00"
+    today_start = f"{date.today().isoformat()}T00:00:00"
+
+    logs = (
+        db.table("agent_logs")
+        .select("agent_name, action, status, created_at, details")
+        .gte("created_at", yesterday_start)
+        .lt("created_at", today_start)
+        .order("created_at", desc=True)
+        .limit(500)
+        .execute().data or []
+    )
+
+    # Group by agent — keep the most meaningful action (first non-trivial one)
+    agents = {}
+    for log in logs:
+        name = log["agent_name"]
+        if name not in agents:
+            agents[name] = {
+                "agent": name,
+                "last_action": log["action"],
+                "status": log["status"],
+                "runs": 0,
+                "errors": 0,
+                "last_at": log["created_at"],
+            }
+        agents[name]["runs"] += 1
+        if log["status"] == "error":
+            agents[name]["errors"] += 1
+
+    return {
+        "date": yesterday,
+        "agents": sorted(agents.values(), key=lambda x: x["last_at"], reverse=True),
+    }

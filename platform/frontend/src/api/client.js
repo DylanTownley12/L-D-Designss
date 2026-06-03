@@ -52,6 +52,7 @@ export const dashboard = {
   notifications: (params) => api.get('/dashboard/notifications', { params }),
   markRead: () => api.post('/dashboard/notifications/mark-read'),
   activity: () => api.get('/dashboard/activity'),
+  yesterday: () => api.get('/dashboard/yesterday'),
 }
 
 export const agents = {

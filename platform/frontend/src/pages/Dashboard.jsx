@@ -50,6 +50,65 @@ function PipelineFunnel({ pipeline }) {
   )
 }
 
+const AGENT_ICONS = {
+  ceo_agent: '👔', research_agent: '🗺️', cmo_agent: '📣',
+  sales_agent: '💼', dev_agent: '⚙️', analyst_agent: '📊',
+  orchestrator: '🧠', lead_finder: '🔍', website_analyzer: '🔬',
+  preview_generator: '🎨', lead_enricher: '💎', outreach_writer: '✉️',
+  followup_agent: '🔁',
+}
+
+const AGENT_LABELS = {
+  ceo_agent: 'CEO', research_agent: 'Research', cmo_agent: 'CMO',
+  sales_agent: 'Sales Rep', dev_agent: 'Developer', analyst_agent: 'Data Analyst',
+  orchestrator: 'Orchestrator', lead_finder: 'Lead Finder', website_analyzer: 'Website Analyzer',
+  preview_generator: 'Preview Generator', lead_enricher: 'Lead Enricher',
+  outreach_writer: 'Outreach Writer', followup_agent: 'Follow-up Agent',
+}
+
+function YesterdayRecap() {
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    dashApi.yesterday().then(setData).catch(() => {})
+  }, [])
+
+  if (!data?.agents?.length) return null
+
+  const dateLabel = data.date
+    ? new Date(data.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+    : 'Yesterday'
+
+  return (
+    <div className="card p-5 rounded-xl">
+      <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+        What the agents did — {dateLabel}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {data.agents.map(a => (
+          <div key={a.agent} className={`flex items-start gap-3 p-3 rounded-lg border ${
+            a.errors > 0 ? 'border-red-500/20 bg-red-500/5' : 'border-white/6 bg-white/2'
+          }`}>
+            <span className="text-lg flex-shrink-0 mt-0.5">{AGENT_ICONS[a.agent] || '🤖'}</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-white/70">
+                  {AGENT_LABELS[a.agent] || a.agent}
+                </span>
+                <span className="text-xs text-white/25 flex-shrink-0">{a.runs} run{a.runs !== 1 ? 's' : ''}</span>
+              </div>
+              <p className="text-xs text-white/40 mt-0.5 leading-snug line-clamp-2">{a.last_action}</p>
+              {a.errors > 0 && (
+                <span className="text-xs text-red-400 mt-1 block">{a.errors} error{a.errors !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -293,6 +352,9 @@ export default function Dashboard() {
           <div className="text-white/25 text-xs mt-1">Keep sending — it only takes one yes to get started</div>
         </div>
       )}
+
+      {/* ── YESTERDAY RECAP ── */}
+      <YesterdayRecap />
 
       {/* ── STATS GRID ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
