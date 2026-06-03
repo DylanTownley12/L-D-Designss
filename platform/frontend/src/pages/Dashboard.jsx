@@ -1,8 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { dashboard as dashApi, agents, outreach as outreachApi } from '../api/client'
-import StatCard from '../components/StatCard'
+import { dashboard as dashApi, agents as agentsApi, outreach as outreachApi } from '../api/client'
+
+const AGENTS = {
+  ceo_agent:         { icon: '👔', label: 'CEO',          color: '#C9A84C' },
+  research_agent:    { icon: '🗺️', label: 'Research',      color: '#14b8a6' },
+  cmo_agent:         { icon: '📣', label: 'CMO',          color: '#f97316' },
+  sales_agent:       { icon: '💼', label: 'Sales',        color: '#22c55e' },
+  dev_agent:         { icon: '⚙️',  label: 'Dev',          color: '#94a3b8' },
+  analyst_agent:     { icon: '📊', label: 'Analyst',      color: '#a855f7' },
+  orchestrator:      { icon: '🧠', label: 'Orchestrator', color: '#C9A84C' },
+  lead_finder:       { icon: '🔍', label: 'Lead Finder',  color: '#3b82f6' },
+  website_analyzer:  { icon: '🔬', label: 'Analyzer',     color: '#8b5cf6' },
+  preview_generator: { icon: '🎨', label: 'Previews',     color: '#06b6d4' },
+  lead_enricher:     { icon: '💎', label: 'Enricher',     color: '#ec4899' },
+  outreach_writer:   { icon: '✉️',  label: 'Outreach',     color: '#10b981' },
+  followup_agent:    { icon: '🔁', label: 'Follow-up',    color: '#f59e0b' },
+}
 
 const MAX_RETRIES = 4
 const RETRY_DELAY = 8000
@@ -18,23 +33,222 @@ async function fetchWithRetry(fn, attempt = 0) {
   }
 }
 
+// ── Inject keyframe animations once ────────────────────────────────────────
+function useAnimations() {
+  useEffect(() => {
+    const el = document.createElement('style')
+    el.textContent = `
+      @keyframes fadeSlideIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes borderGlow {
+        0%, 100% { opacity: 0.6; } 50% { opacity: 1; }
+      }
+      @keyframes scanline {
+        0%   { top: 0%; opacity: 0.07; }
+        100% { top: 100%; opacity: 0; }
+      }
+      @keyframes countUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .log-entry  { animation: fadeSlideIn 0.25s ease; }
+      .glow-border { animation: borderGlow 2.5s ease-in-out infinite; }
+      .count-anim { animation: countUp 0.4s ease; }
+    `
+    document.head.appendChild(el)
+    return () => document.head.removeChild(el)
+  }, [])
+}
+
+// ── Live Agent Feed (terminal) ──────────────────────────────────────────────
+function LiveFeed({ onAgentActivity }) {
+  const [logs, setLogs] = useState([])
+  const [tick, setTick] = useState(0)
+  const prevIdsRef = useRef(new Set())
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const data = await agentsApi.logs(null, 30)
+        const entries = data.logs || []
+        const newIds = new Set(entries.map(l => l.id))
+        // mark new ones
+        const marked = entries.map(l => ({
+          ...l,
+          isNew: !prevIdsRef.current.has(l.id),
+        }))
+        prevIdsRef.current = newIds
+        setLogs(marked)
+        if (onAgentActivity) onAgentActivity(entries)
+      } catch {}
+      setTick(t => t + 1)
+    }
+    poll()
+    const t = setInterval(poll, 3000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div className="flex flex-col h-full" style={{
+      background: '#050508',
+      border: '1px solid rgba(201,168,76,0.18)',
+      borderRadius: 16,
+      overflow: 'hidden',
+    }}>
+      {/* Terminal chrome */}
+      <div className="flex items-center justify-between px-4 py-3" style={{
+        background: 'rgba(201,168,76,0.06)',
+        borderBottom: '1px solid rgba(201,168,76,0.12)',
+      }}>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-red-500/70" />
+          <span className="w-3 h-3 rounded-full bg-yellow-500/70" />
+          <span className="w-3 h-3 rounded-full bg-green-500/70" />
+          <span className="ml-3 text-xs font-mono text-white/40">agent-feed — live</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 absolute" />
+          <span className="text-xs font-mono text-green-400 ml-1">LIVE</span>
+        </div>
+      </div>
+
+      {/* Log lines */}
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 font-mono text-xs" style={{ maxHeight: 340 }}>
+        {logs.length === 0 ? (
+          <div className="text-white/20 py-4 text-center">Waiting for agent activity...</div>
+        ) : logs.map((log, i) => {
+          const meta = AGENTS[log.agent_name] || { icon: '🤖', label: log.agent_name, color: '#6b7280' }
+          const time = new Date(log.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          const isErr = log.status === 'error'
+          return (
+            <div
+              key={log.id}
+              className={log.isNew ? 'log-entry' : ''}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0' }}
+            >
+              <span style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0, width: 64 }}>{time}</span>
+              <span style={{ flexShrink: 0 }}>{meta.icon}</span>
+              <span style={{ color: meta.color, flexShrink: 0, width: 88, fontWeight: 600 }}>
+                {meta.label}
+              </span>
+              <span style={{ color: isErr ? '#f87171' : 'rgba(255,255,255,0.55)', flex: 1, lineHeight: 1.4 }}>
+                {log.action}
+              </span>
+              {isErr && <span style={{ color: '#f87171', flexShrink: 0 }}>✕</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Agent Mini Grid ─────────────────────────────────────────────────────────
+function AgentMiniGrid({ recentLogs }) {
+  const now = Date.now()
+
+  return (
+    <div style={{
+      background: '#050508',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 16,
+      padding: 16,
+      height: '100%',
+    }}>
+      <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">
+        Agent Status
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {Object.entries(AGENTS).map(([key, meta]) => {
+          const lastLog = recentLogs.find(l => l.agent_name === key)
+          const ageMs = lastLog ? now - new Date(lastLog.created_at).getTime() : Infinity
+          const isActive = ageMs < 5 * 60 * 1000   // active in last 5 min
+          const isRecent = ageMs < 60 * 60 * 1000  // active in last hour
+          const isError = lastLog?.status === 'error'
+
+          const dotColor = isError ? '#ef4444' : isActive ? '#10b981' : isRecent ? meta.color : 'rgba(255,255,255,0.15)'
+
+          return (
+            <div
+              key={key}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '7px 10px',
+                borderRadius: 10,
+                border: `1px solid ${isActive ? meta.color + '40' : 'rgba(255,255,255,0.05)'}`,
+                background: isActive ? meta.color + '0d' : 'rgba(255,255,255,0.02)',
+                transition: 'all 0.4s ease',
+                boxShadow: isActive ? `0 0 12px ${meta.color}22` : 'none',
+              }}
+            >
+              <span style={{ fontSize: 14 }}>{meta.icon}</span>
+              <span style={{ fontSize: 11, color: isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.35)', fontWeight: 500, flex: 1 }}>
+                {meta.label}
+              </span>
+              <span
+                style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: dotColor,
+                  flexShrink: 0,
+                  boxShadow: isActive ? `0 0 6px ${dotColor}` : 'none',
+                }}
+                className={isActive ? 'animate-pulse' : ''}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Big metric card ─────────────────────────────────────────────────────────
+function MetricCard({ label, value, sub, color = '#C9A84C', icon }) {
+  return (
+    <div style={{
+      background: '#050508',
+      border: `1px solid ${color}28`,
+      borderRadius: 16,
+      padding: '18px 20px',
+      boxShadow: `0 0 24px ${color}12`,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute', top: 0, right: 0, width: 80, height: 80,
+        background: `radial-gradient(circle at top right, ${color}18, transparent 70%)`,
+        pointerEvents: 'none',
+      }} />
+      <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>
+        {icon && <span className="mr-1">{icon}</span>}{label}
+      </div>
+      <div className="count-anim text-3xl font-bold tabular-nums" style={{ color }}>
+        {value}
+      </div>
+      {sub && <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>{sub}</div>}
+    </div>
+  )
+}
+
+// ── Pipeline funnel ─────────────────────────────────────────────────────────
 function PipelineFunnel({ pipeline }) {
   const max = Math.max(...pipeline.map(p => p.count), 1)
   return (
-    <div className="space-y-2.5">
-      {pipeline.map((stage) => {
-        const pct = stage.count > 0 ? Math.max((stage.count / max) * 100, 6) : 0
+    <div className="space-y-2">
+      {pipeline.map(stage => {
+        const pct = stage.count > 0 ? Math.max((stage.count / max) * 100, 5) : 0
         return (
           <div key={stage.label} className="flex items-center gap-3">
-            <div className="w-[88px] text-xs text-white/35 text-right flex-shrink-0 leading-tight">
-              {stage.label}
-            </div>
-            <div className="flex-1 bg-white/4 rounded-full h-7 overflow-hidden">
+            <div className="text-xs text-white/30 text-right flex-shrink-0" style={{ width: 84 }}>{stage.label}</div>
+            <div className="flex-1 rounded-full overflow-hidden" style={{ height: 26, background: 'rgba(255,255,255,0.04)' }}>
               {stage.count > 0 ? (
-                <div
-                  className="h-full rounded-full flex items-center px-3 transition-all duration-700"
-                  style={{ width: `${pct}%`, background: stage.color }}
-                >
+                <div className="h-full rounded-full flex items-center px-3 transition-all duration-700"
+                  style={{ width: `${pct}%`, background: stage.color }}>
                   <span className="text-xs font-bold text-white/90 whitespace-nowrap">{stage.count}</span>
                 </div>
               ) : (
@@ -50,22 +264,7 @@ function PipelineFunnel({ pipeline }) {
   )
 }
 
-const AGENT_ICONS = {
-  ceo_agent: '👔', research_agent: '🗺️', cmo_agent: '📣',
-  sales_agent: '💼', dev_agent: '⚙️', analyst_agent: '📊',
-  orchestrator: '🧠', lead_finder: '🔍', website_analyzer: '🔬',
-  preview_generator: '🎨', lead_enricher: '💎', outreach_writer: '✉️',
-  followup_agent: '🔁',
-}
-
-const AGENT_LABELS = {
-  ceo_agent: 'CEO', research_agent: 'Research', cmo_agent: 'CMO',
-  sales_agent: 'Sales Rep', dev_agent: 'Developer', analyst_agent: 'Data Analyst',
-  orchestrator: 'Orchestrator', lead_finder: 'Lead Finder', website_analyzer: 'Website Analyzer',
-  preview_generator: 'Preview Generator', lead_enricher: 'Lead Enricher',
-  outreach_writer: 'Outreach Writer', followup_agent: 'Follow-up Agent',
-}
-
+// ── Yesterday recap ─────────────────────────────────────────────────────────
 function YesterdayRecap() {
   const [data, setData] = useState(null)
 
@@ -80,43 +279,54 @@ function YesterdayRecap() {
     : 'Yesterday'
 
   return (
-    <div className="card p-5 rounded-xl">
-      <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+    <div style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20 }}>
+      <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">
         What the agents did — {dateLabel}
-      </h2>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {data.agents.map(a => (
-          <div key={a.agent} className={`flex items-start gap-3 p-3 rounded-lg border ${
-            a.errors > 0 ? 'border-red-500/20 bg-red-500/5' : 'border-white/6 bg-white/2'
-          }`}>
-            <span className="text-lg flex-shrink-0 mt-0.5">{AGENT_ICONS[a.agent] || '🤖'}</span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-white/70">
-                  {AGENT_LABELS[a.agent] || a.agent}
-                </span>
-                <span className="text-xs text-white/25 flex-shrink-0">{a.runs} run{a.runs !== 1 ? 's' : ''}</span>
+        {data.agents.map(a => {
+          const meta = AGENTS[a.agent] || { icon: '🤖', label: a.agent, color: '#6b7280' }
+          return (
+            <div key={a.agent} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
+              borderRadius: 10,
+              border: `1px solid ${a.errors > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)'}`,
+              background: a.errors > 0 ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.02)',
+            }}>
+              <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{meta.icon}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>{meta.label}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>{a.runs}×</span>
+                </div>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4, margin: 0 }}
+                   className="line-clamp-2">{a.last_action}</p>
+                {a.errors > 0 && (
+                  <span style={{ fontSize: 11, color: '#f87171', marginTop: 2, display: 'block' }}>
+                    {a.errors} error{a.errors !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-white/40 mt-0.5 leading-snug line-clamp-2">{a.last_action}</p>
-              {a.errors > 0 && (
-                <span className="text-xs text-red-400 mt-1 block">{a.errors} error{a.errors !== 1 ? 's' : ''}</span>
-              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 }
 
+// ── Main Dashboard ──────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [waking, setWaking] = useState(false)
-  const [error, setError] = useState(null)
-  const [running, setRunning] = useState(null)
+  useAnimations()
+
+  const [stats, setStats]               = useState(null)
+  const [loading, setLoading]           = useState(true)
+  const [waking, setWaking]             = useState(false)
+  const [error, setError]               = useState(null)
+  const [running, setRunning]           = useState(null)
   const [templateStats, setTemplateStats] = useState(null)
   const [conversations, setConversations] = useState([])
+  const [recentLogs, setRecentLogs]     = useState([])
   const navigate = useNavigate()
 
   const load = async (silent = false) => {
@@ -138,7 +348,7 @@ export default function Dashboard() {
   useEffect(() => {
     load()
     const t = setInterval(() => load(true), 30000)
-    outreachApi.templateStats().then(d => setTemplateStats(d)).catch(() => {})
+    outreachApi.templateStats().then(setTemplateStats).catch(() => {})
     outreachApi.conversations(5).then(d => setConversations(d.conversations || [])).catch(() => {})
     return () => clearInterval(t)
   }, [])
@@ -146,12 +356,9 @@ export default function Dashboard() {
   const runAgent = async (agent) => {
     setRunning(agent)
     try {
-      await agents.run(agent)
-      if (agent === 'outreach_writer') {
-        navigate('/outreach?generating=1')
-      } else {
-        alert(`${agent} started — check agent logs for results.`)
-      }
+      await agentsApi.run(agent)
+      if (agent === 'outreach_writer') navigate('/outreach?generating=1')
+      else alert(`${agent} started — check agent logs for results.`)
     } catch (e) {
       alert(`Error: ${e.message}`)
     } finally {
@@ -161,266 +368,293 @@ export default function Dashboard() {
 
   if (loading) return (
     <div className="p-8 space-y-2">
-      <div className="text-white/40 text-sm">Loading dashboard…</div>
-      {waking && <div className="text-white/25 text-xs">Backend waking up — give it a moment…</div>}
+      <div className="text-white/40 text-sm font-mono">Initialising command centre...</div>
+      {waking && <div className="text-white/25 text-xs font-mono">Backend waking up — give it a moment...</div>}
     </div>
   )
   if (error) return (
     <div className="p-8 space-y-3">
-      <div className="text-red-400 font-medium">Failed to connect to backend.</div>
+      <div className="text-red-400 font-medium">Connection failed.</div>
       <div className="text-white/30 text-sm">{error}</div>
       <button onClick={() => load()} className="btn-ghost text-sm mt-2">↻ Retry</button>
     </div>
   )
 
-  const hasWins = stats.converted > 0
+  const variants = templateStats?.variants || []
+  const bestVariant = [...variants].filter(v => v.sent > 0).sort((a, b) => (b.reply_rate || 0) - (a.reply_rate || 0))[0]
+  const lastSent = stats.last_whatsapp_sent_at
+  const minsAgo = lastSent ? Math.floor((Date.now() - new Date(lastSent)) / 60000) : null
+  const bazActive = minsAgo !== null && minsAgo < 60 * 20
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-5 max-w-screen-2xl mx-auto space-y-5">
 
-      <div className="flex items-center justify-between">
+      {/* ── HEADER ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '20px 24px',
+        background: 'linear-gradient(135deg, rgba(201,168,76,0.08) 0%, rgba(0,0,0,0) 60%)',
+        border: '1px solid rgba(201,168,76,0.15)',
+        borderRadius: 16,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0, opacity: 0.03,
+          backgroundImage: 'linear-gradient(rgba(201,168,76,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.5) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+          pointerEvents: 'none',
+        }} />
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-white/40 text-sm mt-0.5">L&D Designs — agency command centre</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+              L&D DESIGNS
+            </h1>
+            <span className="text-white/20 text-xl">—</span>
+            <span className="text-sm font-mono text-white/40 uppercase tracking-widest">Command Centre</span>
+          </div>
+          <p className="text-xs text-white/25 mt-1 font-mono">
+            {Object.keys(AGENTS).length} AI agents · running 24/7 · UK barber outreach
+          </p>
         </div>
-        <button onClick={() => load()} className="btn-ghost text-xs">↻ Refresh</button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400" />
+            </span>
+            <span className="text-xs font-mono text-green-400">SYS OPERATIONAL</span>
+          </div>
+          <button onClick={() => load()} className="btn-ghost text-xs">↻</button>
+        </div>
       </div>
 
-      {/* ── TODAY'S TASKS — always first, always prominent ── */}
-      <div className="card rounded-xl border border-gold/20 bg-gold/3 p-5">
-        <h2 className="text-xs font-semibold text-gold/70 uppercase tracking-widest mb-4">Today's Tasks</h2>
+      {/* ── KEY METRICS ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <MetricCard label="Monthly Recurring" value={`£${stats.converted * 15}`} icon="💰" color="#10b981" />
+        <MetricCard label="Total Leads" value={stats.total_leads} icon="🎯" color="#3b82f6" />
+        <MetricCard label="Outreach Sent" value={stats.outreach_sent} sub="all time" icon="📤" color="#C9A84C" />
+        <MetricCard label="Replies" value={stats.replies} icon="💬" color="#a855f7" />
+        <MetricCard label="Converted" value={stats.converted} sub="paying clients" icon="💷" color="#10b981" />
+      </div>
+
+      {/* ── LIVE FEED + AGENT GRID ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ minHeight: 400 }}>
+        <div className="lg:col-span-2">
+          <LiveFeed onAgentActivity={setRecentLogs} />
+        </div>
+        <div>
+          <AgentMiniGrid recentLogs={recentLogs} />
+        </div>
+      </div>
+
+      {/* ── TODAY'S TASKS ── */}
+      <div style={{ background: '#050508', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: 20 }}>
+        <div className="text-xs font-semibold text-gold/60 uppercase tracking-widest mb-4">Today's Tasks</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'WhatsApp to Send', value: stats.whatsapp_queued, icon: '💬', link: '/outreach', urgent: true },
-            { label: 'Instagram Ready',  value: stats.instagram_ready,  icon: '📸', link: '/outreach', urgent: true },
-            { label: 'Awaiting Reply',   value: stats.followups_waiting, icon: '🔁', link: '/leads', urgent: false },
-            { label: 'Need Attention',   value: stats.need_attention,   icon: '🔥', link: '/leads', urgent: true },
+            { label: 'WhatsApp to Send', value: stats.whatsapp_queued, icon: '💬', link: '/outreach', hot: true },
+            { label: 'Instagram Ready',  value: stats.instagram_ready, icon: '📸', link: '/outreach', hot: true },
+            { label: 'Awaiting Reply',   value: stats.followups_waiting, icon: '🔁', link: '/leads', hot: false },
+            { label: 'Need Attention',   value: stats.need_attention, icon: '🔥', link: '/leads', hot: true },
           ].map(t => (
-            <a key={t.label} href={t.link}
-               className={`rounded-xl p-4 text-center block transition-all hover:scale-[1.02] ${
-                 t.urgent && t.value > 0
-                   ? 'bg-gold/12 border border-gold/35'
-                   : 'bg-white/3 border border-white/6'
-               }`}>
-              <div className="text-xl mb-1">{t.icon}</div>
-              <div className={`text-2xl font-bold tabular-nums ${
-                t.urgent && t.value > 0 ? 'text-gold' : 'text-white/50'
-              }`}>
+            <a key={t.label} href={t.link} style={{
+              display: 'block', textAlign: 'center', padding: '16px 12px', borderRadius: 12, textDecoration: 'none',
+              border: `1px solid ${t.hot && t.value > 0 ? 'rgba(201,168,76,0.35)' : 'rgba(255,255,255,0.06)'}`,
+              background: t.hot && t.value > 0 ? 'rgba(201,168,76,0.08)' : 'rgba(255,255,255,0.02)',
+              transition: 'all 0.2s',
+            }}>
+              <div style={{ fontSize: 22, marginBottom: 4 }}>{t.icon}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: t.hot && t.value > 0 ? '#C9A84C' : 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>
                 {t.value > 0 ? t.value : '—'}
               </div>
-              <div className="text-white/35 text-xs mt-1 leading-tight">{t.label}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4, lineHeight: 1.3 }}>{t.label}</div>
             </a>
           ))}
         </div>
       </div>
 
-      {/* ── BAZ HEALTH + TODAY'S SENDS + WINNING OPENER ── */}
+      {/* ── BAZ + SENDS + OPENER ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        {/* Baz health */}
-        {(() => {
-          const lastSent = stats.last_whatsapp_sent_at
-          const minsAgo = lastSent ? Math.floor((Date.now() - new Date(lastSent)) / 60000) : null
-          const hoursAgo = minsAgo !== null ? Math.floor(minsAgo / 60) : null
-          const isStale = minsAgo === null || minsAgo > 60 * 20
-          const label = minsAgo === null ? 'Never sent' : hoursAgo >= 1 ? `${hoursAgo}h ago` : `${minsAgo}m ago`
-          return (
-            <div className={`card rounded-xl p-4 border ${isStale ? 'border-red-500/30 bg-red-500/5' : 'border-green-400/20 bg-green-400/5'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Baz Status</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isStale ? 'bg-red-500/20 text-red-400' : 'bg-green-400/20 text-green-400'}`}>
-                  {isStale ? 'Check Session' : 'Sending'}
-                </span>
-              </div>
-              <div className={`text-xl font-bold ${isStale ? 'text-red-400' : 'text-green-400'}`}>
-                {isStale ? '⚠️ Inactive' : '✓ Active'}
-              </div>
-              <div className="text-white/40 text-xs mt-1">Last WA sent: {label}</div>
-              {isStale && (
-                <div className="mt-2 text-xs text-red-400/70 font-mono bg-red-500/10 rounded px-2 py-1">
-                  ! openclaw channels login --channel whatsapp
-                </div>
-              )}
+        {/* Baz */}
+        <div style={{
+          background: '#050508', borderRadius: 16, padding: 18,
+          border: `1px solid ${bazActive ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
+          boxShadow: bazActive ? '0 0 20px rgba(16,185,129,0.08)' : '0 0 20px rgba(239,68,68,0.08)',
+        }}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold text-white/30 uppercase tracking-widest">Baz / OpenClaw</span>
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+              background: bazActive ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
+              color: bazActive ? '#10b981' : '#ef4444',
+            }}>
+              {bazActive ? 'SENDING' : 'CHECK SESSION'}
+            </span>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: bazActive ? '#10b981' : '#ef4444', marginBottom: 4 }}>
+            {bazActive ? '✓ Active' : '⚠ Inactive'}
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+            Last WA: {minsAgo === null ? 'never' : minsAgo >= 60 ? `${Math.floor(minsAgo/60)}h ago` : `${minsAgo}m ago`}
+          </div>
+          {!bazActive && (
+            <div style={{ marginTop: 8, fontSize: 10, fontFamily: 'monospace', color: 'rgba(239,68,68,0.7)', background: 'rgba(239,68,68,0.08)', borderRadius: 6, padding: '5px 8px' }}>
+              ! openclaw channels login --channel whatsapp
             </div>
-          )
-        })()}
+          )}
+        </div>
 
-        {/* Today's WA sends */}
+        {/* Sends today */}
         {(() => {
           const sent = stats.whatsapp_today || 0
           const limit = 20
           const pct = Math.min((sent / limit) * 100, 100)
           return (
-            <div className="card rounded-xl p-4 border border-white/6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Today's Sends</span>
-                <span className="text-xs text-white/30">/20 limit</span>
+            <div style={{ background: '#050508', borderRadius: 16, padding: 18, border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-white/30 uppercase tracking-widest">Today's Sends</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>/20 limit</span>
               </div>
-              <div className="text-2xl font-bold text-gold tabular-nums">{sent}</div>
-              <div className="w-full bg-white/5 rounded-full h-2 mt-2">
-                <div className="h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, background: sent >= limit ? '#10b981' : '#C9A84C' }} />
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#C9A84C', marginBottom: 8 }}>{sent}</div>
+              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 99, transition: 'width 0.6s ease', width: `${pct}%`, background: sent >= limit ? '#10b981' : '#C9A84C' }} />
               </div>
-              <div className="text-white/30 text-xs mt-1.5">
-                {sent >= limit ? 'Daily limit reached ✓' : `${limit - sent} remaining today`}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 6 }}>
+                {sent >= limit ? 'Daily limit reached ✓' : `${limit - sent} remaining`}
               </div>
             </div>
           )
         })()}
 
         {/* Winning opener */}
-        {(() => {
-          const variants = templateStats?.variants || []
-          const withData = variants.filter(v => v.sent > 0 && v.reply_rate !== null)
-          const best = withData.sort((a, b) => b.reply_rate - a.reply_rate)[0]
-          return (
-            <div className="card rounded-xl p-4 border border-purple-400/20 bg-purple-400/5">
-              <div className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Winning Opener</div>
-              {best ? (
-                <>
-                  <div className="text-xl font-bold text-purple-400">{best.reply_rate}% reply rate</div>
-                  <div className="text-white/40 text-xs mt-1">Template {best.variant} · {best.sent} sent · {best.replied} replied</div>
-                  <div className="text-white/25 text-xs mt-2 italic truncate">"{best.preview}"</div>
-                </>
-              ) : (
-                <>
-                  <div className="text-white/40 text-sm">No data yet</div>
-                  <div className="text-white/25 text-xs mt-1">Send more messages to see which opener wins</div>
-                </>
-              )}
-            </div>
-          )
-        })()}
+        <div style={{ background: '#050508', borderRadius: 16, padding: 18, border: '1px solid rgba(168,85,247,0.2)', boxShadow: '0 0 20px rgba(168,85,247,0.06)' }}>
+          <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">Winning Opener</div>
+          {bestVariant ? (
+            <>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#a855f7' }}>{bestVariant.reply_rate?.toFixed(1)}% reply</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+                V{bestVariant.variant} · {bestVariant.sent} sent · {bestVariant.replied} replied
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8, fontStyle: 'italic' }} className="line-clamp-2">
+                "{bestVariant.preview}"
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)' }}>No data yet</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>Send more to see which opener wins</div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* ── BAZ CONVERSATION FEED ── */}
-      {conversations.length > 0 && (
-        <div className="card p-5 rounded-xl">
-          <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Recent Replies — Baz Conversations</h2>
-          <div className="space-y-3">
-            {conversations.map((c, i) => (
-              <div key={i} className="bg-white/3 border border-white/6 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="text-sm font-medium text-white/80">{c.lead?.business_name || 'Unknown'}</span>
-                    <span className="text-white/30 text-xs ml-2">{c.lead?.city}</span>
-                  </div>
-                  <span className="text-white/20 text-xs">
-                    {c.at ? new Date(c.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {c.we_sent && (
-                    <div className="flex gap-2">
-                      <span className="text-xs text-gold/60 flex-shrink-0 w-12 text-right">Dylan</span>
-                      <div className="bg-gold/10 border border-gold/15 rounded-lg px-3 py-1.5 text-xs text-white/60 flex-1">{c.we_sent}</div>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <span className="text-xs text-blue-400/60 flex-shrink-0 w-12 text-right">Barber</span>
-                    <div className="bg-blue-400/10 border border-blue-400/15 rounded-lg px-3 py-1.5 text-xs text-white/80 flex-1">{c.barber_said}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ── CHARTS ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2" style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20 }}>
+          <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">7-Day Outreach</div>
+          <ResponsiveContainer width="100%" height={150}>
+            <BarChart data={stats.activity || []} barSize={18}>
+              <XAxis dataKey="date" tick={{ fill: '#444', fontSize: 10 }} tickFormatter={d => d.slice(5)} />
+              <YAxis tick={{ fill: '#444', fontSize: 10 }} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid #222', borderRadius: 8 }}
+                       labelStyle={{ color: '#555', fontSize: 11 }} itemStyle={{ color: '#C9A84C', fontSize: 11 }} />
+              <Bar dataKey="sent" fill="#C9A84C" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      )}
+        <div style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20 }}>
+          <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">Pipeline Funnel</div>
+          <PipelineFunnel pipeline={stats.pipeline || []} />
+        </div>
+      </div>
 
-      {/* ── WINS — only shown if there are converted clients ── */}
-      {hasWins ? (
-        <div className="card rounded-xl border border-emerald-500/20 bg-emerald-500/3 p-5">
-          <h2 className="text-xs font-semibold text-emerald-400/70 uppercase tracking-widest mb-4">
-            🏆 Wins — {stats.converted} Paying Client{stats.converted !== 1 ? 's' : ''}
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      {/* ── WINS ── */}
+      {stats.converted > 0 ? (
+        <div style={{ background: '#050508', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 16, padding: 20, boxShadow: '0 0 30px rgba(16,185,129,0.05)' }}>
+          <div className="text-xs font-semibold text-emerald-400/60 uppercase tracking-widest mb-4">
+            🏆 Paying Clients — {stats.converted}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(stats.wins || []).map((w, i) => (
-              <div key={i} className="flex items-center gap-3 bg-emerald-500/8 border border-emerald-500/12 rounded-xl px-3 py-2.5">
-                <span className="text-lg flex-shrink-0">💈</span>
-                <div className="min-w-0">
-                  <div className="font-medium text-sm truncate">{w.business_name}</div>
-                  <div className="text-white/35 text-xs">{w.city}</div>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.12)', borderRadius: 12, padding: '10px 14px' }}>
+                <span style={{ fontSize: 20 }}>💈</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.business_name}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{w.city}</div>
                 </div>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className="card rounded-xl border border-white/5 p-6 text-center">
-          <div className="text-3xl mb-2">🎯</div>
-          <div className="text-white/50 font-medium text-sm">First client incoming</div>
-          <div className="text-white/25 text-xs mt-1">Keep sending — it only takes one yes to get started</div>
+        <div style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: 32, textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🎯</div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>First client incoming</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>Keep sending — it only takes one yes</div>
         </div>
       )}
 
       {/* ── YESTERDAY RECAP ── */}
       <YesterdayRecap />
 
-      {/* ── STATS GRID ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        <StatCard label="Total Leads"   value={stats.total_leads}                          icon="🎯" color="gold" />
-        <StatCard label="New Leads"     value={stats.new_leads}                            icon="✨" color="blue" />
-        <StatCard label="Outreach Sent" value={stats.outreach_sent}                        icon="📤" color="blue" sub="all time" />
-        <StatCard label="Replies"       value={stats.replies}                              icon="💬" color="purple" />
-        <StatCard label="Interested"    value={stats.interested}                           icon="🔥" color="green" />
-        <StatCard label="Converted"     value={stats.converted}                            icon="💷" color="green" sub="paid clients" />
-        <StatCard label="Previews"      value={stats.previews_generated}                   icon="🌐" color="purple" />
-        <StatCard label="Queue"         value={stats.outreach_queued}                      icon="⏳" color="gold" sub="awaiting send" />
-        <StatCard label="Emails Today"  value={`${stats.emails_today}/50`}                 icon="📧" color={stats.emails_today >= 50 ? 'red' : 'blue'} />
-        <StatCard label="Revenue"       value={`£${(stats.revenue_total || 0).toFixed(0)}`} icon="💰" color="green" />
-      </div>
-
-      {/* ── CHARTS ROW ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Activity chart */}
-        <div className="lg:col-span-2 card p-5 rounded-xl">
-          <h2 className="font-semibold mb-4 text-xs text-white/50 uppercase tracking-widest">7-Day Outreach</h2>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={stats.activity || []} barSize={18}>
-              <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} tickFormatter={d => d.slice(5)} />
-              <YAxis tick={{ fill: '#555', fontSize: 10 }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8 }}
-                labelStyle={{ color: '#666', fontSize: 11 }}
-                itemStyle={{ color: '#C9A84C', fontSize: 11 }}
-              />
-              <Bar dataKey="sent" fill="#C9A84C" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* ── BAZ CONVERSATIONS ── */}
+      {conversations.length > 0 && (
+        <div style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20 }}>
+          <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">Recent Replies — Baz Conversations</div>
+          <div className="space-y-3">
+            {conversations.map((c, i) => (
+              <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 16 }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.8)' }}>{c.lead?.business_name || 'Unknown'}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginLeft: 8 }}>{c.lead?.city}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>
+                    {c.at ? new Date(c.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {c.we_sent && (
+                    <div className="flex gap-2">
+                      <span style={{ fontSize: 11, color: 'rgba(201,168,76,0.6)', flexShrink: 0, width: 48, textAlign: 'right' }}>Dylan</span>
+                      <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: 'rgba(255,255,255,0.55)', flex: 1 }}>{c.we_sent}</div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <span style={{ fontSize: 11, color: 'rgba(59,130,246,0.6)', flexShrink: 0, width: 48, textAlign: 'right' }}>Barber</span>
+                    <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: 'rgba(255,255,255,0.75)', flex: 1 }}>{c.barber_said}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-
-        {/* Pipeline funnel */}
-        <div className="card p-5 rounded-xl">
-          <h2 className="font-semibold mb-5 text-xs text-white/50 uppercase tracking-widest">Pipeline Funnel</h2>
-          <PipelineFunnel pipeline={stats.pipeline || []} />
-        </div>
-      </div>
+      )}
 
       {/* ── NOTIFICATIONS ── */}
       {stats.notifications?.length > 0 && (
-        <div className="card p-5 rounded-xl">
+        <div style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20 }}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-semibold text-white/50 uppercase tracking-widest">
+            <div className="text-xs font-semibold text-white/30 uppercase tracking-widest">
               Notifications
-              {stats.unread_notifications > 0 && (
-                <span className="ml-2 text-gold">({stats.unread_notifications})</span>
-              )}
-            </h2>
-            <button onClick={() => dashApi.markRead().then(() => load(true))}
-                    className="text-xs text-white/25 hover:text-gold transition-colors">
+              {stats.unread_notifications > 0 && <span style={{ color: '#C9A84C', marginLeft: 8 }}>({stats.unread_notifications})</span>}
+            </div>
+            <button onClick={() => dashApi.markRead().then(() => load(true))} style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}>
               Mark all read
             </button>
           </div>
           <div className="space-y-2">
             {stats.notifications.map(n => (
-              <div key={n.id} className={`flex items-start gap-3 p-3 rounded-lg text-sm ${
-                n.read ? 'bg-white/2 text-white/40' : 'bg-gold/5 border border-gold/15'
-              }`}>
-                <div className="flex-1 min-w-0">
-                  <div className={n.read ? 'text-white/50 text-sm' : 'text-white font-medium text-sm'}>{n.title}</div>
-                  {n.body && <div className="text-white/35 text-xs mt-0.5 truncate">{n.body}</div>}
+              <div key={n.id} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', borderRadius: 10,
+                background: n.read ? 'rgba(255,255,255,0.02)' : 'rgba(201,168,76,0.05)',
+                border: `1px solid ${n.read ? 'rgba(255,255,255,0.04)' : 'rgba(201,168,76,0.15)'}`,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: n.read ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.85)', fontWeight: n.read ? 400 : 500 }}>{n.title}</div>
+                  {n.body && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
                 </div>
-                <div className="text-white/20 text-xs flex-shrink-0">
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
                   {new Date(n.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
@@ -429,34 +663,29 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── AGENT CONTROLS ── */}
-      <div className="card p-5 rounded-xl">
-        <h2 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4">Run Agents Manually</h2>
+      {/* ── RUN AGENTS MANUALLY ── */}
+      <div style={{ background: '#050508', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20 }}>
+        <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">Run Agents Manually</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {[
-            { agent: 'lead_finder',        label: 'Find Leads',       icon: '🔍' },
-            { agent: 'website_analyzer',   label: 'Analyse Sites',    icon: '🔬' },
-            { agent: 'preview_generator',  label: 'Gen Previews',     icon: '🌐' },
-            { agent: 'whatsapp_campaign',  label: 'WhatsApp Queue',   icon: '💬' },
-            { agent: 'instagram_campaign', label: 'Instagram Queue',  icon: '📸' },
-            { agent: 'outreach_writer',    label: 'Write Emails',     icon: '✍️' },
-            { agent: 'followup_agent',     label: 'Follow-ups',       icon: '🔁' },
-            { agent: 'outreach_queue',     label: 'Send Emails',      icon: '📤' },
+            { agent: 'lead_finder',        label: 'Find Leads',      icon: '🔍' },
+            { agent: 'website_analyzer',   label: 'Analyse Sites',   icon: '🔬' },
+            { agent: 'preview_generator',  label: 'Gen Previews',    icon: '🌐' },
+            { agent: 'whatsapp_campaign',  label: 'WhatsApp Queue',  icon: '💬' },
+            { agent: 'instagram_campaign', label: 'Instagram Queue', icon: '📸' },
+            { agent: 'outreach_writer',    label: 'Write Emails',    icon: '✍️' },
+            { agent: 'followup_agent',     label: 'Follow-ups',      icon: '🔁' },
+            { agent: 'outreach_queue',     label: 'Send Emails',     icon: '📤' },
           ].map(a => (
-            <button
-              key={a.agent}
-              onClick={() => runAgent(a.agent)}
-              disabled={!!running}
-              className={`btn-ghost flex items-center gap-2 justify-center text-xs py-2.5 disabled:opacity-40 ${
-                running === a.agent ? 'border-gold/40 text-gold' : ''
-              }`}
-            >
+            <button key={a.agent} onClick={() => runAgent(a.agent)} disabled={!!running}
+              className={`btn-ghost flex items-center gap-2 justify-center text-xs py-2.5 disabled:opacity-40 ${running === a.agent ? 'border-gold/40 text-gold' : ''}`}>
               <span>{a.icon}</span>
               <span>{running === a.agent ? 'Running…' : a.label}</span>
             </button>
           ))}
         </div>
       </div>
+
     </div>
   )
 }
