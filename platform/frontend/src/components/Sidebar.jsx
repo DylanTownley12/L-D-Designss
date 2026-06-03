@@ -16,12 +16,22 @@ const nav = [
   { to: '/settings',    Icon: Settings,      label: 'CONFIG' },
 ]
 
+const CYAN = '#00D4FF'
+const GOLD = '#D4A843'
+
 function LogoMark() {
   return (
-    <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-      <path d="M14 2L26 14L14 26L2 14Z" fill="rgba(212,168,67,0.12)" stroke="#D4A843" strokeWidth="1.4"/>
-      <path d="M14 8L20 14L14 20L8 14Z" fill="rgba(212,168,67,0.5)"/>
-    </svg>
+    <div style={{ position: 'relative', width: 26, height: 26 }}>
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `radial-gradient(circle, ${CYAN}25 0%, transparent 70%)`,
+        animation: 'orbBreathe 3s ease-in-out infinite',
+      }} />
+      <svg width="26" height="26" viewBox="0 0 28 28" fill="none" style={{ position: 'relative' }}>
+        <path d="M14 2L26 14L14 26L2 14Z" fill={`${GOLD}12`} stroke={GOLD} strokeWidth="1.4"/>
+        <path d="M14 8L20 14L14 20L8 14Z" fill={`${GOLD}50`}/>
+      </svg>
+    </div>
   )
 }
 
@@ -45,13 +55,14 @@ function NavItem({ to, Icon, label, badge }) {
         textDecoration: 'none',
         transition: 'all 0.13s ease',
         fontFamily: '"JetBrains Mono", monospace',
-        borderLeft: isActive ? '2px solid #D4A843' : '2px solid transparent',
+        borderLeft: isActive ? `2px solid ${CYAN}` : '2px solid transparent',
         background: isActive
-          ? 'linear-gradient(90deg, rgba(212,168,67,0.1) 0%, rgba(212,168,67,0.012) 100%)'
+          ? `linear-gradient(90deg, rgba(0,212,255,0.08) 0%, rgba(0,212,255,0.01) 100%)`
           : hovered
           ? 'rgba(255,255,255,0.04)'
           : 'transparent',
-        color: isActive ? 'rgba(255,255,255,0.9)' : hovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.28)',
+        color: isActive ? 'rgba(255,255,255,0.9)' : hovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)',
+        boxShadow: isActive ? `inset 0 0 20px rgba(0,212,255,0.04)` : 'none',
       })}
     >
       {({ isActive }) => (
@@ -59,15 +70,16 @@ function NavItem({ to, Icon, label, badge }) {
           <Icon
             size={14}
             style={{
-              color: isActive ? '#D4A843' : hovered ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)',
+              color: isActive ? CYAN : hovered ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)',
               flexShrink: 0,
               transition: 'color 0.13s ease',
+              filter: isActive ? `drop-shadow(0 0 4px ${CYAN}80)` : 'none',
             }}
           />
           <span style={{ flex: 1 }}>{label}</span>
           {badge > 0 && (
             <span style={{
-              background: '#D4A843', color: '#000', fontSize: 9,
+              background: CYAN, color: '#000', fontSize: 9,
               fontWeight: 800, minWidth: 16, height: 16, borderRadius: 999,
               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
             }}>
@@ -116,27 +128,34 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: 220,
+      width: 210,
       flexShrink: 0,
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#0a0a10',
-      borderRight: '1px solid rgba(255,255,255,0.06)',
+      background: '#010110',
+      borderRight: '1px solid rgba(0,212,255,0.08)',
       position: 'relative',
     }}>
-      {/* Atmospheric glow */}
+      {/* Atmospheric glow — cyan top */}
       <div style={{
         position: 'absolute', top: 0, left: 0,
-        width: '100%', height: 120,
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(212,168,67,0.08) 0%, transparent 70%)',
+        width: '100%', height: 130,
+        background: `radial-gradient(ellipse at 50% 0%, rgba(0,212,255,0.06) 0%, transparent 70%)`,
         pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      {/* Vertical accent line */}
+      <div style={{
+        position: 'absolute', right: 0, top: '10%', bottom: '10%', width: 1,
+        background: `linear-gradient(180deg, transparent, rgba(0,212,255,0.15) 30%, rgba(0,212,255,0.15) 70%, transparent)`,
+        pointerEvents: 'none',
       }} />
 
       {/* Logo */}
       <div style={{
         padding: '18px 16px 14px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
         position: 'relative', zIndex: 1,
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
@@ -144,17 +163,17 @@ export default function Sidebar() {
         <div style={{ flex: 1 }}>
           <div style={{
             fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1,
-            background: 'linear-gradient(135deg, #D4A843 0%, #F0C96A 100%)',
+            background: `linear-gradient(135deg, ${GOLD} 0%, #F0C96A 100%)`,
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>
             L&D
           </div>
           <div style={{
-            fontSize: 8, fontWeight: 700, letterSpacing: '0.16em',
-            color: 'rgba(255,255,255,0.2)', marginTop: 2, textTransform: 'uppercase',
+            fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em',
+            color: `${CYAN}50`, marginTop: 2, textTransform: 'uppercase',
             fontFamily: '"JetBrains Mono", monospace',
           }}>
-            AI OPERATING SYSTEM
+            AI OS
           </div>
         </div>
       </div>
@@ -179,7 +198,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div style={{
         padding: '12px 16px',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         position: 'relative', zIndex: 1,
       }}>
@@ -187,17 +206,19 @@ export default function Sidebar() {
           <div style={{ position: 'relative', width: 7, height: 7 }}>
             <div style={{
               position: 'absolute', inset: 0, borderRadius: '50%',
-              background: '#10b981', opacity: 0.35,
+              background: activeAgents > 0 ? CYAN : '#10b981',
+              opacity: 0.3,
               animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-              transform: 'scale(1.5)',
+              transform: 'scale(1.6)',
             }} />
             <div style={{
               position: 'relative', width: 7, height: 7, borderRadius: '50%',
-              background: '#10b981', boxShadow: '0 0 7px rgba(16,185,129,0.7)',
+              background: activeAgents > 0 ? CYAN : '#10b981',
+              boxShadow: `0 0 7px ${activeAgents > 0 ? CYAN : '#10b981'}90`,
             }} />
           </div>
           <span style={{
-            fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)',
+            fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.22)',
             letterSpacing: '0.12em', textTransform: 'uppercase',
             fontFamily: '"JetBrains Mono", monospace',
           }}>
@@ -208,9 +229,9 @@ export default function Sidebar() {
           href="https://dylantownley12.github.io/L-D-Designss"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.12)', textDecoration: 'none' }}
+          style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.1)', textDecoration: 'none' }}
         >
-          Portfolio →
+          ↗
         </a>
       </div>
     </aside>

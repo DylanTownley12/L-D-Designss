@@ -4,14 +4,14 @@
 
 @layer base {
   body {
-    background-color: #07070b;
+    background-color: #02020e;
     color: white;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-image:
-      radial-gradient(ellipse 900px 700px at 15% 0%, rgba(212,168,67,0.045) 0%, transparent 60%),
-      radial-gradient(ellipse 600px 500px at 85% 100%, rgba(124,58,237,0.035) 0%, transparent 60%);
+      radial-gradient(ellipse 900px 700px at 15% 0%, rgba(0,100,220,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 600px 500px at 85% 100%, rgba(0,50,150,0.03) 0%, transparent 60%);
     background-attachment: fixed;
   }
   * {
@@ -239,3 +239,27 @@
 .count-anim  { animation: countUp 0.4s ease; }
 .slide-up    { animation: fadeSlideUp 0.32s ease; }
 .glow-border { animation: borderGlow 2.5s ease-in-out infinite; }
+
+/* ── JARVIS OS ── */
+@keyframes scanRight {
+  0%   { transform: translateX(0%); }
+  100% { transform: translateX(500%); }
+}
+@keyframes thoughtProgress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+@keyframes neuralPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.04); }
+}
+@keyframes cyanPing {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes ping {
+  0%   { transform: scale(1);   opacity: 0.9; }
+  75%  { transform: scale(2);   opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
