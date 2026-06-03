@@ -98,8 +98,13 @@ def run() -> dict:
     except Exception as e:
         issues.append(f"Could not check stalled leads: {e}")
 
-    # Auto-fix any detected problems
-    actions_taken = _auto_fix(db, stats, warnings)
+    # Retry any agents that failed in the last 2h and haven't recovered
+    retry_actions = _retry_failed(db, two_hours_ago)
+
+    # Auto-fix any detected pipeline problems
+    fix_actions = _auto_fix(db, stats, warnings)
+
+    actions_taken = retry_actions + fix_actions
 
     # Overall status
     if issues:
@@ -136,6 +141,90 @@ def run() -> dict:
 
     logger.info(f"[ceo_agent] {overall.upper()} — {len(issues)} issues, {len(warnings)} warnings, {len(actions_taken)} fixes")
     return report
+
+
+_RETRYABLE = {
+    "website_analyzer",
+    "preview_generator",
+    "whatsapp_campaign",
+    "instagram_campaign",
+    "followup_agent",
+    "lead_enricher",
+    "lead_finder",
+}
+
+
+def _run_agent(name: str):
+    if name == "website_analyzer":
+        from agents.website_analyzer import run
+        return run(batch_size=50)
+    if name == "preview_generator":
+        from agents.preview_generator import run_batch
+        return run_batch(limit=50)
+    if name == "whatsapp_campaign":
+        from agents.outreach_writer import generate_whatsapp_campaign
+        return generate_whatsapp_campaign(limit=30)
+    if name == "instagram_campaign":
+        from agents.outreach_writer import generate_instagram_campaign
+        return generate_instagram_campaign(limit=30)
+    if name == "followup_agent":
+        from agents.followup_agent import run
+        return run()
+    if name == "lead_enricher":
+        from agents.lead_enricher import run
+        return run()
+    if name == "lead_finder":
+        from agents.lead_finder import run
+        return run()
+    return None
+
+
+def _retry_failed(db, two_hours_ago: str) -> list:
+    """Find agents that errored in the last 2h without recovering, and re-run them."""
+    actions = []
+    try:
+        # Agents that errored recently (excluding monitoring agents)
+        error_logs = (
+            db.table("agent_logs").select("agent_name")
+            .eq("status", "error")
+            .gte("created_at", two_hours_ago)
+            .execute().data or []
+        )
+        errored = {l["agent_name"] for l in error_logs if l["agent_name"] in _RETRYABLE}
+        if not errored:
+            return []
+
+        # Agents that have a success log in the same window (already recovered)
+        success_logs = (
+            db.table("agent_logs").select("agent_name")
+            .eq("status", "success")
+            .gte("created_at", two_hours_ago)
+            .execute().data or []
+        )
+        recovered = {l["agent_name"] for l in success_logs}
+
+        to_retry = errored - recovered
+
+        for name in to_retry:
+            try:
+                result = _run_agent(name)
+                msg = f"Auto-retried {name} after failure"
+                actions.append(msg)
+                db.table("agent_logs").insert({
+                    "agent_name": "ceo_agent",
+                    "action": f"Auto-retry: {name}",
+                    "status": "success",
+                    "details": {"auto_retry": name, "result": str(result)[:200]},
+                }).execute()
+                logger.info(f"[ceo_agent] Retried {name}")
+            except Exception as e:
+                logger.error(f"[ceo_agent] Retry of {name} failed: {e}")
+                actions.append(f"Retry of {name} attempted but still failing — manual check needed")
+
+    except Exception as e:
+        logger.error(f"[ceo_agent] _retry_failed error: {e}")
+
+    return actions
 
 
 def _auto_fix(db, stats: dict, warnings: list) -> list:
