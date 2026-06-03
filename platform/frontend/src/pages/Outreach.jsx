@@ -1,16 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { outreach as outreachApi, agents, instagram as instagramApi } from '../api/client'
+import { MessageCircle, Mail, AtSign, RefreshCcw, Trash2, CheckCircle2, X, Send, Clock, Copy, ExternalLink } from 'lucide-react'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const Instagram = AtSign
 
-const WA_ICON = (
-  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-  </svg>
-)
-
-// Highlight URLs in plain text message body
 function MessageBody({ text }) {
   const urlRegex = /(https?:\/\/[^\s]+)/g
   const parts = text.split(urlRegex)
@@ -19,18 +13,15 @@ function MessageBody({ text }) {
       {parts.map((part, i) =>
         urlRegex.test(part) ? (
           <a key={i} href={part} target="_blank" rel="noopener noreferrer"
-             className="text-gold underline break-all font-medium hover:text-gold-light">
+             style={{ color: '#D4A843', textDecoration: 'underline', wordBreak: 'break-all', fontWeight: 500 }}>
             {part}
           </a>
-        ) : (
-          <span key={i}>{part}</span>
-        )
+        ) : <span key={i}>{part}</span>
       )}
     </span>
   )
 }
 
-// ── WhatsApp QUEUE card (to send) ────────────────────────────────────────────
 function WhatsAppCard({ msg, onMarkSent }) {
   const [sending, setSending] = useState(false)
   const phone = (msg.leads?.phone || '').replace(/[\s\-\+]/g, '').replace(/^0/, '44')
@@ -41,56 +32,81 @@ function WhatsAppCard({ msg, onMarkSent }) {
     if (!waLink) return
     window.open(waLink, '_blank')
     setSending(true)
-    try {
-      await onMarkSent(msg.id)
-    } finally {
-      setSending(false)
-    }
+    try { await onMarkSent(msg.id) } finally { setSending(false) }
   }
 
   return (
-    <div className="card rounded-xl overflow-hidden border border-emerald-500/15 bg-emerald-500/3">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b border-white/5">
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, #0c0c12 100%)',
+      border: '1px solid rgba(16,185,129,0.18)',
+      borderRadius: 14,
+      overflow: 'hidden',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+        padding: '14px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}>
         <div>
-          <div className="font-semibold text-sm">{msg.leads?.business_name || 'Unknown'}</div>
-          <div className="text-white/40 text-xs mt-0.5">
-            {msg.leads?.city}
-            {msg.leads?.phone && <span className="ml-2 text-white/30">· 📱 {msg.leads.phone}</span>}
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 3 }}>
+            {msg.leads?.business_name || 'Unknown'}
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{msg.leads?.city}</span>
+            {msg.leads?.phone && (
+              <><span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+              <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10.5 }}>{msg.leads.phone}</span></>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {hasUrl && (
-            <span className="text-[10px] bg-gold/15 text-gold px-2 py-0.5 rounded-full font-semibold">
-              ✓ preview link
-            </span>
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
+              background: 'rgba(212,168,67,0.12)', color: '#D4A843',
+              border: '1px solid rgba(212,168,67,0.22)',
+            }}>✓ preview link</span>
           )}
-          <span className="text-white/20 text-xs">
+          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.22)', fontFamily: '"JetBrains Mono", monospace' }}>
             {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
           </span>
         </div>
       </div>
 
-      {/* Message body */}
-      <div className="px-5 py-4 bg-black/20">
-        <p className="text-white/75 text-sm leading-relaxed whitespace-pre-wrap">
+      <div style={{ padding: '14px 18px', background: 'rgba(0,0,0,0.15)' }}>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
           <MessageBody text={msg.body} />
         </p>
       </div>
 
-      {/* Action */}
-      <div className="px-5 py-4">
+      <div style={{ padding: '12px 18px' }}>
         {waLink ? (
           <button
             onClick={handleOpenWA}
             disabled={sending}
-            className="w-full btn-gold py-3.5 text-sm font-semibold flex items-center justify-center gap-2.5 disabled:opacity-60"
+            style={{
+              width: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              padding: '12px',
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #25D366, #128C7E)',
+              border: 'none',
+              color: 'white',
+              fontSize: 13.5,
+              fontWeight: 600,
+              cursor: sending ? 'not-allowed' : 'pointer',
+              opacity: sending ? 0.6 : 1,
+              boxShadow: '0 2px 12px rgba(37,211,102,0.25)',
+              fontFamily: 'Inter, sans-serif',
+            }}
           >
-            {WA_ICON}
-            {sending ? 'Opening…' : 'Open WhatsApp — mark as sent'}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            {sending ? 'Opening...' : 'Open WhatsApp — mark as sent'}
           </button>
         ) : (
-          <div className="text-center text-red-400/70 text-xs py-2">
+          <div style={{ textAlign: 'center', fontSize: 12, color: 'rgba(239,68,68,0.6)', padding: '8px 0' }}>
             No mobile number — can't send via WhatsApp
           </div>
         )}
@@ -99,7 +115,6 @@ function WhatsAppCard({ msg, onMarkSent }) {
   )
 }
 
-// ── WhatsApp SENT card (sent today, waiting for reply) ───────────────────────
 function WhatsAppSentCard({ msg, onLogReply }) {
   const [replying, setReplying] = useState(false)
   const [replyText, setReplyText] = useState('')
@@ -108,65 +123,60 @@ function WhatsAppSentCard({ msg, onLogReply }) {
   const handleSave = async () => {
     if (!replyText.trim()) return
     setSaving(true)
-    try {
-      await onLogReply(msg.id, replyText.trim())
-      setReplying(false)
-      setReplyText('')
-    } finally {
-      setSaving(false)
-    }
+    try { await onLogReply(msg.id, replyText.trim()); setReplying(false); setReplyText('') }
+    finally { setSaving(false) }
   }
 
   return (
-    <div className="card rounded-xl border border-white/6 bg-white/2">
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{msg.leads?.business_name || 'Unknown'}</span>
-            <span className="text-white/30 text-xs">·</span>
-            <span className="text-white/40 text-xs">{msg.leads?.city}</span>
-            <span className="badge bg-emerald-500/20 text-emerald-400 ml-auto text-[10px]">sent</span>
+    <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.75)' }}>{msg.leads?.business_name || 'Unknown'}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)' }}>{msg.leads?.city}</span>
+            <span style={{
+              marginLeft: 'auto',
+              fontSize: 10, padding: '2px 8px', borderRadius: 99,
+              background: 'rgba(16,185,129,0.15)', color: '#6ee7b7', fontWeight: 600,
+            }}>sent</span>
           </div>
-          <div className="text-white/30 text-xs mt-0.5 truncate">{msg.body}</div>
-          {msg.leads?.phone && (
-            <div className="text-white/20 text-[10px] mt-0.5">📱 {msg.leads.phone}</div>
-          )}
+          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.28)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.body}</div>
         </div>
       </div>
-
       {replying ? (
-        <div className="px-4 pb-4 space-y-2 border-t border-white/5 pt-3">
+        <div style={{ padding: '10px 14px 12px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <textarea
             autoFocus
-            className="w-full bg-dark-2 border border-white/10 rounded-lg p-3 text-sm text-white resize-none focus:outline-none focus:border-gold/50 placeholder-white/20"
+            style={{
+              width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 8, padding: '10px 12px', fontSize: 13, color: 'white', resize: 'none',
+              outline: 'none', fontFamily: 'Inter, sans-serif', marginBottom: 8, boxSizing: 'border-box',
+            }}
             rows={3}
             placeholder="What did they say?"
             value={replyText}
             onChange={e => setReplyText(e.target.value)}
           />
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              disabled={!replyText.trim() || saving}
-              className="btn-gold flex-1 py-2 text-sm disabled:opacity-40"
-            >
-              {saving ? 'Saving…' : '✓ Log Reply'}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleSave} disabled={!replyText.trim() || saving} className="btn-gold" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}>
+              <CheckCircle2 size={12} /> {saving ? 'Saving...' : 'Log Reply'}
             </button>
-            <button
-              onClick={() => { setReplying(false); setReplyText('') }}
-              className="btn-ghost px-4 py-2 text-sm"
-            >
-              Cancel
+            <button onClick={() => { setReplying(false); setReplyText('') }} className="btn-ghost" style={{ padding: '8px 14px', fontSize: 12 }}>
+              <X size={12} />
             </button>
           </div>
         </div>
       ) : (
-        <div className="px-4 pb-3 border-t border-white/5 pt-2">
+        <div style={{ padding: '0 14px 10px', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 8 }}>
           <button
             onClick={() => setReplying(true)}
-            className="w-full py-2 text-xs text-white/30 hover:text-gold border border-white/6 hover:border-gold/20 rounded-lg transition-all"
+            style={{
+              width: '100%', padding: '7px', fontSize: 11.5, color: 'rgba(255,255,255,0.3)',
+              background: 'none', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, cursor: 'pointer',
+              transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+            }}
           >
-            💬 Got a reply? Log it
+            Got a reply? Log it →
           </button>
         </div>
       )}
@@ -174,95 +184,105 @@ function WhatsAppSentCard({ msg, onLogReply }) {
   )
 }
 
-// ── Email queue card ─────────────────────────────────────────────────────────
 function MessageCard({ msg, onApprove, onReject }) {
   const [expanded, setExpanded] = useState(false)
+  const isQueued = msg.status === 'queued'
   return (
-    <div className={`card rounded-xl p-4 border ${
-      msg.status === 'queued' ? 'border-gold/20 bg-gold/3' : 'border-white/6'
-    }`}>
-      <div className="flex items-start gap-3">
-        <div className="text-xl flex-shrink-0">
-          {msg.channel === 'email' ? '📧' : '📱'}
+    <div style={{
+      background: isQueued ? 'linear-gradient(135deg, rgba(212,168,67,0.06) 0%, #0c0c12 100%)' : '#0c0c12',
+      border: `1px solid ${isQueued ? 'rgba(212,168,67,0.2)' : 'rgba(255,255,255,0.07)'}`,
+      borderRadius: 12,
+      padding: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{
+          width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+          background: msg.channel === 'email' ? 'rgba(59,130,246,0.12)' : 'rgba(37,211,102,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {msg.channel === 'email' ? <Mail size={15} color="#60a5fa" /> : <MessageCircle size={15} color="#34d399" />}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-sm">{msg.leads?.business_name || 'Unknown'}</span>
-            <span className="text-white/30 text-xs">·</span>
-            <span className="text-white/40 text-xs">{msg.leads?.city}</span>
-            <span className={`badge ml-auto ${
-              msg.status === 'queued' ? 'bg-amber-500/20 text-amber-400' :
-              msg.status === 'sent'   ? 'bg-emerald-500/20 text-emerald-400' :
-              'bg-gray-500/20 text-gray-400'
-            }`}>{msg.status}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{msg.leads?.business_name || 'Unknown'}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{msg.leads?.city}</span>
+            <span style={{
+              marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+              background: msg.status === 'queued' ? 'rgba(245,158,11,0.15)' : msg.status === 'sent' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)',
+              color: msg.status === 'queued' ? '#fbbf24' : msg.status === 'sent' ? '#6ee7b7' : '#9ca3af',
+            }}>
+              {msg.status}
+            </span>
           </div>
-          {msg.subject && <div className="text-white/60 text-xs mb-2 font-medium">Re: {msg.subject}</div>}
-          <div className={`text-white/50 text-sm leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>
+          {msg.subject && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginBottom: 6, fontWeight: 500 }}>Re: {msg.subject}</div>}
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, overflow: expanded ? 'visible' : 'hidden', display: expanded ? 'block' : '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
             {msg.body}
           </div>
-          <button onClick={() => setExpanded(!expanded)}
-                  className="text-xs text-white/25 hover:text-gold mt-1 transition-colors">
+          <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}>
             {expanded ? '▲ Less' : '▼ More'}
           </button>
-          <div className="text-white/25 text-xs mt-2">
+          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.2)', marginTop: 6 }}>
             Day {msg.sequence_day || 1} · {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
           </div>
         </div>
       </div>
-      {msg.status === 'queued' && (
-        <div className="flex gap-2 mt-3 pt-3 border-t border-white/6">
-          <button onClick={() => onApprove(msg.id)} className="btn-gold flex-1 py-2 text-sm">✓ Approve & Send</button>
-          <button onClick={() => onReject(msg.id)} className="btn-ghost flex-1 py-2 text-sm">✗ Reject</button>
+      {isQueued && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <button onClick={() => onApprove(msg.id)} className="btn-gold" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}>
+            <CheckCircle2 size={12} /> Approve & Send
+          </button>
+          <button onClick={() => onReject(msg.id)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}>
+            <X size={12} /> Reject
+          </button>
         </div>
       )}
     </div>
   )
 }
 
-// ── Instagram card ───────────────────────────────────────────────────────────
 function InstagramCard({ msg }) {
   const [copied, setCopied] = useState(false)
   const igUrl = msg.leads?.instagram_url
-  const copy = () => {
-    navigator.clipboard.writeText(msg.body)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  const copy = () => { navigator.clipboard.writeText(msg.body); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+
   return (
-    <div className="card rounded-xl p-4 border border-purple-500/20 bg-purple-500/3">
-      <div className="flex items-start gap-3">
-        <div className="text-xl flex-shrink-0">📸</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="font-medium text-sm">{msg.leads?.business_name || 'Unknown'}</span>
-            <span className="text-white/30 text-xs">·</span>
-            <span className="text-white/40 text-xs">{msg.leads?.city}</span>
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(168,85,247,0.07) 0%, #0c0c12 100%)',
+      border: '1px solid rgba(168,85,247,0.2)',
+      borderRadius: 12,
+      padding: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Instagram size={15} color="#c084fc" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{msg.leads?.business_name || 'Unknown'}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{msg.leads?.city}</span>
             {igUrl && (
-              <a href={igUrl} target="_blank" rel="noopener noreferrer"
-                 className="text-purple-400 text-xs ml-auto hover:text-purple-300 truncate max-w-[120px]">
+              <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto', fontSize: 11, color: '#c084fc', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
                 {igUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '')}
               </a>
             )}
           </div>
-          <div className="text-white/70 text-sm leading-relaxed bg-white/5 rounded-lg p-3">{msg.body}</div>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '10px 12px' }}>{msg.body}</div>
         </div>
       </div>
-      <div className="flex gap-2 mt-3 pt-3 border-t border-white/6">
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         {igUrl && (
-          <a href={igUrl} target="_blank" rel="noopener noreferrer"
-             className="btn-ghost flex-1 py-2 text-sm text-center text-purple-400 hover:text-purple-300">
-            Open Instagram
+          <a href={igUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 12, color: '#c084fc', textDecoration: 'none' }}>
+            <ExternalLink size={11} /> Open Instagram
           </a>
         )}
-        <button onClick={copy} className="btn-gold flex-1 py-2 text-sm">
-          {copied ? '✓ Copied!' : '📋 Copy DM'}
+        <button onClick={copy} className="btn-gold" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}>
+          {copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Copy size={12} /> Copy DM</>}
         </button>
       </div>
     </div>
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function Outreach() {
   const [queue, setQueue] = useState([])
   const [whatsappQueue, setWhatsappQueue] = useState([])
@@ -297,23 +317,16 @@ export default function Outreach() {
       ])
       setQueue((q.messages || []).filter(m => m.channel === 'email'))
       setWhatsappQueue(wa.messages || [])
-      // "Sent Today" = sent today, lead hasn't replied/converted yet
       setWhatsappSentToday(
         (waSent.messages || [])
-          .filter(m => {
-            const sentOn = (m.sent_at || m.created_at || '').slice(0, 10)
-            return sentOn === todayStr && m.leads?.status === 'outreach_sent'
-          })
+          .filter(m => { const sentOn = (m.sent_at || m.created_at || '').slice(0, 10); return sentOn === todayStr && m.leads?.status === 'outreach_sent' })
           .reverse()
       )
       setInstagramQueue(ig.messages || [])
       setHistory(h.messages || [])
       setStats(s)
-    } catch (e) {
-      showToast(e.message, 'error')
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { showToast(e.message, 'error') }
+    finally { setLoading(false) }
   }
 
   useEffect(() => {
@@ -333,221 +346,242 @@ export default function Outreach() {
 
   useEffect(() => {
     if (generating && (queue.length > 0 || whatsappQueue.length > 0)) {
-      clearInterval(pollRef.current)
-      setGenerating(false)
-      showToast('Messages ready!')
+      clearInterval(pollRef.current); setGenerating(false); showToast('Messages ready!')
     }
   }, [queue.length, whatsappQueue.length, generating])
 
-  const markWASent = async (id) => {
-    await outreachApi.markSent(id)
-    showToast('Marked as sent — check "Sent Today" below')
-    await load()
-  }
-
-  const logReply = async (message_id, reply_text) => {
-    await outreachApi.logReply(message_id, reply_text)
-    showToast('Reply logged! Lead moved to Replied 🔥')
-    await load()
-  }
-
-  const approve = async (id) => {
-    try { await outreachApi.approve(id); showToast('Sent!'); load() }
-    catch (e) { showToast(e.message, 'error') }
-  }
-
-  const reject = async (id) => {
-    try { await outreachApi.reject(id); showToast('Rejected'); load() }
-    catch (e) { showToast(e.message, 'error') }
-  }
-
+  const markWASent = async id => { await outreachApi.markSent(id); showToast('Marked as sent'); await load() }
+  const logReply = async (message_id, reply_text) => { await outreachApi.logReply(message_id, reply_text); showToast('Reply logged!'); await load() }
+  const approve = async id => { try { await outreachApi.approve(id); showToast('Sent!'); load() } catch (e) { showToast(e.message, 'error') } }
+  const reject = async id => { try { await outreachApi.reject(id); showToast('Rejected'); load() } catch (e) { showToast(e.message, 'error') } }
   const sendAll = async () => {
     if (!confirm(`Send all ${queue.length} emails now?`)) return
-    try { await outreachApi.sendAllApproved(); showToast('Sending…'); setTimeout(load, 2000) }
-    catch (e) { showToast(e.message, 'error') }
+    try { await outreachApi.sendAllApproved(); showToast('Sending...'); setTimeout(load, 2000) } catch (e) { showToast(e.message, 'error') }
   }
-
   const writeOutreach = async () => {
     setGenerating(true)
     try {
       await agents.run('outreach_writer')
-      showToast('Writing emails in background — auto-refreshing…')
+      showToast('Writing emails in background...')
       let attempts = 0
       if (pollRef.current) clearInterval(pollRef.current)
-      pollRef.current = setInterval(async () => {
-        attempts++; await load()
-        if (attempts >= 12) { clearInterval(pollRef.current); setGenerating(false) }
-      }, 5000)
+      pollRef.current = setInterval(async () => { attempts++; await load(); if (attempts >= 12) { clearInterval(pollRef.current); setGenerating(false) } }, 5000)
     } catch (e) { showToast(e.message, 'error'); setGenerating(false) }
   }
-
   const generateWhatsApp = async () => {
     setGenerating(true)
     try {
       await agents.run('whatsapp_campaign')
-      showToast('Generating WhatsApp messages — refreshing…')
+      showToast('Generating WhatsApp messages...')
       let attempts = 0
       if (pollRef.current) clearInterval(pollRef.current)
-      pollRef.current = setInterval(async () => {
-        attempts++; await load()
-        if (attempts >= 12) { clearInterval(pollRef.current); setGenerating(false) }
-      }, 5000)
+      pollRef.current = setInterval(async () => { attempts++; await load(); if (attempts >= 12) { clearInterval(pollRef.current); setGenerating(false) } }, 5000)
     } catch (e) { showToast(e.message, 'error'); setGenerating(false) }
   }
-
   const generateInstagram = async () => {
-    try { await agents.run('instagram_campaign'); showToast('Generating Instagram DMs…'); setTimeout(load, 3000) }
+    try { await agents.run('instagram_campaign'); showToast('Generating Instagram DMs...'); setTimeout(load, 3000) }
     catch (e) { showToast(e.message, 'error') }
   }
 
-  const waTotal = whatsappQueue.length
+  const tabs = [
+    { key: 'whatsapp',  Icon: MessageCircle, label: 'WhatsApp',  count: whatsappQueue.length },
+    { key: 'instagram', Icon: Instagram,     label: 'Instagram', count: instagramQueue.length },
+    { key: 'queue',     Icon: Mail,          label: 'Email',     count: queue.length },
+    { key: 'history',   Icon: Clock,         label: 'History',   count: history.length },
+  ]
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div style={{ padding: '24px', maxWidth: 900, margin: '0 auto' }}>
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl ${
-          toast.type === 'error' ? 'bg-red-500/90 text-white' : 'bg-gold text-black'
-        }`}>{toast.msg}</div>
+        <div style={{
+          position: 'fixed', top: 16, right: 16, zIndex: 50,
+          padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 500,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : 'linear-gradient(135deg, #D4A843, #F0C96A)',
+          color: toast.type === 'error' ? 'white' : 'black',
+        }}>
+          {toast.msg}
+        </div>
       )}
 
       {generating && (
-        <div className="bg-gold/10 border border-gold/30 rounded-xl px-4 py-3 text-sm text-gold flex items-center gap-2">
-          <span className="animate-pulse">●</span> Writing in background — auto-refreshing every 5s
+        <div style={{
+          background: 'rgba(212,168,67,0.08)', border: '1px solid rgba(212,168,67,0.25)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#D4A843',
+        }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#D4A843', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          Writing in background — auto-refreshing every 5s
         </div>
       )}
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
-          <h1 className="text-2xl font-bold">Outreach</h1>
-          <p className="text-white/40 text-sm mt-0.5">Review and send your messages</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Outreach</h1>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Review and send your messages</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={load} disabled={loading} className="btn-ghost text-xs">{loading ? 'Loading…' : '↻ Refresh'}</button>
-          {tab === 'whatsapp' ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={load} disabled={loading} className="btn-ghost" style={{ fontSize: 12 }}>
+            <RefreshCcw size={12} /> {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          {tab === 'whatsapp' && (
             <>
-              <button onClick={generateWhatsApp} disabled={generating} className="btn-gold text-xs">
-                {generating ? '⏳ Generating…' : '💬 Generate WhatsApp'}
+              <button onClick={generateWhatsApp} disabled={generating} className="btn-gold" style={{ fontSize: 12 }}>
+                <MessageCircle size={12} /> {generating ? 'Generating...' : 'Generate WhatsApp'}
               </button>
               <button onClick={async () => { await outreachApi.clearInvalidWhatsapp(); showToast('Cleared invalid'); load() }}
-                      className="btn-ghost text-xs text-red-400/60 hover:text-red-400">🗑 Clear Invalid</button>
+                      className="btn-ghost" style={{ fontSize: 12, color: 'rgba(239,68,68,0.6)' }}>
+                <Trash2 size={12} /> Clear Invalid
+              </button>
             </>
-          ) : tab === 'queue' ? (
+          )}
+          {tab === 'queue' && (
             <>
-              <button onClick={writeOutreach} disabled={generating} className="btn-ghost text-xs">{generating ? '✍️ Writing…' : '✍️ Write Emails'}</button>
-              {queue.length > 0 && <button onClick={sendAll} className="btn-gold text-xs">Send All ({queue.length})</button>}
+              <button onClick={writeOutreach} disabled={generating} className="btn-ghost" style={{ fontSize: 12 }}>
+                {generating ? 'Writing...' : 'Write Emails'}
+              </button>
+              {queue.length > 0 && (
+                <button onClick={sendAll} className="btn-gold" style={{ fontSize: 12 }}>
+                  <Send size={12} /> Send All ({queue.length})
+                </button>
+              )}
             </>
-          ) : null}
+          )}
         </div>
       </div>
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 18 }}>
           {[
-            { label: 'WA to Send', value: whatsappQueue.length, warn: whatsappQueue.length > 0 },
-            { label: 'Sent Today', value: whatsappSentToday.length, warn: false },
-            { label: 'Emails Today', value: `${stats.emails_sent_today}/${stats.email_limit}`, warn: stats.emails_sent_today >= stats.email_limit },
-            { label: 'Email Queue', value: queue.length, warn: false },
+            { label: 'WA to Send',    value: whatsappQueue.length, active: whatsappQueue.length > 0, color: '#22c55e' },
+            { label: 'Sent Today',    value: whatsappSentToday.length, active: false, color: '#D4A843' },
+            { label: 'Emails Today',  value: `${stats.emails_sent_today}/${stats.email_limit}`, active: stats.emails_sent_today >= stats.email_limit, color: '#3b82f6' },
+            { label: 'Email Queue',   value: queue.length, active: false, color: '#a855f7' },
           ].map(s => (
-            <div key={s.label} className={`card p-3 rounded-xl text-center ${s.warn ? 'border-gold/20' : ''}`}>
-              <div className={`text-xl font-bold ${s.warn ? 'text-gold' : 'text-white/60'}`}>{s.value}</div>
-              <div className="text-white/40 text-xs mt-0.5">{s.label}</div>
+            <div key={s.label} style={{
+              background: '#0c0c12', border: `1px solid ${s.active ? s.color + '30' : 'rgba(255,255,255,0.07)'}`,
+              borderRadius: 10, padding: '12px 14px', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: s.active ? s.color : 'rgba(255,255,255,0.55)', letterSpacing: '-0.02em' }}>{s.value}</div>
+              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{s.label}</div>
             </div>
           ))}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-dark-2 rounded-lg p-1 w-fit flex-wrap">
-        {[
-          { key: 'whatsapp',  label: `💬 WhatsApp (${waTotal})` },
-          { key: 'instagram', label: `📸 Instagram (${instagramQueue.length})` },
-          { key: 'queue',     label: `📧 Email (${queue.length})` },
-          { key: 'history',   label: `History (${history.length})` },
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    tab === t.key ? 'bg-gold text-black' : 'text-white/50 hover:text-white'
-                  }`}>
-            {t.label}
-          </button>
-        ))}
+      <div style={{
+        display: 'flex', gap: 4,
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 10,
+        padding: 4,
+        width: 'fit-content',
+        marginBottom: 18,
+        flexWrap: 'wrap',
+      }}>
+        {tabs.map(t => {
+          const Icon = t.Icon
+          const isActive = tab === t.key
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 7,
+                fontSize: 12.5, fontWeight: 500,
+                border: 'none', cursor: 'pointer',
+                background: isActive ? 'linear-gradient(135deg, #D4A843, #F0C96A)' : 'transparent',
+                color: isActive ? '#000' : 'rgba(255,255,255,0.45)',
+                transition: 'all 0.15s ease',
+                fontFamily: 'Inter, sans-serif',
+              }}
+            >
+              <Icon size={12} />
+              {t.label}
+              <span style={{
+                fontSize: 10, fontWeight: 700,
+                background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.08)',
+                color: isActive ? '#000' : 'rgba(255,255,255,0.4)',
+                padding: '1px 6px', borderRadius: 99,
+              }}>
+                {t.count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Content */}
       {loading ? (
-        <div className="text-white/30 text-sm text-center py-12">Loading…</div>
+        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '48px 0', fontSize: 13 }}>Loading...</div>
       ) : tab === 'whatsapp' ? (
-        <div className="space-y-6">
-          {/* Queue to send */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {whatsappQueue.length === 0 ? (
-            <div className="card rounded-xl p-12 text-center space-y-4">
-              <div className="text-4xl mb-3">💬</div>
-              <div className="text-white/40 text-sm">No WhatsApp messages queued.</div>
-              <div className="text-white/25 text-xs">Leads need a preview generated first, then click below.</div>
-              <button
-                onClick={generateWhatsApp}
-                disabled={generating}
-                className="btn-gold px-6 py-3 text-sm font-semibold disabled:opacity-50"
-              >
-                {generating ? '⏳ Generating…' : '💬 Generate WhatsApp Messages'}
+            <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(37,211,102,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <MessageCircle size={22} color="#25D366" style={{ opacity: 0.7 }} />
+              </div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 500 }}>No WhatsApp messages queued</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', marginBottom: 18 }}>Leads need a preview generated first, then generate below.</div>
+              <button onClick={generateWhatsApp} disabled={generating} className="btn-gold" style={{ fontSize: 13 }}>
+                {generating ? 'Generating...' : 'Generate WhatsApp Messages'}
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-white/30 font-medium uppercase tracking-wider">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 Ready to send — {whatsappQueue.length} message{whatsappQueue.length !== 1 ? 's' : ''}
               </p>
-              {whatsappQueue.map(msg => (
-                <WhatsAppCard key={msg.id} msg={msg} onMarkSent={markWASent} />
-              ))}
+              {whatsappQueue.map(msg => <WhatsAppCard key={msg.id} msg={msg} onMarkSent={markWASent} />)}
             </div>
           )}
-
-          {/* Sent today — waiting for reply */}
           {whatsappSentToday.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-white/30 font-medium uppercase tracking-wider">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 Sent today — waiting for reply ({whatsappSentToday.length})
               </p>
-              {whatsappSentToday.map(msg => (
-                <WhatsAppSentCard key={msg.id} msg={msg} onLogReply={logReply} />
-              ))}
+              {whatsappSentToday.map(msg => <WhatsAppSentCard key={msg.id} msg={msg} onLogReply={logReply} />)}
             </div>
           )}
         </div>
       ) : tab === 'instagram' ? (
         instagramQueue.length === 0 ? (
-          <div className="card rounded-xl p-12 text-center">
-            <div className="text-4xl mb-3">📸</div>
-            <div className="text-white/40 text-sm mb-4">No Instagram DM scripts generated yet.</div>
-            <button onClick={generateInstagram} className="btn-gold text-sm">Generate Instagram DMs</button>
+          <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(168,85,247,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Instagram size={22} color="#c084fc" style={{ opacity: 0.7 }} />
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 18, fontWeight: 500 }}>No Instagram scripts yet</div>
+            <button onClick={generateInstagram} className="btn-gold">Generate Instagram DMs</button>
           </div>
         ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-white/30">{instagramQueue.length} scripts ready — copy and send manually.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)' }}>{instagramQueue.length} scripts ready — copy and send manually.</p>
             {instagramQueue.map(msg => <InstagramCard key={msg.id} msg={msg} />)}
           </div>
         )
       ) : tab === 'queue' ? (
         queue.length === 0 ? (
-          <div className="card rounded-xl p-12 text-center">
-            <div className="text-4xl mb-3">📤</div>
-            <div className="text-white/40 text-sm">Email queue is empty.</div>
+          <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+            <Mail size={28} color="rgba(255,255,255,0.15)" style={{ margin: '0 auto 14px', display: 'block' }} />
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>Email queue is empty</div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {queue.map(msg => <MessageCard key={msg.id} msg={msg} onApprove={approve} onReject={reject} />)}
           </div>
         )
       ) : (
         history.length === 0 ? (
-          <div className="card rounded-xl p-12 text-center">
-            <div className="text-4xl mb-3">📬</div>
-            <div className="text-white/40 text-sm">No messages sent yet.</div>
+          <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+            <Clock size={28} color="rgba(255,255,255,0.15)" style={{ margin: '0 auto 14px', display: 'block' }} />
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>No messages sent yet</div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {history.map(msg => <MessageCard key={msg.id} msg={msg} onApprove={approve} onReject={reject} />)}
           </div>
         )

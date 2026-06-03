@@ -1,106 +1,152 @@
+import { Key, Database, Mail, Phone, Sliders, ExternalLink, DollarSign } from 'lucide-react'
+
+const sections = [
+  {
+    Icon: Mail,
+    title: 'Gmail',
+    items: [
+      { label: 'GMAIL_ADDRESS',      value: 'Set in backend/.env', note: 'Your Gmail address' },
+      { label: 'GMAIL_APP_PASSWORD', value: '••••••••••••••••',   note: 'App Password from Google Account → Security → App Passwords' },
+    ],
+  },
+  {
+    Icon: Key,
+    title: 'OpenAI',
+    items: [
+      { label: 'OPENAI_API_KEY', value: 'sk-...', note: 'From platform.openai.com — uses gpt-4o-mini (~£0.001 per message)' },
+    ],
+  },
+  {
+    Icon: Database,
+    title: 'Supabase',
+    items: [
+      { label: 'SUPABASE_URL',         value: 'https://xxx.supabase.co', note: 'From supabase.com → Project Settings → API' },
+      { label: 'SUPABASE_SERVICE_KEY', value: 'eyJ...', note: 'Service role key — NOT the anon key' },
+    ],
+  },
+  {
+    Icon: Phone,
+    title: 'Twilio SMS (Optional)',
+    items: [
+      { label: 'TWILIO_ACCOUNT_SID',  value: 'ACxxx...', note: 'From twilio.com/console — leave blank to disable SMS' },
+      { label: 'TWILIO_AUTH_TOKEN',   value: '...',       note: 'Auth token from Twilio console' },
+      { label: 'TWILIO_FROM_NUMBER',  value: '+441234567890', note: 'Your Twilio phone number' },
+    ],
+  },
+  {
+    Icon: Sliders,
+    title: 'Behaviour',
+    items: [
+      { label: 'REQUIRE_APPROVAL',    value: 'true',  note: 'Set to false to auto-send without your approval (not recommended yet)' },
+      { label: 'MAX_EMAILS_PER_DAY',  value: '50',    note: 'Stay under 500 to avoid Gmail spam flags. Start at 20–30.' },
+      { label: 'MAX_SMS_PER_DAY',     value: '20',    note: 'Each SMS costs ~£0.04 with Twilio' },
+    ],
+  },
+]
+
+const costs = [
+  { item: 'OpenAI (1,000 outreach emails)', cost: '~£0.15', period: 'one-time' },
+  { item: 'Twilio SMS (per message)',        cost: '~£0.04', period: 'per SMS' },
+  { item: 'Supabase',                        cost: 'Free',   period: 'up to 500MB / 50k rows' },
+  { item: 'Railway backend hosting',         cost: '~£5',    period: 'per month' },
+  { item: 'Vercel frontend hosting',         cost: 'Free',   period: 'hobby tier' },
+  { item: 'Total to start',                  cost: '~£5-10', period: 'per month', highlight: true },
+]
+
+const links = [
+  ['API Docs (local)',    'http://localhost:8000/docs'],
+  ['Supabase Dashboard', 'https://app.supabase.com'],
+  ['OpenAI Usage',       'https://platform.openai.com/usage'],
+  ['Twilio Console',     'https://console.twilio.com'],
+  ['Railway (backend)',  'https://railway.app'],
+  ['Vercel (frontend)',  'https://vercel.com'],
+]
+
 export default function Settings() {
-  const sections = [
-    {
-      title: '📧 Gmail',
-      items: [
-        { label: 'GMAIL_ADDRESS', value: 'Set in backend/.env', note: 'Your Gmail address' },
-        { label: 'GMAIL_APP_PASSWORD', value: '••••••••••••••••', note: 'App Password from Google Account Settings → Security → App Passwords' },
-      ],
-    },
-    {
-      title: '🤖 OpenAI',
-      items: [
-        { label: 'OPENAI_API_KEY', value: 'sk-...', note: 'From platform.openai.com — uses gpt-4o-mini (~£0.001 per message)' },
-      ],
-    },
-    {
-      title: '🗄️ Supabase',
-      items: [
-        { label: 'SUPABASE_URL', value: 'https://xxx.supabase.co', note: 'From supabase.com → Project Settings → API' },
-        { label: 'SUPABASE_SERVICE_KEY', value: 'eyJ...', note: 'Service role key — NOT the anon key' },
-      ],
-    },
-    {
-      title: '💬 Twilio SMS (Optional)',
-      items: [
-        { label: 'TWILIO_ACCOUNT_SID', value: 'ACxxx...', note: 'From twilio.com/console — leave blank to disable SMS' },
-        { label: 'TWILIO_AUTH_TOKEN', value: '...', note: 'Auth token from Twilio console' },
-        { label: 'TWILIO_FROM_NUMBER', value: '+441234567890', note: 'Your Twilio phone number' },
-      ],
-    },
-    {
-      title: '⚙️ Behaviour',
-      items: [
-        { label: 'REQUIRE_APPROVAL', value: 'true', note: 'Set to false to auto-send without your approval (not recommended yet)' },
-        { label: 'MAX_EMAILS_PER_DAY', value: '50', note: 'Stay under 500 to avoid Gmail spam flags. Start at 20-30.' },
-        { label: 'MAX_SMS_PER_DAY', value: '20', note: 'Each SMS costs ~£0.04 with Twilio' },
-      ],
-    },
-  ]
-
-  const costs = [
-    { item: 'OpenAI (1,000 outreach emails)', cost: '~£0.15', period: 'one-time' },
-    { item: 'Twilio SMS (per message)',       cost: '~£0.04', period: 'per SMS' },
-    { item: 'Supabase',                       cost: 'Free',   period: 'up to 500MB / 50k rows' },
-    { item: 'Railway backend hosting',        cost: '~£5',    period: 'per month' },
-    { item: 'Vercel frontend hosting',        cost: 'Free',   period: 'hobby tier' },
-    { item: 'Total to start',                 cost: '~£5-10', period: 'per month' },
-  ]
-
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8">
+    <div style={{ padding: '24px', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-white/40 text-sm mt-0.5">
-          All settings are in <code className="text-gold bg-dark-3 px-1 rounded">platform/backend/.env</code>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Settings</h1>
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+          All settings live in{' '}
+          <code style={{ fontSize: 11, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 6px', borderRadius: 5, color: '#D4A843', fontFamily: '"JetBrains Mono", monospace' }}>
+            platform/backend/.env
+          </code>
         </p>
       </div>
 
-      <div className="card rounded-xl p-4 border-amber-500/20 bg-amber-500/5">
-        <p className="text-amber-400 text-sm font-medium mb-1">⚠️ How to change settings</p>
-        <p className="text-white/60 text-sm">
-          Edit the file <code className="text-amber-300 bg-dark-3 px-1 rounded">platform/backend/.env</code> directly.
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, #0c0c12 100%)',
+        border: '1px solid rgba(245,158,11,0.2)',
+        borderRadius: 12, padding: '12px 16px',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#fbbf24', marginBottom: 4 }}>How to change settings</div>
+        <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>
+          Edit <code style={{ color: '#fbbf24', background: 'rgba(245,158,11,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: 11, fontFamily: '"JetBrains Mono", monospace' }}>platform/backend/.env</code> directly.
           Never commit this file to GitHub. Restart the backend after changes.
         </p>
       </div>
 
-      {sections.map(section => (
-        <div key={section.title} className="card rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-white/6 bg-dark-3">
-            <h2 className="font-semibold text-sm">{section.title}</h2>
-          </div>
-          <div className="divide-y divide-white/5">
-            {section.items.map(item => (
-              <div key={item.label} className="px-5 py-3.5 flex items-start gap-4">
-                <div className="flex-1">
-                  <div className="font-mono text-gold text-xs mb-0.5">{item.label}</div>
-                  <div className="text-white/30 text-xs leading-relaxed">{item.note}</div>
+      {sections.map(section => {
+        const Icon = section.Icon
+        return (
+          <div key={section.title} style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{
+              padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+              display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.02)',
+            }}>
+              <Icon size={14} color="rgba(255,255,255,0.4)" />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>{section.title}</span>
+            </div>
+            <div>
+              {section.items.map((item, i) => (
+                <div key={item.label} style={{
+                  padding: '12px 18px',
+                  borderBottom: i < section.items.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  display: 'flex', alignItems: 'flex-start', gap: 16,
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontSize: 11.5, fontWeight: 600, color: '#D4A843', marginBottom: 3,
+                      fontFamily: '"JetBrains Mono", monospace',
+                    }}>
+                      {item.label}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>{item.note}</div>
+                  </div>
+                  <div style={{
+                    fontSize: 11, color: 'rgba(255,255,255,0.2)', flexShrink: 0, marginTop: 1,
+                    fontFamily: '"JetBrains Mono", monospace',
+                  }}>
+                    {item.value}
+                  </div>
                 </div>
-                <div className="font-mono text-xs text-white/20 flex-shrink-0 mt-0.5">{item.value}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Cost breakdown */}
-      <div className="card rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-white/6 bg-dark-3">
-          <h2 className="font-semibold text-sm">💰 Running Costs</h2>
+      <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.02)' }}>
+          <DollarSign size={14} color="rgba(255,255,255,0.4)" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>Running Costs</span>
         </div>
-        <div className="divide-y divide-white/5">
-          {costs.map(c => (
-            <div key={c.item} className={`px-5 py-3 flex items-center justify-between ${
-              c.item.includes('Total') ? 'bg-gold/5' : ''
-            }`}>
-              <span className={`text-sm ${c.item.includes('Total') ? 'font-semibold text-white' : 'text-white/60'}`}>
+        <div>
+          {costs.map((c, i) => (
+            <div key={c.item} style={{
+              padding: '10px 18px',
+              borderBottom: i < costs.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: c.highlight ? 'rgba(212,168,67,0.04)' : 'transparent',
+            }}>
+              <span style={{ fontSize: 13, color: c.highlight ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.5)', fontWeight: c.highlight ? 600 : 400 }}>
                 {c.item}
               </span>
-              <div className="text-right">
-                <div className={`font-bold text-sm ${c.item.includes('Total') ? 'text-gold' : 'text-white'}`}>
-                  {c.cost}
-                </div>
-                <div className="text-white/30 text-xs">{c.period}</div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: c.highlight ? '#D4A843' : 'rgba(255,255,255,0.8)' }}>{c.cost}</div>
+                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.28)' }}>{c.period}</div>
               </div>
             </div>
           ))}
@@ -108,20 +154,23 @@ export default function Settings() {
       </div>
 
       {/* Useful links */}
-      <div className="card rounded-xl p-5">
-        <h2 className="font-semibold text-sm mb-4">🔗 Useful Links</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-          {[
-            ['API Docs (local)', 'http://localhost:8000/docs'],
-            ['Supabase Dashboard', 'https://app.supabase.com'],
-            ['OpenAI Usage', 'https://platform.openai.com/usage'],
-            ['Twilio Console', 'https://console.twilio.com'],
-            ['Railway (backend host)', 'https://railway.app'],
-            ['Vercel (frontend host)', 'https://vercel.com'],
-          ].map(([label, url]) => (
-            <a key={label} href={url} target="_blank" rel="noopener noreferrer"
-               className="flex items-center gap-2 text-white/50 hover:text-gold transition-colors">
-              <span className="text-xs">→</span> {label}
+      <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <ExternalLink size={14} color="rgba(255,255,255,0.4)" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>Useful Links</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {links.map(([label, url]) => (
+            <a key={label} href={url} target="_blank" rel="noopener noreferrer" style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 12.5, color: 'rgba(255,255,255,0.45)', textDecoration: 'none',
+              padding: '7px 10px', borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.06)',
+              background: 'rgba(255,255,255,0.02)',
+              transition: 'all 0.15s ease',
+            }}>
+              <ExternalLink size={11} color="rgba(255,255,255,0.2)" />
+              {label}
             </a>
           ))}
         </div>

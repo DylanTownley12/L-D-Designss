@@ -1,27 +1,50 @@
-export default function StatCard({ label, value, sub, color = 'gold', icon }) {
-  const colors = {
-    gold:   'border-gold/20 bg-gold/5',
-    blue:   'border-blue-500/20 bg-blue-500/5',
-    green:  'border-emerald-500/20 bg-emerald-500/5',
-    purple: 'border-purple-500/20 bg-purple-500/5',
-    red:    'border-red-500/20 bg-red-500/5',
+export default function StatCard({ label, value, sub, color = 'gold', icon: Icon }) {
+  const palette = {
+    gold:   { border: 'rgba(212,168,67,0.22)',    bg: 'rgba(212,168,67,0.07)',    text: '#D4A843',  glow: 'rgba(212,168,67,0.12)' },
+    blue:   { border: 'rgba(59,130,246,0.22)',    bg: 'rgba(59,130,246,0.07)',    text: '#60a5fa',  glow: 'rgba(59,130,246,0.1)' },
+    green:  { border: 'rgba(16,185,129,0.22)',    bg: 'rgba(16,185,129,0.07)',    text: '#34d399',  glow: 'rgba(16,185,129,0.1)' },
+    purple: { border: 'rgba(168,85,247,0.22)',    bg: 'rgba(168,85,247,0.07)',    text: '#c084fc',  glow: 'rgba(168,85,247,0.1)' },
+    red:    { border: 'rgba(239,68,68,0.22)',     bg: 'rgba(239,68,68,0.07)',     text: '#f87171',  glow: 'rgba(239,68,68,0.1)' },
   }
-  const textColors = {
-    gold:   'text-gold',
-    blue:   'text-blue-400',
-    green:  'text-emerald-400',
-    purple: 'text-purple-400',
-    red:    'text-red-400',
-  }
+  const p = palette[color] || palette.gold
 
   return (
-    <div className={`card border ${colors[color]} p-5 rounded-xl`}>
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-white/40 text-xs font-medium uppercase tracking-wider">{label}</span>
-        {icon && <span className="text-xl">{icon}</span>}
+    <div style={{
+      background: `linear-gradient(135deg, ${p.bg} 0%, #0c0c12 100%)`,
+      border: `1px solid ${p.border}`,
+      borderRadius: 14,
+      padding: '18px 20px',
+      position: 'relative',
+      overflow: 'hidden',
+      boxShadow: `0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.04)`,
+    }}>
+      {/* Corner glow */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0,
+        width: 90, height: 90,
+        background: `radial-gradient(circle at top right, ${p.glow}, transparent 65%)`,
+        pointerEvents: 'none',
+      }} />
+      {/* Label row */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+      }}>
+        <span className="text-label">{label}</span>
+        {Icon && <Icon size={14} color={p.text} style={{ opacity: 0.7 }} />}
       </div>
-      <div className={`text-3xl font-bold ${textColors[color]} mb-1`}>{value}</div>
-      {sub && <div className="text-white/35 text-xs">{sub}</div>}
+      {/* Value */}
+      <div className="count-anim num-display" style={{ fontSize: 32, color: p.text, marginBottom: 4 }}>
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 2 }}>{sub}</div>}
+      {/* Bottom accent */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 1,
+        background: `linear-gradient(90deg, ${p.border}, transparent 60%)`,
+      }} />
     </div>
   )
 }
