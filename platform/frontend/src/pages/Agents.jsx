@@ -4,7 +4,7 @@ import {
   Crown, Map, Megaphone, Briefcase, Code2, BarChart2, Network,
   Search, ScanSearch, Palette, Gem, Mail, RotateCcw,
   Play, RefreshCcw, AlertCircle, CheckCircle2, Activity,
-  ChevronDown, Zap,
+  ChevronDown, Zap, MessageSquare, Send, X,
 } from 'lucide-react'
 
 const AGENT_META = {
@@ -41,7 +41,7 @@ function relTime(iso) {
 }
 
 /* ── Agent Roster Row ── */
-function AgentRow({ name, status, lastAction, lastTime, isFirst }) {
+function AgentRow({ name, status, lastAction, lastTime, isFirst, onChat }) {
   const meta = AGENT_META[name] || { Icon: Activity, label: name, role: '', color: '#6b7280', desc: '' }
   const { Icon } = meta
   const c = meta.color
@@ -59,17 +59,23 @@ function AgentRow({ name, status, lastAction, lastTime, isFirst }) {
     : 'transparent'
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '32px 1fr auto auto',
-      gap: 14,
-      alignItems: 'center',
-      padding: '9px 14px',
-      borderBottom: '1px solid rgba(255,255,255,0.04)',
-      background: rowBg,
-      transition: 'background 0.3s ease',
-      borderLeft: isRunning ? `2px solid ${c}60` : '2px solid transparent',
-    }}>
+    <div
+      onClick={() => onChat(name)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '32px 1fr auto auto auto',
+        gap: 14,
+        alignItems: 'center',
+        padding: '9px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        background: rowBg,
+        transition: 'all 0.2s ease',
+        borderLeft: isRunning ? `2px solid ${c}60` : '2px solid transparent',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = isRunning ? rowBg : `rgba(255,255,255,0.025)`}
+      onMouseLeave={e => e.currentTarget.style.background = rowBg}
+    >
 
       {/* Icon */}
       <div style={{
@@ -131,6 +137,11 @@ function AgentRow({ name, status, lastAction, lastTime, isFirst }) {
         }}>
           {isRunning ? 'RUNNING' : isError ? 'ERROR' : isDone ? 'DONE' : 'STANDBY'}
         </span>
+      </div>
+
+      {/* Chat icon */}
+      <div style={{ flexShrink: 0, opacity: 0.25 }}>
+        <MessageSquare size={12} color={c} />
       </div>
     </div>
   )
@@ -372,6 +383,223 @@ function TemplateStats() {
   )
 }
 
+/* ── Chat Drawer ── */
+function ChatDrawer({ agentName, onClose }) {
+  const meta = AGENT_META[agentName] || { Icon: Activity, label: agentName, color: '#6b7280', role: '' }
+  const { Icon } = meta
+  const c = meta.color
+
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    setMessages([{
+      role: 'assistant',
+      content: `Hey — I'm ${meta.label}. Ask me anything about the business.`,
+    }])
+  }, [agentName])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const send = async () => {
+    const msg = input.trim()
+    if (!msg || sending) return
+    setInput('')
+    const newMessages = [...messages, { role: 'user', content: msg }]
+    setMessages(newMessages)
+    setSending(true)
+    try {
+      const history = newMessages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
+      const { reply } = await agentsApi.chat(agentName, msg, history)
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}` }])
+    }
+    setSending(false)
+  }
+
+  const onKey = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }
+
+  const suggestedQuestions = {
+    ceo_agent: ["What's broken right now?", "What should I fix today?", "Is the pipeline healthy?"],
+    cmo_agent: ["Why is my reply rate low?", "What opener should I try next?", "Which channel is performing best?"],
+    sales_agent: ["Which leads should I call today?", "Write me a closing message", "How do I handle price objections?"],
+    dev_agent: ["Any errors in the last 24h?", "Which agents aren't running?", "What's silently broken?"],
+    analyst_agent: ["Which city should I target next?", "What's my conversion funnel look like?", "Are higher quality leads converting better?"],
+    research_agent: ["Which UK cities have the most unwebsited barbers?", "Where should I expand next?"],
+  }[agentName] || ["What can you tell me?", "What should I focus on?"]
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: 440,
+      background: 'rgba(2, 2, 14, 0.97)',
+      backdropFilter: 'blur(20px)',
+      borderLeft: `1px solid ${c}25`,
+      display: 'flex', flexDirection: 'column',
+      zIndex: 1000,
+      boxShadow: `-20px 0 60px rgba(0,0,0,0.5)`,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '16px 18px', borderBottom: `1px solid ${c}18`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: `linear-gradient(135deg, ${c}08 0%, transparent 100%)`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: c + '18', border: `1px solid ${c}30`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 0 12px ${c}20`,
+          }}>
+            <Icon size={15} color={c} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.88)' }}>
+              {meta.label}
+            </div>
+            <div style={{ fontSize: 10, color: c, opacity: 0.7, display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
+              <div style={{ width: 4, height: 4, borderRadius: '50%', background: c, boxShadow: `0 0 4px ${c}` }} />
+              {meta.role}
+            </div>
+          </div>
+        </div>
+        <button onClick={onClose} style={{
+          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.4)',
+          display: 'flex', alignItems: 'center',
+        }}>
+          <X size={14} />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{
+            display: 'flex',
+            justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+          }}>
+            {m.role === 'assistant' && (
+              <div style={{
+                width: 22, height: 22, borderRadius: 7, background: c + '18',
+                border: `1px solid ${c}25`, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', flexShrink: 0, marginRight: 8, marginTop: 2,
+              }}>
+                <Icon size={10} color={c} />
+              </div>
+            )}
+            <div style={{
+              maxWidth: '80%',
+              padding: '9px 13px',
+              borderRadius: m.role === 'user' ? '12px 12px 3px 12px' : '3px 12px 12px 12px',
+              background: m.role === 'user'
+                ? `linear-gradient(135deg, ${c}22, ${c}18)`
+                : 'rgba(255,255,255,0.05)',
+              border: m.role === 'user'
+                ? `1px solid ${c}35`
+                : '1px solid rgba(255,255,255,0.07)',
+              fontSize: 12.5,
+              lineHeight: 1.55,
+              color: m.role === 'user' ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.72)',
+              whiteSpace: 'pre-wrap',
+            }}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {sending && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: 7, background: c + '18',
+              border: `1px solid ${c}25`, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Icon size={10} color={c} />
+            </div>
+            <div style={{
+              display: 'flex', gap: 4, padding: '10px 13px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '3px 12px 12px 12px',
+            }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  width: 5, height: 5, borderRadius: '50%', background: c,
+                  animation: `orbBreathe 1.2s ease-in-out ${i * 0.2}s infinite`,
+                }} />
+              ))}
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Suggested questions */}
+      {messages.length <= 1 && (
+        <div style={{ padding: '0 18px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {suggestedQuestions.map((q, i) => (
+            <button
+              key={i}
+              onClick={() => { setInput(q); inputRef.current?.focus() }}
+              style={{
+                padding: '5px 10px', borderRadius: 8,
+                background: c + '0e', border: `1px solid ${c}22`,
+                color: c, fontSize: 10.5, cursor: 'pointer',
+                fontFamily: '"JetBrains Mono", monospace',
+              }}
+            >{q}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{
+        padding: '12px 18px', borderTop: `1px solid ${c}12`,
+        display: 'flex', gap: 10, alignItems: 'flex-end',
+        background: 'rgba(0,0,0,0.3)',
+      }}>
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={onKey}
+          placeholder={`Ask ${meta.label}...`}
+          rows={1}
+          style={{
+            flex: 1, background: 'rgba(255,255,255,0.05)',
+            border: `1px solid ${input ? c + '40' : 'rgba(255,255,255,0.08)'}`,
+            borderRadius: 10, padding: '9px 12px',
+            color: 'rgba(255,255,255,0.88)', fontSize: 12.5,
+            resize: 'none', outline: 'none',
+            fontFamily: 'Inter, sans-serif', lineHeight: 1.5,
+            maxHeight: 100, overflowY: 'auto',
+          }}
+        />
+        <button
+          onClick={send}
+          disabled={!input.trim() || sending}
+          style={{
+            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+            background: input.trim() && !sending ? `linear-gradient(135deg, ${c}, ${c}cc)` : 'rgba(255,255,255,0.06)',
+            border: 'none', cursor: input.trim() && !sending ? 'pointer' : 'not-allowed',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: input.trim() && !sending ? `0 2px 12px ${c}40` : 'none',
+          }}
+        >
+          <Send size={14} color={input.trim() && !sending ? '#000' : 'rgba(255,255,255,0.2)'} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main ── */
 export default function Agents() {
   const [logs, setLogs] = useState([])
@@ -379,6 +607,7 @@ export default function Agents() {
   const [task, setTask] = useState('auto')
   const [error, setError] = useState(null)
   const [activeSession, setActiveSession] = useState(null)
+  const [chatAgent, setChatAgent] = useState(null)
   const pollRef = useRef(null)
   const logEndRef = useRef(null)
 
@@ -447,6 +676,7 @@ export default function Agents() {
   const activeCount = Object.values(agentStatus).filter(s => s === 'running').length
 
   return (
+    <>
     <div style={{ padding: '22px 24px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* ── HEADER ── */}
@@ -545,7 +775,7 @@ export default function Agents() {
         {/* Roster header */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '32px 1fr auto auto',
+          gridTemplateColumns: '32px 1fr auto auto auto',
           gap: 14,
           padding: '8px 14px',
           borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -553,7 +783,7 @@ export default function Agents() {
         }}>
           <div />
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.18)', fontFamily: '"JetBrains Mono", monospace' }}>
-            EMPLOYEE / LAST MISSION
+            EMPLOYEE / LAST MISSION — CLICK TO CHAT
           </span>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.18)', fontFamily: '"JetBrains Mono", monospace', textAlign: 'right' }}>
             TIME
@@ -561,6 +791,7 @@ export default function Agents() {
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.18)', fontFamily: '"JetBrains Mono", monospace', textAlign: 'right', minWidth: 72 }}>
             STATUS
           </span>
+          <div />
         </div>
 
         {Object.keys(AGENT_META).map((name, i) => (
@@ -571,6 +802,7 @@ export default function Agents() {
             lastAction={agentLastAction[name]}
             lastTime={agentLastTime[name]}
             isFirst={i === 0}
+            onChat={setChatAgent}
           />
         ))}
       </div>
@@ -621,5 +853,21 @@ export default function Agents() {
       </div>
 
     </div>
+
+    {/* ── AGENT CHAT DRAWER ── */}
+    {chatAgent && (
+      <>
+        <div
+          onClick={() => setChatAgent(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+          }}
+        />
+        <ChatDrawer agentName={chatAgent} onClose={() => setChatAgent(null)} />
+      </>
+    )}
+    </>
   )
 }

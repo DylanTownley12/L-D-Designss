@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from pydantic import BaseModel
+from typing import Optional
 from models.schemas import AgentRunRequest, AgentRunResult
 from agents import (
     lead_finder,
@@ -16,7 +18,14 @@ from agents import (
     sales_agent,
     dev_agent,
     analyst_agent,
+    chat_agent,
 )
+
+
+class ChatRequest(BaseModel):
+    agent: str
+    message: str
+    history: Optional[list] = []
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -202,3 +211,73 @@ async def orchestrate_sessions(limit: int = 10):
 
     sorted_sessions = sorted(sessions.values(), key=lambda s: s["started_at"], reverse=True)
     return {"sessions": sorted_sessions[:limit], "recent_logs": logs[:100]}
+
+
+@router.post("/chat")
+async def agent_chat(req: ChatRequest):
+    """Chat directly with any agent — they respond using live DB context."""
+    reply = chat_agent.chat(req.agent, req.message, req.history or [])
+    return {"reply": reply, "agent": req.agent}
+
+
+@router.get("/wa-queue")
+async def get_wa_queue(limit: int = 10):
+    """
+    Returns pending WhatsApp outreach messages for Baz to send.
+    Called by Baz at 9am to get that day's batch.
+    """
+    from db.client import get_db
+    db = get_db()
+
+    result = (
+        db.table("outreach_messages")
+        .select("id, body, leads(business_name, phone)")
+        .eq("status", "queued")
+        .eq("channel", "whatsapp")
+        .eq("direction", "outbound")
+        .order("created_at")
+        .limit(limit)
+        .execute()
+    )
+
+    messages = []
+    for msg in (result.data or []):
+        lead = msg.get("leads") or {}
+        phone = lead.get("phone", "")
+        if not phone:
+            continue
+        # Normalise to +44 format
+        p = phone.strip()
+        if p.startswith("0"):
+            p = "+44" + p[1:]
+        elif not p.startswith("+"):
+            p = "+44" + p
+        messages.append({
+            "id": msg["id"],
+            "to": p,
+            "business_name": lead.get("business_name", ""),
+            "body": msg["body"],
+        })
+
+    return {"messages": messages, "count": len(messages)}
+
+
+@router.post("/wa-sent")
+async def mark_wa_sent(message_ids: list):
+    """Mark WhatsApp messages as sent after Baz delivers them."""
+    from db.client import get_db
+    from datetime import datetime
+    db = get_db()
+
+    updated = 0
+    for mid in message_ids:
+        try:
+            db.table("outreach_messages").update({
+                "status": "sent",
+                "sent_at": datetime.utcnow().isoformat(),
+            }).eq("id", mid).execute()
+            updated += 1
+        except Exception:
+            pass
+
+    return {"updated": updated}

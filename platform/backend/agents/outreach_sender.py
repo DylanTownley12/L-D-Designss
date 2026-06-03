@@ -184,8 +184,9 @@ def send_message(message_id: str, retry: bool = False) -> dict:
 
 def process_queue(max_send: int = 10) -> dict:
     """
-    Process the outreach queue — send approved messages up to max_send limit.
-    Called by the scheduler every hour.
+    Process the outreach queue — send email/SMS messages.
+    Picks up status 'queued' OR 'approved'. WhatsApp is handled by Baz via OpenClaw.
+    Called by the scheduler every 30 mins.
     """
     db = get_db()
     sent = 0
@@ -194,8 +195,8 @@ def process_queue(max_send: int = 10) -> dict:
 
     result = (
         db.table("outreach_messages")
-        .select("id, channel")
-        .eq("status", "approved")
+        .select("id, channel, approved_by_founder")
+        .in_("status", ["queued", "approved"])
         .neq("channel", "whatsapp")
         .order("created_at")
         .limit(max_send)
@@ -206,6 +207,11 @@ def process_queue(max_send: int = 10) -> dict:
         if _is_rate_limited(db, msg["channel"]):
             skipped += 1
             continue
+
+        # Auto-approve AI-generated messages if REQUIRE_APPROVAL is off
+        if not msg.get("approved_by_founder") and not settings.REQUIRE_APPROVAL:
+            db.table("outreach_messages").update({"approved_by_founder": True}) \
+                .eq("id", msg["id"]).execute()
 
         outcome = send_message(msg["id"])
         if outcome["success"]:

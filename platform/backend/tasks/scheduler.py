@@ -191,6 +191,15 @@ async def _analyst_run():
         logger.error(f"[analyst_agent] Failed: {e}", exc_info=True)
 
 
+async def _claude_tasks():
+    try:
+        from agents.claude_agent import run
+        result = run()
+        logger.info(f"[claude_agent] Daily tasks: {list(result.keys())}")
+    except Exception as e:
+        logger.error(f"[claude_agent] Failed: {e}", exc_info=True)
+
+
 # ── Scheduler setup ──────────────────────────────────────────────────────────
 
 def start_scheduler():
@@ -257,8 +266,12 @@ def start_scheduler():
     scheduler.add_job(**job(_sales_run, id="sales_agent",
         trigger=IntervalTrigger(hours=6)))
 
+    # 10:00am — Claude agent: A/B analysis, opener improvements, hot lead surfacing
+    scheduler.add_job(**job(_claude_tasks, id="claude_agent",
+        trigger=CronTrigger(hour=10, minute=0, timezone=TZ)))
+
     scheduler.start()
-    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst | morning: 5:55am health, 6am leads, 6:30am previews, 7am WA, 8am briefing, 9am followups | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
+    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst | morning: 5:55am health, 6am leads, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
 
 
 def stop_scheduler():

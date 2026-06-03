@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str
 
+    # Anthropic (agent chat + Claude tasks)
+    ANTHROPIC_API_KEY: Optional[str] = None
+
     # Gmail
     GMAIL_ADDRESS: str
     GMAIL_APP_PASSWORD: str
