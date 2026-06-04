@@ -82,6 +82,45 @@ async def create_checkout(lead_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/status/{lead_id}")
+async def get_payment_status(lead_id: str):
+    """Return the Stripe payment status for a lead, or null if no checkout exists yet."""
+    db = get_db()
+    lead = db.table("leads").select("id, notes, status").eq("id", lead_id).single().execute()
+    if not lead.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    notes = lead.data.get("notes") or ""
+    session_id = None
+    for part in notes.split(";"):
+        part = part.strip()
+        if part.startswith("stripe_session:"):
+            session_id = part.split(":", 1)[1].strip()
+            break
+
+    if not session_id:
+        return {"session_id": None, "payment_status": None, "stripe_status": None}
+
+    if not settings.STRIPE_SECRET_KEY:
+        return {"session_id": session_id, "payment_status": "unknown", "stripe_status": "unknown"}
+
+    try:
+        stripe = _stripe()
+        session = stripe.checkout.Session.retrieve(session_id)
+        return {
+            "session_id": session_id,
+            "stripe_status": session.status,
+            "payment_status": session.payment_status,
+            "amount_total": session.amount_total,
+            "currency": session.currency,
+            "created": session.created,
+            "url": session.url,
+        }
+    except Exception as e:
+        logger.warning(f"Could not retrieve Stripe session {session_id}: {e}")
+        return {"session_id": session_id, "payment_status": "unknown", "stripe_status": "unknown"}
+
+
 @router.get("/link/{lead_id}")
 async def get_payment_link(lead_id: str):
     """Quick redirect — creates a checkout and returns the URL."""

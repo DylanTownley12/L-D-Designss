@@ -78,6 +78,7 @@ export const webhooks = {
 export const payments = {
   createCheckout: (lead_id) => api.post(`/payments/create-checkout/${lead_id}`),
   getLink: (lead_id) => api.get(`/payments/link/${lead_id}`),
+  getStatus: (lead_id) => api.get(`/payments/status/${lead_id}`),
 }
 
 export const publicStats = {

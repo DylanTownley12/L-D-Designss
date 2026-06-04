@@ -84,26 +84,127 @@ function relTime(iso) {
   return `${Math.floor(d / 3600000)}h ago`
 }
 
+function PaymentStatusBlock({ lead, onPaymentSent }) {
+  const [payStatus, setPayStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+
+  useEffect(() => {
+    if (!lead?.id) return
+    payments.getStatus(lead.id)
+      .then(setPayStatus)
+      .catch(() => setPayStatus(null))
+      .finally(() => setLoading(false))
+  }, [lead?.id])
+
+  const sendLink = async () => {
+    setSending(true)
+    try {
+      const { checkout_url } = await payments.createCheckout(lead.id)
+      window.open(checkout_url, '_blank')
+      payments.getStatus(lead.id).then(setPayStatus).catch(() => {})
+      onPaymentSent?.()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const isPaid = payStatus?.payment_status === 'paid' || lead?.status === 'converted'
+  const isAwaiting = payStatus?.session_id && !isPaid
+  const noneYet = !payStatus?.session_id && !isPaid
+
+  const paidDate = payStatus?.created
+    ? new Date(payStatus.created * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null
+
+  return (
+    <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.borderDim}`, background: isPaid ? 'rgba(0,255,136,0.03)' : 'rgba(212,168,67,0.04)' }}>
+      <div style={{ ...lbl(), color: isPaid ? C.green : C.gold, marginBottom: 8, fontSize: 8 }}>
+        PAYMENT STATUS
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 11, color: C.textDim, fontFamily: C.mono }}>CHECKING STRIPE...</div>
+      ) : isPaid ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: 'rgba(0,255,136,0.08)', border: `1px solid rgba(0,255,136,0.2)`,
+          borderRadius: 9, padding: '11px 14px',
+        }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(0,255,136,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <CreditCard size={13} color={C.green} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.green }}>£75 DEPOSIT PAID</div>
+            {paidDate && <div style={{ fontSize: 10, color: `${C.green}80`, marginTop: 1 }}>Received {paidDate} · Build their site now</div>}
+          </div>
+        </div>
+      ) : isAwaiting ? (
+        <div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'rgba(245,158,11,0.08)', border: `1px solid rgba(245,158,11,0.2)`,
+            borderRadius: 9, padding: '11px 14px', marginBottom: 8,
+          }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CreditCard size={13} color="#fbbf24" />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>LINK SENT — AWAITING PAYMENT</div>
+              <div style={{ fontSize: 10, color: 'rgba(251,191,36,0.6)', marginTop: 1 }}>Barber has a checkout URL but hasn't paid yet</div>
+            </div>
+          </div>
+          <button
+            onClick={sendLink}
+            disabled={sending}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              background: 'rgba(212,168,67,0.12)', border: `1px solid rgba(212,168,67,0.3)`,
+              color: C.gold, fontWeight: 600, fontSize: 12,
+              padding: '9px', borderRadius: 8, cursor: sending ? 'wait' : 'pointer',
+              opacity: sending ? 0.6 : 1,
+            }}
+          >
+            <CreditCard size={12} />
+            {sending ? 'Creating...' : 'Resend New Link'}
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8 }}>No payment link sent yet.</div>
+          <button
+            onClick={sendLink}
+            disabled={sending}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
+              color: '#000', fontWeight: 700, fontSize: 13,
+              padding: '11px', borderRadius: 9, border: 'none', cursor: sending ? 'wait' : 'pointer',
+              opacity: sending ? 0.7 : 1,
+              boxShadow: `0 0 20px ${C.gold}30`,
+            }}
+          >
+            <CreditCard size={14} />
+            {sending ? 'Creating link...' : 'Send £75 Deposit Link (Stripe)'}
+          </button>
+          <div style={{ fontSize: 10, color: C.textDim, textAlign: 'center', marginTop: 6 }}>
+            Opens Stripe checkout — on payment, lead auto-converts and onboarding message queued
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ConversationDrawer({ lead, onClose }) {
   const [detail, setDetail] = useState(null)
-  const [paymentLoading, setPaymentLoading] = useState(false)
 
   useEffect(() => {
     if (!lead) return
     leadsApi.get(lead.id).then(setDetail).catch(() => {})
   }, [lead?.id])
-
-  const sendPaymentLink = async () => {
-    setPaymentLoading(true)
-    try {
-      const { checkout_url } = await payments.createCheckout(lead.id)
-      window.open(checkout_url, '_blank')
-    } catch (e) {
-      alert(e.message)
-    } finally {
-      setPaymentLoading(false)
-    }
-  }
 
   const msgs = detail?.messages || []
 
@@ -132,29 +233,9 @@ function ConversationDrawer({ lead, onClose }) {
         </button>
       </div>
 
-      {/* Status + payment button */}
-      {['replied', 'interested'].includes(lead?.status) && (
-        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.borderDim}`, background: 'rgba(212,168,67,0.04)' }}>
-          <div style={{ ...lbl(), color: C.gold, marginBottom: 8, fontSize: 8 }}>READY TO CONVERT</div>
-          <button
-            onClick={sendPaymentLink}
-            disabled={paymentLoading}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
-              color: '#000', fontWeight: 700, fontSize: 13,
-              padding: '11px', borderRadius: 9, border: 'none', cursor: paymentLoading ? 'wait' : 'pointer',
-              opacity: paymentLoading ? 0.7 : 1,
-              boxShadow: `0 0 20px ${C.gold}30`,
-            }}
-          >
-            <CreditCard size={14} />
-            {paymentLoading ? 'Creating link...' : 'Send £75 Deposit Link (Stripe)'}
-          </button>
-          <div style={{ fontSize: 10, color: C.textDim, textAlign: 'center', marginTop: 6 }}>
-            Opens Stripe checkout — on payment, lead auto-converts and onboarding message queued
-          </div>
-        </div>
+      {/* Payment status — always show for replied/interested/converted */}
+      {['replied', 'interested', 'converted'].includes(lead?.status) && (
+        <PaymentStatusBlock lead={lead} />
       )}
 
       {/* Messages */}
