@@ -247,7 +247,7 @@ def _write_whatsapp(lead: dict, preview_url: str | None = None, variant_index: i
     return _WHATSAPP_TEMPLATES[idx].format(name=name, city=city, preview_suffix=preview_suffix)
 
 
-MAX_WA_PER_DAY = 15
+MAX_WA_PER_DAY = 10
 MAX_IG_PER_DAY = 15
 MIN_QUEUE_BUFFER = 30  # auto-refill when queue drops below this
 
@@ -282,6 +282,7 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
         db.table("leads")
         .select("*")
         .eq("status", "preview_ready")
+        .order("quality_score", desc=True)
         .limit(effective_limit * 5)
         .execute()
     )

@@ -302,33 +302,31 @@ async def fix_preview_urls():
     PROD = "https://l-d-designss-production.up.railway.app"
     fixed = 0
 
-    # Fix 1: records with NULL or empty preview_url — reconstruct from ID
+    # Fix 1: records with NULL preview_url — reconstruct from ID
     result = (
         db.table("previews")
-        .select("id, preview_url, html_content")
+        .select("id")
         .is_("preview_url", "null")
         .limit(2000)
         .execute()
     )
     for row in (result.data or []):
-        if row.get("html_content"):
-            new_url = f"{PROD}/previews/serve/{row['id']}"
-            db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
-            fixed += 1
+        new_url = f"{PROD}/previews/serve/{row['id']}"
+        db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
+        fixed += 1
 
     # Fix 2: records with empty string preview_url
     result2 = (
         db.table("previews")
-        .select("id, preview_url, html_content")
+        .select("id")
         .eq("preview_url", "")
         .limit(2000)
         .execute()
     )
     for row in (result2.data or []):
-        if row.get("html_content"):
-            new_url = f"{PROD}/previews/serve/{row['id']}"
-            db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
-            fixed += 1
+        new_url = f"{PROD}/previews/serve/{row['id']}"
+        db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
+        fixed += 1
 
     # Fix 3: any remaining localhost URLs
     result3 = (
