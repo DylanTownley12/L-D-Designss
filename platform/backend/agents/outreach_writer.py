@@ -387,24 +387,25 @@ _INSTAGRAM_DM_TEMPLATES = [
 
 def generate_instagram_campaign(limit: int = 50) -> dict:
     """
-    Generate Instagram DM scripts for preview_ready leads that have an instagram_url.
+    Generate Instagram DM scripts for preview_ready leads.
     Stored as queued outreach_messages with channel='instagram' — copy only, not sent automatically.
     """
     from db.client import get_db
     db = get_db()
 
-    # All preview_ready leads — instagram_url not required since friend sends manually
     result = (
         db.table("leads")
-        .select("*")
+        .select("id,business_name,city,instagram_url,status")
         .eq("status", "preview_ready")
         .limit(limit)
         .execute()
     )
     leads = result.data or []
+    logger.info(f"Instagram campaign: fetched {len(leads)} preview_ready leads")
 
     generated = 0
     skipped = 0
+    errors = 0
 
     for lead in leads:
         lead_id = lead["id"]
@@ -414,7 +415,6 @@ def generate_instagram_campaign(limit: int = 50) -> dict:
                 .select("id")
                 .eq("lead_id", lead_id)
                 .eq("channel", "instagram")
-                .in_("status", ["queued", "sent"])
                 .execute()
             )
             if existing.data:
@@ -439,9 +439,22 @@ def generate_instagram_campaign(limit: int = 50) -> dict:
 
         except Exception as e:
             logger.error(f"Instagram DM generation failed for lead {lead_id}: {e}")
+            errors += 1
 
-    logger.info(f"Instagram campaign: {generated} generated, {skipped} skipped")
-    return {"generated": generated, "skipped": skipped}
+    logger.info(f"Instagram campaign: {generated} generated, {skipped} skipped, {errors} errors")
+
+    # Write to agent_logs so it shows on dashboard
+    try:
+        db.table("agent_logs").insert({
+            "agent_name": "instagram_campaign",
+            "action": f"Generated {generated} Instagram DM scripts, {skipped} already had scripts",
+            "status": "success" if errors == 0 else "warning",
+            "details": {"generated": generated, "skipped": skipped, "errors": errors, "leads_fetched": len(leads)},
+        }).execute()
+    except Exception:
+        pass
+
+    return {"generated": generated, "skipped": skipped, "errors": errors}
 
 
 def run_batch(limit: int = 50) -> dict:
