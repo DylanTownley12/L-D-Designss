@@ -1,28 +1,32 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from db.client import get_db
 from agents import preview_generator, notification_agent
+from datetime import datetime, timedelta, timezone
+from collections import defaultdict
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/previews", tags=["previews"])
+
+BEACON_SCRIPT = """<script>
+(function(){{
+  try {{
+    fetch("/api/previews/view/{pid}",{{method:"POST",keepalive:true}}).catch(function(){{}});
+  }} catch(e) {{}}
+}})();
+</script>"""
 
 
 @router.post("/generate/{lead_id}")
 async def generate_preview(lead_id: str, background_tasks: BackgroundTasks):
-    """Generate a preview website for a lead."""
     db = get_db()
-
     lead_result = db.table("leads").select("*").eq("id", lead_id).single().execute()
     if not lead_result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
-
     result = preview_generator.run(lead_id)
-
     if result["status"] == "success":
-        background_tasks.add_task(
-            notification_agent.notify_preview_ready,
-            lead_id,
-            result["preview_url"],
-        )
+        background_tasks.add_task(notification_agent.notify_preview_ready, lead_id, result["preview_url"])
         return result
     else:
         raise HTTPException(status_code=500, detail=result.get("message", "Preview generation failed"))
@@ -30,32 +34,42 @@ async def generate_preview(lead_id: str, background_tasks: BackgroundTasks):
 
 @router.post("/generate-batch")
 async def generate_batch(limit: int = 10, background_tasks: BackgroundTasks = None):
-    """Generate previews for all leads in preview_ready status."""
     db = get_db()
-
     result = (
-        db.table("leads")
-        .select("id")
-        .eq("status", "preview_ready")
-        .eq("website_status", "none")
-        .limit(limit)
-        .execute()
+        db.table("leads").select("id")
+        .eq("status", "preview_ready").eq("website_status", "none")
+        .limit(limit).execute()
     )
-
     lead_ids = [r["id"] for r in (result.data or [])]
     generated = 0
-
     for lead_id in lead_ids:
         outcome = preview_generator.run(lead_id)
         if outcome["status"] == "success":
             generated += 1
-
     return {"generated": generated, "total": len(lead_ids)}
+
+
+@router.post("/view/{preview_id}")
+async def log_preview_view(preview_id: str):
+    """Beacon endpoint — called by JS injected into every served preview HTML."""
+    db = get_db()
+    try:
+        row = db.table("previews").select("lead_id").eq("id", preview_id).single().execute()
+        lead_id = (row.data or {}).get("lead_id")
+        db.table("agent_logs").insert({
+            "agent_name": "preview_beacon",
+            "action": "preview_viewed",
+            "status": "success",
+            "details": {"preview_id": preview_id, "lead_id": lead_id},
+        }).execute()
+        logger.info(f"[preview_beacon] view logged: preview={preview_id} lead={lead_id}")
+    except Exception as e:
+        logger.warning(f"[preview_beacon] log failed: {e}")
+    return JSONResponse({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
 
 
 @router.get("/by-phone/{phone}")
 async def get_preview_by_phone(phone: str):
-    """Baz calls this with a barber's phone number to get their preview URL."""
     db = get_db()
     clean = phone.replace("+44", "0").replace("+", "").replace(" ", "").replace("-", "")
     lead_result = db.table("leads").select("id").ilike("phone", f"%{clean[-9:]}%").limit(1).execute()
@@ -63,12 +77,8 @@ async def get_preview_by_phone(phone: str):
         raise HTTPException(status_code=404, detail="No lead found for this phone number")
     lead_id = lead_result.data[0]["id"]
     preview_result = (
-        db.table("previews")
-        .select("preview_url")
-        .eq("lead_id", lead_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
+        db.table("previews").select("preview_url")
+        .eq("lead_id", lead_id).order("created_at", desc=True).limit(1).execute()
     )
     if not preview_result.data or not preview_result.data[0].get("preview_url"):
         raise HTTPException(status_code=404, detail="No preview found for this number")
@@ -77,15 +87,10 @@ async def get_preview_by_phone(phone: str):
 
 @router.get("/by-lead/{lead_id}")
 async def get_preview_by_lead(lead_id: str):
-    """Get the latest preview URL for a lead."""
     db = get_db()
     result = (
-        db.table("previews")
-        .select("id, preview_url, created_at")
-        .eq("lead_id", lead_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
+        db.table("previews").select("id, preview_url, created_at")
+        .eq("lead_id", lead_id).order("created_at", desc=True).limit(1).execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="No preview found for this lead")
@@ -103,30 +108,68 @@ async def list_previews(limit: int = 50, offset: int = 0):
         .execute()
     )
     total = result.count if result.count is not None else len(result.data or [])
-    return {"previews": result.data or [], "total": total, "limit": limit, "offset": offset}
+    previews = result.data or []
+
+    # Annotate with view counts from beacon logs (last 30 days, max 2000 rows)
+    try:
+        thirty_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        view_logs = (
+            db.table("agent_logs").select("details, created_at")
+            .eq("agent_name", "preview_beacon")
+            .gte("created_at", thirty_ago)
+            .limit(2000).execute().data or []
+        )
+        view_counts: dict = defaultdict(int)
+        last_viewed: dict = {}
+        for log in view_logs:
+            pid = (log.get("details") or {}).get("preview_id")
+            ts = log.get("created_at") or ""
+            if pid:
+                view_counts[pid] += 1
+                if ts > last_viewed.get(pid, ""):
+                    last_viewed[pid] = ts
+        for p in previews:
+            pid = p["id"]
+            p["view_count"] = view_counts.get(pid, 0)
+            p["last_viewed_at"] = last_viewed.get(pid)
+    except Exception as e:
+        logger.warning(f"[previews/list] view annotation failed: {e}")
+        for p in previews:
+            p["view_count"] = 0
+            p["last_viewed_at"] = None
+
+    return {"previews": previews, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/serve/{preview_id}", response_class=HTMLResponse)
 async def serve_preview(preview_id: str):
-    """Serve a preview website directly from the database — survives redeploys."""
+    """Serve a preview from DB and inject view beacon script."""
     db = get_db()
     result = db.table("previews").select("html_content, lead_id").eq("id", preview_id).single().execute()
     if not result.data:
         return HTMLResponse(content=_missing_page("Preview not found."), status_code=404)
+
     html = result.data.get("html_content") or ""
+    lead_id = result.data.get("lead_id")
+
     if len(html) < 1000:
-        # Old file-based preview or truncated — serve a holding page and queue regeneration
-        lead_id = result.data.get("lead_id")
         if lead_id:
             try:
                 preview_generator.run(lead_id)
-                # Re-fetch after regeneration
                 result2 = db.table("previews").select("html_content").eq("id", preview_id).single().execute()
                 html = (result2.data or {}).get("html_content") or ""
             except Exception:
                 pass
         if len(html) < 1000:
-            return HTMLResponse(content=_missing_page("This preview is being regenerated. Check back in a moment."), status_code=200)
+            return HTMLResponse(content=_missing_page("This preview is being regenerated. Check back in a moment."))
+
+    # Inject beacon before </body>
+    beacon = BEACON_SCRIPT.format(pid=preview_id)
+    if "</body>" in html:
+        html = html.replace("</body>", beacon + "</body>", 1)
+    else:
+        html = html + beacon
+
     return HTMLResponse(content=html)
 
 

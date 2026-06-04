@@ -59,30 +59,37 @@ function relTime(iso) {
 }
 
 /* ── Agent Roster Row ── */
-function AgentRow({ name, status, lastAction, lastTime, isFirst, onChat }) {
+function AgentRow({ name, status, lastAction, lastTime, isFirst, onChat, onRun }) {
   const meta = AGENT_META[name] || { Icon: Activity, label: name, role: '', color: '#6b7280', desc: '' }
   const { Icon } = meta
   const c = meta.color
+  const [launching, setLaunching] = useState(false)
 
-  const isRunning = status === 'running'
+  const isRunning = status === 'running' || launching
   const isDone    = status === 'done'
   const isError   = status === 'error'
   const isActive  = isRunning || isDone
 
   const statusDot = isRunning ? '#10b981' : isError ? '#ef4444' : isDone ? '#10b981' : 'rgba(255,255,255,0.1)'
-  const statusPulse = isRunning
-
   const rowBg = isRunning
     ? `linear-gradient(90deg, ${c}0e 0%, transparent 100%)`
     : 'transparent'
+
+  const handleRun = async (e) => {
+    e.stopPropagation()
+    if (launching || isRunning) return
+    setLaunching(true)
+    try { await onRun(name) } catch {}
+    setTimeout(() => setLaunching(false), 4000)
+  }
 
   return (
     <div
       onClick={() => onChat(name)}
       style={{
         display: 'grid',
-        gridTemplateColumns: '32px 1fr auto auto auto',
-        gap: 14,
+        gridTemplateColumns: '32px 1fr auto auto auto auto',
+        gap: 12,
         alignItems: 'center',
         padding: '9px 14px',
         borderBottom: '1px solid rgba(255,255,255,0.04)',
@@ -94,7 +101,6 @@ function AgentRow({ name, status, lastAction, lastTime, isFirst, onChat }) {
       onMouseEnter={e => e.currentTarget.style.background = isRunning ? rowBg : `rgba(255,255,255,0.025)`}
       onMouseLeave={e => e.currentTarget.style.background = rowBg}
     >
-
       {/* Icon */}
       <div style={{
         width: 32, height: 32, borderRadius: 9,
@@ -112,16 +118,10 @@ function AgentRow({ name, status, lastAction, lastTime, isFirst, onChat }) {
           <span style={{ fontSize: 12.5, fontWeight: 600, color: isActive ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.55)' }}>
             {meta.label}
           </span>
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>
-            {meta.role}
-          </span>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>{meta.role}</span>
         </div>
         {lastAction ? (
-          <div style={{
-            fontSize: 10.5, color: isRunning ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.22)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            fontFamily: '"JetBrains Mono", monospace',
-          }}>
+          <div style={{ fontSize: 10.5, color: isRunning ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.22)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"JetBrains Mono", monospace' }}>
             {lastAction}
           </div>
         ) : (
@@ -143,19 +143,41 @@ function AgentRow({ name, status, lastAction, lastTime, isFirst, onChat }) {
       {/* Status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, minWidth: 72, justifyContent: 'flex-end' }}>
         <div style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: statusDot,
-          boxShadow: statusPulse ? `0 0 7px ${statusDot}` : 'none',
-          animation: statusPulse ? 'orbBreathe 1.5s ease-in-out infinite' : 'none',
+          width: 6, height: 6, borderRadius: '50%', background: statusDot,
+          boxShadow: isRunning ? `0 0 7px ${statusDot}` : 'none',
+          animation: isRunning ? 'orbBreathe 1.5s ease-in-out infinite' : 'none',
         }} />
         <span style={{
-          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace',
           color: isRunning ? '#10b981' : isError ? '#ef4444' : isDone ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)',
         }}>
           {isRunning ? 'RUNNING' : isError ? 'ERROR' : isDone ? 'DONE' : 'STANDBY'}
         </span>
       </div>
+
+      {/* Run button */}
+      <button
+        onClick={handleRun}
+        disabled={launching || isRunning}
+        title={`Run ${meta.label}`}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '4px 9px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+          background: launching ? 'rgba(0,212,255,0.08)' : `${c}12`,
+          border: `1px solid ${c}25`,
+          color: launching ? C.textDim : c,
+          cursor: launching ? 'not-allowed' : 'pointer',
+          flexShrink: 0, letterSpacing: '0.04em',
+          transition: 'all 0.15s ease',
+          fontFamily: '"JetBrains Mono", monospace',
+        }}
+      >
+        {launching
+          ? <div style={{ width: 9, height: 9, border: `1.5px solid ${c}60`, borderTopColor: c, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          : <Play size={9} color={c} />
+        }
+        {launching ? '' : 'Run'}
+      </button>
 
       {/* Chat icon */}
       <div style={{ flexShrink: 0, opacity: 0.25 }}>
@@ -203,6 +225,77 @@ function Stat({ label, value }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 500, letterSpacing: '0.05em' }}>{label}</span>
       <span style={{ fontSize: 22, fontWeight: 800, color: 'white', letterSpacing: '-0.02em', fontFamily: '"JetBrains Mono", monospace' }}>{value}</span>
+    </div>
+  )
+}
+
+/* ── Fix Row — warning/issue with inline Fix button ── */
+function FixRow({ msg, color, isError }) {
+  const [fixing, setFixing] = useState(false)
+  const [fixed, setFixed] = useState(false)
+
+  // Map warning text to the agent that fixes it
+  const fixAgent = (() => {
+    const m = msg.toLowerCase()
+    if (m.includes('whatsapp queue') || m.includes('wa queue') || m.includes('no messages ready')) return 'whatsapp_campaign'
+    if (m.includes('instagram queue') || m.includes('ig queue')) return 'instagram_campaign'
+    if (m.includes("stuck in 'new'") || m.includes('website analyzer')) return 'website_analyzer'
+    if (m.includes('preview') && (m.includes('valid') || m.includes('url') || m.includes('orphan'))) return 'preview_generator'
+    if (m.includes('stalled') || m.includes('follow-up') || m.includes('outreach_sent')) return 'followup_agent'
+    if (m.includes('enricher') || m.includes('email') || m.includes('instagram') && m.includes('null')) return 'lead_enricher'
+    if (m.includes('lead') && m.includes('new')) return 'lead_finder'
+    return 'ceo_agent'
+  })()
+
+  const fixLabel = {
+    whatsapp_campaign: 'Generate WA',
+    instagram_campaign: 'Generate IG',
+    website_analyzer: 'Analyze Sites',
+    preview_generator: 'Regen Previews',
+    followup_agent: 'Run Follow-ups',
+    lead_enricher: 'Run Enricher',
+    lead_finder: 'Find Leads',
+    ceo_agent: 'Run CEO Fix',
+  }[fixAgent] || 'Fix Now'
+
+  const handleFix = async (e) => {
+    e.stopPropagation()
+    if (fixing || fixed) return
+    setFixing(true)
+    try {
+      await agentsApi.run(fixAgent)
+      setFixed(true)
+    } catch {}
+    setFixing(false)
+  }
+
+  const Icon = isError ? AlertCircle : AlertCircle
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
+      <Icon size={13} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
+      <span style={{ color, flex: 1, lineHeight: 1.5 }}>{msg}</span>
+      <button
+        onClick={handleFix}
+        disabled={fixing || fixed}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+          background: fixed ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)',
+          border: `1px solid ${fixed ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.1)'}`,
+          color: fixed ? '#34d399' : 'rgba(255,255,255,0.5)',
+          cursor: fixing || fixed ? 'default' : 'pointer',
+          flexShrink: 0, fontFamily: '"JetBrains Mono", monospace',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {fixing
+          ? <><div style={{ width: 8, height: 8, border: '1.5px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /></>
+          : fixed
+          ? <><CheckCircle2 size={9} /> Done</>
+          : <><Zap size={9} /> {fixLabel}</>
+        }
+      </button>
     </div>
   )
 }
@@ -307,16 +400,10 @@ function CeoBriefing() {
       {(issues.length > 0 || warnings.length > 0 || actions.length > 0) && (
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {issues.map((msg, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
-              <AlertCircle size={13} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ color: '#f87171' }}>{msg}</span>
-            </div>
+            <FixRow key={i} msg={msg} color="#f87171" isError />
           ))}
           {warnings.map((msg, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
-              <AlertCircle size={13} color="#fbbf24" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ color: '#fbbf24' }}>{msg}</span>
-            </div>
+            <FixRow key={i} msg={msg} color="#fbbf24" />
           ))}
           {actions.map((msg, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
@@ -851,8 +938,8 @@ export default function Agents() {
         {/* Roster header */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '32px 1fr auto auto auto',
-          gap: 14,
+          gridTemplateColumns: '32px 1fr auto auto auto auto',
+          gap: 12,
           padding: '8px 14px',
           borderBottom: `1px solid ${C.borderDim}`,
         }}>
@@ -863,6 +950,7 @@ export default function Agents() {
           </div>
           <span style={{ ...label(), textAlign: 'right' }}>TIME</span>
           <span style={{ ...label(), textAlign: 'right', minWidth: 72 }}>STATUS</span>
+          <span style={{ ...label(), textAlign: 'center' }}>RUN</span>
           <div />
         </div>
 
@@ -875,6 +963,10 @@ export default function Agents() {
             lastTime={agentLastTime[name]}
             isFirst={i === 0}
             onChat={setChatAgent}
+            onRun={async (agentName) => {
+              await agentsApi.run(agentName)
+              setTimeout(fetchLogs, 2500)
+            }}
           />
         ))}
       </div>

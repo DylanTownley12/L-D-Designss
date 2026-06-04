@@ -46,6 +46,21 @@ export const outreach = {
 export const previews = {
   generate: (lead_id) => api.post(`/previews/generate/${lead_id}`),
   list: (params) => api.get('/previews/', { params }),
+  logView: (preview_id) => api.post(`/previews/view/${preview_id}`),
+}
+
+export const n8n = {
+  opportunityScores: (limit = 20) => api.get('/n8n/opportunity-scores', { params: { limit } }),
+  intentAlerts: (minutes = 25) => api.get('/n8n/intent-alerts', { params: { minutes } }),
+  closingPriorities: () => api.get('/n8n/closing-priorities'),
+  healthCheck: () => api.get('/n8n/health-check'),
+  dailyStats: () => api.get('/n8n/daily-stats'),
+  runDiscovery: () => api.post('/n8n/run-discovery'),
+  runOutreachQueue: () => api.post('/n8n/run-outreach-queue'),
+  checkIntent: () => api.post('/n8n/check-intent'),
+  runClosingLoop: () => api.post('/n8n/run-closing-loop'),
+  runSelfHealing: () => api.post('/n8n/run-self-healing'),
+  runDailyOptimisation: () => api.post('/n8n/run-daily-optimisation'),
 }
 
 export const dashboard = {
