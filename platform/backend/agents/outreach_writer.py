@@ -362,6 +362,10 @@ def generate_outreach(
     Returns {'subject': ..., 'body': ...} for email
     or {'body': ...} for SMS/WhatsApp.
     """
+    # Strip any localhost URL — never let it reach a real message
+    if preview_url and ("localhost" in preview_url or "127.0.0.1" in preview_url):
+        preview_url = None
+
     if channel == "email":
         return _write_email(lead, preview_url, sequence_day)
     elif channel == "sms":

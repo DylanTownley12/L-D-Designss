@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from config import settings
 from db.client import get_db
 from utils.helpers import log_agent_action
+from agents import followup_agent
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +168,10 @@ def send_message(message_id: str, retry: bool = False) -> dict:
     }
     db.table("outreach_messages").update(update_data).eq("id", message_id).execute()
 
-    # Update lead status if first outreach
+    # Update lead status + start follow-up sequence on first outreach
     if result["success"] and lead.get("status") in ("new", "preview_ready", "outreach_queued"):
         db.table("leads").update({"status": "outreach_sent"}).eq("id", lead["id"]).execute()
+        followup_agent.start_sequence(lead["id"], msg["channel"])
 
     duration_ms = int((datetime.now() - start).total_seconds() * 1000)
     log_agent_action(

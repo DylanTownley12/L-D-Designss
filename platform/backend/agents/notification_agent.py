@@ -35,6 +35,35 @@ def _send_founder_email(subject: str, body: str) -> bool:
         return False
 
 
+def _generate_payment_url(lead_id: str) -> str | None:
+    """Try to generate a Stripe checkout URL for this lead. Returns None if Stripe not configured."""
+    try:
+        if not settings.STRIPE_SECRET_KEY:
+            return None
+        import stripe as _stripe
+        _stripe.api_key = settings.STRIPE_SECRET_KEY
+        session = _stripe.checkout.Session.create(
+            mode="payment",
+            success_url=settings.STRIPE_SUCCESS_URL + f"&lead={lead_id}",
+            cancel_url=settings.STRIPE_CANCEL_URL,
+            metadata={"lead_id": lead_id},
+            payment_method_types=["card"],
+            line_items=[{"price": settings.STRIPE_PRICE_ID, "quantity": 1}] if settings.STRIPE_PRICE_ID else [{
+                "price_data": {
+                    "currency": "gbp", "unit_amount": 7500,
+                    "product_data": {"name": "Website Deposit — L&D Designs"},
+                },
+                "quantity": 1,
+            }],
+        )
+        db = get_db()
+        db.table("leads").update({"notes": f"stripe_session:{session.id}"}).eq("id", lead_id).execute()
+        return session.url
+    except Exception as e:
+        logger.warning(f"Auto payment link failed for {lead_id}: {e}")
+        return None
+
+
 def notify_reply_received(lead_id: str, message_body: str) -> None:
     """Called when a lead replies to outreach."""
     db = get_db()
@@ -56,15 +85,25 @@ def notify_reply_received(lead_id: str, message_body: str) -> None:
     # Update lead status
     db.table("leads").update({"status": "replied"}).eq("id", lead_id).execute()
 
+    # Auto-generate Stripe payment link to include in the alert
+    payment_url = _generate_payment_url(lead_id)
+
     # Alert founder via email
     subject = f"🔔 Reply from {lead['business_name']} — L&D Designs"
+    payment_section = (
+        f"\n\n💳 PAYMENT LINK (ready to send):\n{payment_url}\n"
+        f"Send this to them on WhatsApp if they're interested."
+        if payment_url else
+        "\n\n(Stripe not configured — add STRIPE_SECRET_KEY to Railway to auto-generate payment links)"
+    )
     body = (
         f"Great news! {lead['business_name']} replied to your outreach.\n\n"
         f"Business: {lead['business_name']}\n"
         f"City: {lead.get('city', 'Unknown')}\n"
         f"Phone: {lead.get('phone', 'Not provided')}\n"
         f"Email: {lead.get('email', 'Not provided')}\n\n"
-        f"Their message:\n{message_body}\n\n"
+        f"Their message:\n{message_body}"
+        f"{payment_section}\n\n"
         f"Reply to them personally now while they're warm.\n\n"
         f"L&D Designs Platform"
     )

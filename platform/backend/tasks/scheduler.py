@@ -276,29 +276,9 @@ def start_scheduler():
     scheduler.add_job(**job(_ceo_daily_briefing, id="ceo_briefing",
         trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
 
-    # 1:00am — CMO marketing analysis
-    scheduler.add_job(**job(_cmo_run, id="cmo_agent",
-        trigger=CronTrigger(hour=1, minute=0, timezone=TZ)))
-
-    # 2:00am — Research agent city intelligence
-    scheduler.add_job(**job(_research_run, id="research_agent",
-        trigger=CronTrigger(hour=2, minute=0, timezone=TZ)))
-
-    # 3:00am — Data analyst nightly report
-    scheduler.add_job(**job(_analyst_run, id="analyst_agent",
-        trigger=CronTrigger(hour=3, minute=0, timezone=TZ)))
-
-    # Every 3 hours — Dev agent technical monitoring
-    scheduler.add_job(**job(_dev_run, id="dev_agent",
-        trigger=IntervalTrigger(hours=3)))
-
-    # Every 6 hours — Sales agent closes interested leads
-    scheduler.add_job(**job(_sales_run, id="sales_agent",
-        trigger=IntervalTrigger(hours=6)))
-
-    # 10:00am — Claude agent: A/B analysis, opener improvements, hot lead surfacing
-    scheduler.add_job(**job(_claude_tasks, id="claude_agent",
-        trigger=CronTrigger(hour=10, minute=0, timezone=TZ)))
+    # FROZEN — not running until revenue path is proven:
+    # cmo_agent (1am), research_agent (2am), analyst_agent (3am),
+    # dev_agent (3h), sales_agent (6h), claude_agent (10am)
 
     # 11:30am — Refresh stale previews (48h+ no reply) + queue follow-up message
     scheduler.add_job(**job(_refresh_stale_previews, id="preview_refresher",

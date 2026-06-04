@@ -198,13 +198,29 @@ function PaymentStatusBlock({ lead, onPaymentSent }) {
   )
 }
 
-function ConversationDrawer({ lead, onClose }) {
+function ConversationDrawer({ lead, onClose, onLeadUpdated }) {
   const [detail, setDetail] = useState(null)
+  const [markingReplied, setMarkingReplied] = useState(false)
 
   useEffect(() => {
     if (!lead) return
     leadsApi.get(lead.id).then(setDetail).catch(() => {})
   }, [lead?.id])
+
+  const markReplied = async () => {
+    const msg = prompt('What did they say? (optional)')
+    if (msg === null) return
+    setMarkingReplied(true)
+    try {
+      await leadsApi.logReply(lead.id, msg || 'Manually marked as replied')
+      onLeadUpdated?.()
+      onClose()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setMarkingReplied(false)
+    }
+  }
 
   const msgs = detail?.messages || []
 
@@ -224,13 +240,25 @@ function ConversationDrawer({ lead, onClose }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: `rgba(0,212,255,0.03)`,
       }}>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{lead?.business_name}</div>
           <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{lead?.city} · {lead?.phone || 'no phone'}</div>
         </div>
-        <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.borderDim}`, borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: C.textMid }}>
-          <X size={14} />
-        </button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {!['replied', 'interested', 'converted'].includes(lead?.status) && (
+            <button
+              onClick={markReplied}
+              disabled={markingReplied}
+              title="Mark as replied"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#fbbf24', fontSize: 11, fontWeight: 600 }}
+            >
+              <MessageSquare size={12} /> Replied
+            </button>
+          )}
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.borderDim}`, borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: C.textMid }}>
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Payment status — show for any lead past outreach_queued */}
@@ -407,7 +435,7 @@ export default function Leads() {
       {selectedLead && (
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 999 }} onClick={() => setSelectedLead(null)} />
-          <ConversationDrawer lead={selectedLead} onClose={() => setSelectedLead(null)} />
+          <ConversationDrawer lead={selectedLead} onClose={() => setSelectedLead(null)} onLeadUpdated={load} />
         </>
       )}
 
