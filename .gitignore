@@ -1,1 +1,32 @@
 .claude/
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env.production
+.env.staging
+*.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Secrets
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+credentials.json
+service-account*.json
