@@ -149,6 +149,29 @@ async def mark_manually_sent(message_id: str):
     return {"status": "sent"}
 
 
+@router.post("/promote-wa-drafts")
+async def promote_wa_drafts():
+    """Promote all draft WhatsApp messages to queued so Baz can send them."""
+    db = get_db()
+    result = (
+        db.table("outreach_messages")
+        .select("id")
+        .eq("channel", "whatsapp")
+        .eq("direction", "outbound")
+        .eq("status", "draft")
+        .execute()
+    )
+    ids = [r["id"] for r in (result.data or [])]
+    promoted = 0
+    for msg_id in ids:
+        db.table("outreach_messages").update({
+            "status": "queued",
+            "approved_by_founder": True,
+        }).eq("id", msg_id).execute()
+        promoted += 1
+    return {"promoted": promoted}
+
+
 @router.post("/clear-invalid-whatsapp")
 async def clear_invalid_whatsapp():
     """Delete queued WhatsApp messages with broken or localhost preview URLs."""

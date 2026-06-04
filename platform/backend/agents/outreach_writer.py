@@ -262,13 +262,13 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     from datetime import date
     db = get_db()
 
-    # Count messages currently in the pipeline (not yet sent) — sent messages don't count against cap
+    # Count only truly queued messages against cap — drafts are not sent by Baz so don't block new generation
     already_queued = (
         db.table("outreach_messages")
         .select("id", count="exact")
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
-        .in_("status", ["queued", "draft"])
+        .eq("status", "queued")
         .execute().count or 0
     )
     slots_left = MAX_WA_PER_DAY - already_queued
