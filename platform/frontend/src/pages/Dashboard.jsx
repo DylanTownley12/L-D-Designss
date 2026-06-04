@@ -1106,7 +1106,7 @@ function StrategyBriefPanel() {
     try {
       const r = await strategyApi.runBrief()
       if (r.data?.brief) setBrief(r.data.brief)
-      else setErr('No brief returned')
+      else setErr('Response: ' + JSON.stringify(r.data))
     } catch(e) {
       setErr(e?.response?.data?.detail || e?.message || 'Request failed')
     }
