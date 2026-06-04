@@ -4,7 +4,7 @@ import {
   Crown, Map, Megaphone, Briefcase, Code2, BarChart2, Network,
   Search, ScanSearch, Palette, Gem, Mail, RotateCcw,
   Play, RefreshCcw, AlertCircle, CheckCircle2, Activity,
-  ChevronDown, Zap, MessageSquare, Send, X,
+  ChevronDown, Zap, MessageSquare, Send, X, Brain,
 } from 'lucide-react'
 
 const C = {
@@ -326,6 +326,75 @@ function CeoBriefing() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── CEO Decisions Feed ── */
+function CeoDecisions() {
+  const [decisions, setDecisions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const data = await agentsApi.ceoDecisions(15)
+        setDecisions(data.decisions || [])
+      } catch {}
+      setLoading(false)
+    }
+    fetch()
+    const t = setInterval(fetch, 120_000)
+    return () => clearInterval(t)
+  }, [])
+
+  if (loading) return null
+  if (!decisions.length) return null
+
+  return (
+    <div style={{ ...panel({ overflow: 'hidden', marginBottom: 16 }) }}>
+      <div style={{
+        padding: '12px 18px', borderBottom: `1px solid ${C.borderDim}`,
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, boxShadow: `0 0 6px ${C.gold}60` }} />
+        <Brain size={12} color={C.gold} />
+        <span style={{ ...label(), color: C.textMid, fontSize: 9 }}>CEO DECISIONS — AUTO-COORDINATION LOG</span>
+        <span style={{
+          marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 99,
+          background: 'rgba(212,168,67,0.08)', color: C.gold,
+          border: '1px solid rgba(212,168,67,0.15)',
+          fontFamily: C.mono,
+        }}>{decisions.length}</span>
+      </div>
+      <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+        {decisions.map((d, i) => {
+          const isAlert = d.label.includes('Alert') || d.label.includes('manual check') || d.label.includes('needs')
+          const isGood = d.label.includes('rescued') || d.label.includes('retried') || d.label.includes('generated') || d.label.includes('analyzed')
+          const dotColor = isAlert ? '#f59e0b' : isGood ? '#10b981' : C.cyan
+          const textColor = isAlert ? '#fbbf24' : isGood ? '#34d399' : 'rgba(255,255,255,0.55)'
+          const at = d.at ? new Date(d.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+          return (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.03)',
+            }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%', background: dotColor,
+                flexShrink: 0, marginTop: 5,
+                boxShadow: isGood ? `0 0 5px ${dotColor}60` : 'none',
+              }} />
+              <span style={{ flex: 1, fontSize: 11.5, color: textColor, lineHeight: 1.5 }}>
+                {d.label}
+              </span>
+              <span style={{
+                fontSize: 10, color: 'rgba(255,255,255,0.18)',
+                fontFamily: C.mono, flexShrink: 0, paddingTop: 1,
+              }}>{at}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -773,6 +842,9 @@ export default function Agents() {
 
       {/* ── CEO BRIEFING ── */}
       <CeoBriefing />
+
+      {/* ── CEO DECISIONS FEED ── */}
+      <CeoDecisions />
 
       {/* ── AGENT ROSTER ── */}
       <div style={{ ...panel(), overflow: 'hidden', marginBottom: 16 }}>

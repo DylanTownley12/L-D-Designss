@@ -174,6 +174,33 @@ async def ceo_status():
     }
 
 
+@router.get("/ceo/decisions")
+async def ceo_decisions(limit: int = 20):
+    """Return recent CEO decisions — auto-fixes, retries, alerts. Powers the Agents dashboard feed."""
+    from db.client import get_db
+    db = get_db()
+    result = (
+        db.table("agent_logs")
+        .select("action, details, created_at, status")
+        .eq("agent_name", "ceo_agent")
+        .ilike("action", "DECISION:%")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    decisions = []
+    for log in (result.data or []):
+        action = log.get("action", "")
+        label = action.replace("DECISION: ", "")
+        decisions.append({
+            "label": label,
+            "details": log.get("details") or {},
+            "at": log.get("created_at"),
+            "status": log.get("status"),
+        })
+    return {"decisions": decisions, "count": len(decisions)}
+
+
 @router.post("/orchestrate")
 async def run_orchestrator(background_tasks: BackgroundTasks, task: str = "auto"):
     """Run the orchestrator — it checks pipeline state and dispatches agents as needed."""

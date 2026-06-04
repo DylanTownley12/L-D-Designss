@@ -1,6 +1,6 @@
 """
-CEO Agent — runs every 2 hours, checks system health and auto-fixes problems.
-Also sends an 8am daily briefing email to the founder.
+CEO Agent — runs every 2 hours.
+Checks system health, auto-coordinates targeted fixes, and sends an 8am briefing.
 """
 import logging
 import smtplib
@@ -9,6 +9,11 @@ from datetime import datetime, timedelta, date, timezone
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIES_PER_AGENT_PER_DAY = 3
+FOUNDER_PHONE = "07301181878"
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def run() -> dict:
     from db.client import get_db
@@ -21,8 +26,9 @@ def run() -> dict:
     issues = []
     warnings = []
     stats = {}
+    decisions = []
 
-    # 1. Lead pipeline counts — use per-status count queries (not a full table scan)
+    # 1. Lead pipeline counts — per-status count queries
     try:
         statuses = ["new", "analyzing", "preview_ready", "outreach_queued",
                     "outreach_sent", "replied", "interested", "converted",
@@ -33,11 +39,11 @@ def run() -> dict:
         stats["pipeline"] = pipeline
 
         if pipeline.get("new", 0) > 50:
-            warnings.append(f"{pipeline['new']} leads stuck in 'new' — website analyzer may be behind")
+            warnings.append(f"{pipeline['new']} leads stuck in 'new' — website analyzer running behind")
     except Exception as e:
         issues.append(f"Could not read lead pipeline: {e}")
 
-    # 2. Recent agent errors (last 2h) — exclude ceo_agent to avoid self-reporting
+    # 2. Recent agent errors (last 2h)
     try:
         error_logs = (
             db.table("agent_logs")
@@ -69,22 +75,22 @@ def run() -> dict:
     except Exception as e:
         issues.append(f"Could not read WhatsApp queue: {e}")
 
-    # 4. Preview health (valid URL ratio)
+    # 4. Preview health — count query, no row scan
     try:
-        previews = db.table("previews").select("preview_url").execute().data or []
-        total = len(previews)
-        valid = sum(
-            1 for p in previews
-            if "railway" in (p.get("preview_url") or "") or "/previews/serve/" in (p.get("preview_url") or "")
+        total_previews = db.table("previews").select("id", count="exact").execute().count or 0
+        valid_previews = (
+            db.table("previews").select("id", count="exact")
+            .ilike("preview_url", "%/previews/serve/%")
+            .execute().count or 0
         )
-        stats["previews_total"] = total
-        stats["previews_valid"] = valid
-        if total > 0 and valid / total < 0.8:
-            warnings.append(f"Only {valid}/{total} previews have valid URLs")
+        stats["previews_total"] = total_previews
+        stats["previews_valid"] = valid_previews
+        if total_previews > 0 and valid_previews / total_previews < 0.8:
+            warnings.append(f"Only {valid_previews}/{total_previews} previews have valid URLs")
     except Exception as e:
         issues.append(f"Could not check previews: {e}")
 
-    # 5. Stalled leads (outreach_sent for 7+ days)
+    # 5. Stalled leads (outreach_sent 7+ days, no reply)
     try:
         stalled = (
             db.table("leads")
@@ -99,27 +105,31 @@ def run() -> dict:
     except Exception as e:
         issues.append(f"Could not check stalled leads: {e}")
 
-    # Retry any agents that failed in the last 2h and haven't recovered
-    retry_actions = _retry_failed(db, two_hours_ago)
+    # Coordinate: targeted auto-fixes based on what's detected
+    coord_decisions = _coordinate(db, stats, pipeline=stats.get("pipeline", {}))
+    decisions.extend(coord_decisions)
 
-    # Auto-fix any detected pipeline problems
-    fix_actions = _auto_fix(db, stats, warnings)
+    # Retry failed agents (with cap)
+    retry_decisions = _retry_failed(db, two_hours_ago)
+    decisions.extend(retry_decisions)
 
-    actions_taken = retry_actions + fix_actions
+    # Legacy auto-fix (WA queue + new leads backlog)
+    fix_decisions = _auto_fix(db, stats, warnings)
+    decisions.extend(fix_decisions)
 
-    # Overall status
+    all_actions = decisions
+
+    # P1 alert to Dylan if unfixable issues exist
     if issues:
-        overall = "error"
-    elif warnings:
-        overall = "warning"
-    else:
-        overall = "ok"
+        _alert_dylan(db, issues)
+
+    overall = "error" if issues else ("warning" if warnings else "ok")
 
     report = {
         "overall": overall,
         "issues": issues,
         "warnings": warnings,
-        "actions_taken": actions_taken,
+        "actions_taken": all_actions,
         "stats": stats,
         "checked_at": now.isoformat(),
     }
@@ -134,15 +144,193 @@ def run() -> dict:
         db.table("agent_logs").insert({
             "agent_name": "ceo_agent",
             "action": label_map[overall],
-            "status": "success",  # always success so it doesn't trigger its own error check next run
+            "status": "success",
             "details": report,
         }).execute()
     except Exception as e:
         logger.error(f"CEO agent could not write log: {e}")
 
-    logger.info(f"[ceo_agent] {overall.upper()} — {len(issues)} issues, {len(warnings)} warnings, {len(actions_taken)} fixes")
+    logger.info(f"[ceo_agent] {overall.upper()} — {len(issues)} issues, {len(warnings)} warnings, {len(all_actions)} actions")
     return report
 
+
+# ── Coordination — targeted fixes ─────────────────────────────────────────────
+
+def _coordinate(db, stats: dict, pipeline: dict) -> list:
+    """
+    Targeted diagnosis and fix of specific pipeline problems.
+    Returns list of human-readable decision strings.
+    """
+    decisions = []
+    now = datetime.now(timezone.utc)
+
+    # FIX 1: Leads stuck in outreach_queued with no actual queued message
+    # These leads were moved to outreach_queued but the WA message never got written
+    try:
+        twelve_hours_ago = (now - timedelta(hours=12)).isoformat()
+        stuck_leads = (
+            db.table("leads")
+            .select("id")
+            .eq("status", "outreach_queued")
+            .lt("updated_at", twelve_hours_ago)
+            .limit(50)
+            .execute().data or []
+        )
+        rescued = 0
+        for lead in stuck_leads:
+            lid = lead["id"]
+            # Check if there's actually a queued message for this lead
+            msg_check = (
+                db.table("outreach_messages")
+                .select("id")
+                .eq("lead_id", lid)
+                .in_("status", ["queued", "draft", "sent"])
+                .execute().data or []
+            )
+            if not msg_check:
+                # No message — move back to preview_ready so campaign re-picks it
+                db.table("leads").update({"status": "preview_ready"}).eq("id", lid).execute()
+                rescued += 1
+        if rescued > 0:
+            msg = f"DECISION: Rescued {rescued} leads stuck in outreach_queued with no message — moved back to preview_ready"
+            decisions.append(msg)
+            _log_decision(db, msg, {"fix": "stuck_outreach_queued", "count": rescued})
+            logger.info(f"[ceo_agent] {msg}")
+    except Exception as e:
+        logger.error(f"[ceo_agent] FIX 1 (stuck queued leads) failed: {e}")
+
+    # FIX 2: Preview orphans — leads marked preview_ready but no row in previews table
+    try:
+        preview_ready_count = pipeline.get("preview_ready", 0)
+        if preview_ready_count > 0:
+            # Sample up to 50 preview_ready leads and check for missing previews
+            orphan_leads = (
+                db.table("leads")
+                .select("id")
+                .eq("status", "preview_ready")
+                .limit(100)
+                .execute().data or []
+            )
+            orphan_ids = []
+            for lead in orphan_leads:
+                lid = lead["id"]
+                prev = (
+                    db.table("previews")
+                    .select("id")
+                    .eq("lead_id", lid)
+                    .execute().data or []
+                )
+                if not prev:
+                    orphan_ids.append(lid)
+            if orphan_ids:
+                # Re-queue for preview generation
+                for lid in orphan_ids[:20]:
+                    db.table("leads").update({"status": "analyzing"}).eq("id", lid).execute()
+                msg = f"DECISION: Found {len(orphan_ids)} preview_ready leads with no preview — re-queued {min(len(orphan_ids), 20)} for generation"
+                decisions.append(msg)
+                _log_decision(db, msg, {"fix": "preview_orphans", "count": len(orphan_ids)})
+                logger.info(f"[ceo_agent] {msg}")
+    except Exception as e:
+        logger.error(f"[ceo_agent] FIX 2 (preview orphans) failed: {e}")
+
+    # FIX 3: Enrichment gap — preview_ready leads with no phone AND no email AND no instagram
+    # These can never be contacted; flag count so we know how big the dead pool is
+    try:
+        if not stats.get("enrichment_gap_flagged"):
+            dead_count = (
+                db.table("leads")
+                .select("id", count="exact")
+                .eq("status", "preview_ready")
+                .is_("email", "null")
+                .is_("instagram_url", "null")
+                .is_("phone", "null")
+                .execute().count or 0
+            )
+            if dead_count > 50:
+                msg = f"DECISION: {dead_count} preview_ready leads have no phone, email or Instagram — enricher needs GOOGLE_PLACES_API_KEY set"
+                decisions.append(msg)
+                _log_decision(db, msg, {"fix": "enrichment_gap", "dead_count": dead_count})
+    except Exception as e:
+        logger.error(f"[ceo_agent] FIX 3 (enrichment gap) failed: {e}")
+
+    # FIX 4: Email queue blocked — messages in 'queued' for 2h+ that aren't WhatsApp
+    # If REQUIRE_APPROVAL is True in Railway, emails sit forever. Flag it.
+    try:
+        two_hours_ago_str = (now - timedelta(hours=2)).isoformat()
+        blocked_email = (
+            db.table("outreach_messages")
+            .select("id", count="exact")
+            .in_("status", ["queued", "approved"])
+            .neq("channel", "whatsapp")
+            .eq("approved_by_founder", False)
+            .lt("created_at", two_hours_ago_str)
+            .execute().count or 0
+        )
+        if blocked_email > 10:
+            msg = f"DECISION: {blocked_email} email messages stuck unapproved — set REQUIRE_APPROVAL=false in Railway Variables to unblock"
+            decisions.append(msg)
+            _log_decision(db, msg, {"fix": "approval_block", "count": blocked_email})
+    except Exception as e:
+        logger.error(f"[ceo_agent] FIX 4 (email approval block) failed: {e}")
+
+    return decisions
+
+
+def _log_decision(db, message: str, details: dict):
+    """Write a CEO decision to agent_logs so the dashboard can display it."""
+    try:
+        db.table("agent_logs").insert({
+            "agent_name": "ceo_agent",
+            "action": message,
+            "status": "success",
+            "details": details,
+        }).execute()
+    except Exception as e:
+        logger.error(f"[ceo_agent] Could not log decision: {e}")
+
+
+def _alert_dylan(db, issues: list):
+    """Send a WhatsApp alert to Dylan when there are unfixable issues."""
+    try:
+        from config import settings
+        phone = settings.FOUNDER_PHONE or FOUNDER_PHONE
+        # Normalise
+        p = phone.strip().replace(" ", "")
+        if p.startswith("0"):
+            p = "+44" + p[1:]
+        elif not p.startswith("+"):
+            p = "+44" + p
+
+        summary = "; ".join(issues[:3])
+        body = f"⚠️ L&D Designs — CEO Alert: {summary}. Check dashboard: https://l-d-designss.vercel.app"
+
+        # Check we haven't already alerted in the last 4 hours
+        four_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
+        recent_alert = (
+            db.table("outreach_messages")
+            .select("id")
+            .eq("channel", "whatsapp")
+            .eq("direction", "outbound")
+            .ilike("body", "%CEO Alert%")
+            .gte("created_at", four_hours_ago)
+            .execute().data or []
+        )
+        if recent_alert:
+            return
+
+        db.table("outreach_messages").insert({
+            "channel": "whatsapp",
+            "direction": "outbound",
+            "body": body,
+            "status": "queued",
+            "approved_by_founder": True,
+        }).execute()
+        logger.info(f"[ceo_agent] P1 alert queued for Dylan: {summary[:80]}")
+    except Exception as e:
+        logger.error(f"[ceo_agent] Failed to alert Dylan: {e}")
+
+
+# ── Agent retries ─────────────────────────────────────────────────────────────
 
 _RETRYABLE = {
     "website_analyzer",
@@ -164,7 +352,7 @@ def _run_agent(name: str):
         return run_batch(limit=50)
     if name == "whatsapp_campaign":
         from agents.outreach_writer import generate_whatsapp_campaign
-        return generate_whatsapp_campaign(limit=30)
+        return generate_whatsapp_campaign(limit=10)
     if name == "instagram_campaign":
         from agents.outreach_writer import generate_instagram_campaign
         return generate_instagram_campaign(limit=30)
@@ -180,12 +368,8 @@ def _run_agent(name: str):
     return None
 
 
-MAX_RETRIES_PER_AGENT_PER_DAY = 3
-
-
 def _retry_failed(db, two_hours_ago: str) -> list:
-    """Find agents that errored in the last 2h without recovering, and re-run them.
-    Capped at MAX_RETRIES_PER_AGENT_PER_DAY to prevent retry storms."""
+    """Find agents that errored in the last 2h without recovering. Capped at 3/day."""
     actions = []
     try:
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
@@ -200,7 +384,6 @@ def _retry_failed(db, two_hours_ago: str) -> list:
         if not errored:
             return []
 
-        # Agents that have a success log in the same window (already recovered)
         success_logs = (
             db.table("agent_logs").select("agent_name")
             .eq("status", "success")
@@ -209,7 +392,6 @@ def _retry_failed(db, two_hours_ago: str) -> list:
         )
         recovered = {l["agent_name"] for l in success_logs}
 
-        # Count how many times CEO has already retried each agent today
         retry_logs = (
             db.table("agent_logs").select("details")
             .eq("agent_name", "ceo_agent")
@@ -227,23 +409,25 @@ def _retry_failed(db, two_hours_ago: str) -> list:
 
         for name in to_retry:
             if retry_counts.get(name, 0) >= MAX_RETRIES_PER_AGENT_PER_DAY:
-                actions.append(f"{name} hit retry cap ({MAX_RETRIES_PER_AGENT_PER_DAY}/day) — needs manual check")
+                msg = f"DECISION: {name} hit retry cap (3/day) — needs manual check"
+                actions.append(msg)
                 logger.warning(f"[ceo_agent] Retry cap reached for {name}")
                 continue
             try:
                 result = _run_agent(name)
-                msg = f"Auto-retried {name} after failure"
+                msg = f"DECISION: Auto-retried {name} after failure — recovered"
                 actions.append(msg)
                 db.table("agent_logs").insert({
                     "agent_name": "ceo_agent",
-                    "action": f"Auto-retry: {name}",
+                    "action": msg,
                     "status": "success",
                     "details": {"auto_retry": name, "result": str(result)[:200]},
                 }).execute()
                 logger.info(f"[ceo_agent] Retried {name}")
             except Exception as e:
                 logger.error(f"[ceo_agent] Retry of {name} failed: {e}")
-                actions.append(f"Retry of {name} attempted but still failing — manual check needed")
+                msg = f"DECISION: Retry of {name} attempted but still failing — manual check needed"
+                actions.append(msg)
 
     except Exception as e:
         logger.error(f"[ceo_agent] _retry_failed error: {e}")
@@ -251,52 +435,43 @@ def _retry_failed(db, two_hours_ago: str) -> list:
     return actions
 
 
+# ── Legacy auto-fix ───────────────────────────────────────────────────────────
+
 def _auto_fix(db, stats: dict, warnings: list) -> list:
-    """Attempt to fix detected problems. Returns list of action strings."""
     actions = []
     pipeline = stats.get("pipeline", {})
     wa_queued = stats.get("whatsapp_queued", 0)
     new_count = pipeline.get("new", 0)
     preview_ready = pipeline.get("preview_ready", 0)
 
-    # Fix 1: Empty WA queue but leads are preview_ready → generate campaign
     if wa_queued == 0 and preview_ready > 0:
         try:
             from agents.outreach_writer import generate_whatsapp_campaign
-            result = generate_whatsapp_campaign(limit=30)
+            result = generate_whatsapp_campaign(limit=10)
             generated = result.get("generated", 0)
             if generated > 0:
-                msg = f"Auto-generated {generated} WhatsApp messages (queue was empty)"
+                msg = f"DECISION: Auto-generated {generated} WhatsApp messages (queue was empty)"
                 actions.append(msg)
-                db.table("agent_logs").insert({
-                    "agent_name": "ceo_agent",
-                    "action": f"Auto-fix: {msg}",
-                    "status": "success",
-                    "details": {"auto_fix": "whatsapp_campaign", "result": result},
-                }).execute()
+                _log_decision(db, msg, {"auto_fix": "whatsapp_campaign", "result": result})
         except Exception as e:
             logger.error(f"[ceo_agent] Auto-fix WA campaign failed: {e}")
 
-    # Fix 2: Many leads stuck in 'new' → run website analyzer
     if new_count > 50:
         try:
             from agents.website_analyzer import run as analyze
             result = analyze(batch_size=50)
             analyzed = result.get("analyzed", 0)
             if analyzed > 0:
-                msg = f"Auto-analyzed {analyzed} backed-up new leads"
+                msg = f"DECISION: Auto-analyzed {analyzed} backed-up new leads"
                 actions.append(msg)
-                db.table("agent_logs").insert({
-                    "agent_name": "ceo_agent",
-                    "action": f"Auto-fix: {msg}",
-                    "status": "success",
-                    "details": {"auto_fix": "website_analyzer", "result": result},
-                }).execute()
+                _log_decision(db, msg, {"auto_fix": "website_analyzer", "result": result})
         except Exception as e:
             logger.error(f"[ceo_agent] Auto-fix website analyzer failed: {e}")
 
     return actions
 
+
+# ── Daily briefing ────────────────────────────────────────────────────────────
 
 def send_daily_briefing() -> bool:
     """Send 8am briefing email to the founder with overnight stats and system status."""
@@ -308,15 +483,12 @@ def send_daily_briefing() -> bool:
     yesterday = (date.today() - timedelta(days=1)).isoformat()
 
     try:
-        # Pipeline counts — per-status count queries
         statuses = ["new", "analyzing", "preview_ready", "outreach_queued",
-                    "outreach_sent", "replied", "interested", "converted",
-                    "not_interested", "do_not_contact"]
+                    "outreach_sent", "replied", "interested", "converted"]
         pipeline = {}
         for s in statuses:
             pipeline[s] = db.table("leads").select("id", count="exact").eq("status", s).execute().count or 0
 
-        # Replies in last 24h
         replies_24h = (
             db.table("leads").select("id", count="exact")
             .gte("updated_at", f"{yesterday}T00:00:00")
@@ -324,14 +496,13 @@ def send_daily_briefing() -> bool:
             .execute().count or 0
         )
 
-        # WhatsApp queue
         wa_queued = (
             db.table("outreach_messages").select("id", count="exact")
             .eq("status", "queued").eq("channel", "whatsapp")
             .execute().count or 0
         )
 
-        # Last CEO check result
+        # Last CEO decisions (overnight)
         last_log = (
             db.table("agent_logs").select("details, created_at")
             .eq("agent_name", "ceo_agent")
@@ -344,7 +515,7 @@ def send_daily_briefing() -> bool:
         if last_log:
             rpt = last_log[0].get("details") or {}
             overall = rpt.get("overall", "unknown")
-            system_status = {"ok": "✅ All systems operational", "warning": "⚠️  Warnings", "error": "❌ Issues detected"}.get(overall, overall)
+            system_status = {"ok": "✅ All systems operational", "warning": "⚠️ Warnings", "error": "❌ Issues detected"}.get(overall, overall)
             actions_overnight = rpt.get("actions_taken", [])
 
         converted = pipeline.get("converted", 0)
@@ -354,7 +525,8 @@ def send_daily_briefing() -> bool:
 
         actions_section = ""
         if actions_overnight:
-            actions_section = "\nAUTO-FIXES OVERNIGHT\n" + "\n".join(f"  • {a}" for a in actions_overnight) + "\n"
+            lines = [a.replace("DECISION: ", "") for a in actions_overnight]
+            actions_section = "\nOVERNIGHT ACTIONS\n" + "\n".join(f"  • {l}" for l in lines) + "\n"
 
         body = f"""Morning Dylan 👋
 

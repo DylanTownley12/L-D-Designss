@@ -62,6 +62,8 @@ export const agents = {
   orchestrate: (task = 'auto') => api.post('/agents/orchestrate', null, { params: { task } }),
   sessions: () => api.get('/agents/orchestrate/sessions'),
   ceoStatus: () => api.get('/agents/ceo/status'),
+  ceoDecisions: (limit = 20) => api.get('/agents/ceo/decisions', { params: { limit } }),
+  waQueue: (limit = 10) => api.get('/agents/wa-queue', { params: { limit } }),
   chat: (agent, message, history) => api.post('/agents/chat', { agent, message, history }),
 }
 
