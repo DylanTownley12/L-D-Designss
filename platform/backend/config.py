@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     TEXTMAGIC_USERNAME: Optional[str] = None
     TEXTMAGIC_API_KEY: Optional[str] = None
 
+    # Stripe payments
+    STRIPE_SECRET_KEY: Optional[str] = None
+    STRIPE_WEBHOOK_SECRET: Optional[str] = None
+    STRIPE_PRICE_ID: Optional[str] = None  # £75 deposit price ID
+    STRIPE_SUCCESS_URL: str = "https://dylantownley12.github.io/L-D-Designss/book.html?success=1"
+    STRIPE_CANCEL_URL: str = "https://dylantownley12.github.io/L-D-Designss/book.html"
+
     # Business
     FOUNDER_PHONE: str = "07301181878"
     FOUNDER_EMAIL: str = ""

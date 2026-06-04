@@ -1,4 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const lbl = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panelStyle = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
 
 const PLAN = [
   {
@@ -401,10 +419,10 @@ const PLAN = [
 ]
 
 const PEOPLE = [
-  { key: 'you',      label: 'You',       color: 'text-gold',        bg: 'bg-gold/10',      border: 'border-gold/20'    },
-  { key: 'me',       label: 'Claude',    color: 'text-blue-400',    bg: 'bg-blue-400/10',  border: 'border-blue-400/20' },
-  { key: 'friend',   label: 'Friend',    color: 'text-purple-400',  bg: 'bg-purple-400/10', border: 'border-purple-400/20' },
-  { key: 'openclaw', label: 'OpenClaw',  color: 'text-green-400',   bg: 'bg-green-400/10', border: 'border-green-400/20' },
+  { key: 'you',      label: 'You',      color: C.gold,    panelBg: 'rgba(212,168,67,0.05)',   panelBorder: 'rgba(212,168,67,0.18)'   },
+  { key: 'me',       label: 'Claude',   color: C.cyan,    panelBg: 'rgba(0,212,255,0.04)',    panelBorder: 'rgba(0,212,255,0.18)'    },
+  { key: 'friend',   label: 'Friend',   color: '#a855f7', panelBg: 'rgba(168,85,247,0.05)',   panelBorder: 'rgba(168,85,247,0.18)'   },
+  { key: 'openclaw', label: 'OpenClaw', color: C.green,   panelBg: 'rgba(0,255,136,0.04)',    panelBorder: 'rgba(0,255,136,0.18)'    },
 ]
 
 function taskKey(day, person, idx) {

@@ -7,6 +7,24 @@ import {
   ChevronDown, Zap, MessageSquare, Send, X,
 } from 'lucide-react'
 
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const label = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panel = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
+
 const AGENT_META = {
   ceo_agent:         { Icon: Crown,      label: 'CEO Agent',         role: 'Commanding Officer',   color: '#D4A843', desc: 'System health + auto-fix every 2h' },
   research_agent:    { Icon: Map,        label: 'Research',          role: 'Intelligence Officer', color: '#14b8a6', desc: 'City & opportunity intelligence' },
@@ -324,21 +342,21 @@ function TemplateStats() {
   const maxRate = Math.max(...stats.variants.map(x => x.reply_rate ?? 0), 1)
 
   return (
-    <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', marginBottom: 16 }}>
+    <div style={{ ...panel({ overflow: 'hidden', marginBottom: 16 }) }}>
       <div style={{
-        padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+        padding: '12px 18px', borderBottom: `1px solid ${C.borderDim}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>WhatsApp A/B Test</span>
-          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.25)', marginLeft: 8 }}>opener variants</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: 0.6 }} />
+          <span style={{ ...label(), color: C.textMid, fontSize: 9 }}>WHATSAPP A/B TEST — OPENER VARIANTS</span>
         </div>
         {best?.sent > 0 && (
           <span style={{
             fontSize: 11, padding: '2px 9px', borderRadius: 99,
-            background: 'rgba(212,168,67,0.1)', color: '#D4A843',
-            border: '1px solid rgba(212,168,67,0.2)',
-            fontFamily: '"JetBrains Mono", monospace',
+            background: 'rgba(212,168,67,0.1)', color: C.gold,
+            border: `1px solid rgba(212,168,67,0.2)`,
+            fontFamily: C.mono,
           }}>
             V{best.variant} leading · {best.reply_rate?.toFixed(1) ?? 0}%
           </span>
@@ -682,28 +700,22 @@ export default function Agents() {
       {/* ── HEADER ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)', margin: 0 }}>
-              Workforce
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 99, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,0.35)', fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.1em' }}>
-                {Object.keys(AGENT_META).length} EMPLOYEES DEPLOYED
-              </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+            <span style={label()}>AI WORKFORCE</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 99, background: `rgba(0,212,255,0.04)`, border: `1px solid ${C.borderDim}`, marginLeft: 8 }}>
+              <span style={{ ...label(), fontSize: 7.5, color: C.textMid }}>{Object.keys(AGENT_META).length} AGENTS DEPLOYED</span>
               {activeCount > 0 && (
                 <>
-                  <div style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.1)' }} />
-                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 5px rgba(16,185,129,0.7)', animation: 'orbBreathe 1.8s ease-in-out infinite' }} />
-                  <span style={{ fontSize: 9.5, fontWeight: 700, color: '#10b981', fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.1em' }}>
-                    {activeCount} ON MISSION
-                  </span>
+                  <div style={{ width: 1, height: 10, background: C.borderDim }} />
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 5px ${C.green}`, animation: 'orbBreathe 1.8s ease-in-out infinite' }} />
+                  <span style={{ ...label(), fontSize: 7.5, color: C.green }}>{activeCount} ON MISSION</span>
                 </>
               )}
             </div>
           </div>
-          <p style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.28)', margin: 0 }}>
-            Agents talk, you watch — deploy when ready
-          </p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, margin: 0 }}>Workforce</h1>
+          <p style={{ fontSize: 11.5, color: C.textMid, margin: '4px 0 0' }}>Click any agent to chat — deploy to run a mission</p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -713,8 +725,8 @@ export default function Agents() {
               onChange={e => setTask(e.target.value)}
               disabled={running}
               style={{
-                background: '#0c0c12', border: '1px solid rgba(255,255,255,0.1)',
-                color: 'rgba(255,255,255,0.6)', fontSize: 13, borderRadius: 9,
+                background: C.panel, border: `1px solid ${C.border}`,
+                color: C.textMid, fontSize: 13, borderRadius: 9,
                 padding: '8px 32px 8px 12px', outline: 'none', cursor: 'pointer',
                 appearance: 'none', fontFamily: 'Inter, sans-serif',
               }}
@@ -723,7 +735,7 @@ export default function Agents() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <ChevronDown size={13} color="rgba(255,255,255,0.3)" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <ChevronDown size={13} color={C.textDim} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           </div>
           <button
             onClick={handleRun}
@@ -732,17 +744,15 @@ export default function Agents() {
               display: 'flex', alignItems: 'center', gap: 7,
               padding: '8px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700,
               border: 'none', cursor: running ? 'not-allowed' : 'pointer',
-              background: running
-                ? 'rgba(255,255,255,0.06)'
-                : 'linear-gradient(135deg, #D4A843 0%, #F0C96A 50%, #D4A843 100%)',
-              color: running ? 'rgba(255,255,255,0.3)' : '#000',
-              boxShadow: running ? 'none' : '0 2px 14px rgba(212,168,67,0.32)',
+              background: running ? 'rgba(255,255,255,0.06)' : `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
+              color: running ? C.textDim : '#000',
+              boxShadow: running ? 'none' : `0 2px 14px ${C.gold}32`,
               transition: 'all 0.15s ease',
               fontFamily: 'Inter, sans-serif', letterSpacing: '0.02em',
             }}
           >
             {running ? (
-              <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Deploying...</>
+              <><div style={{ width: 14, height: 14, border: `2px solid ${C.textDim}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Deploying...</>
             ) : (
               <><Zap size={13} /> Deploy</>
             )}
@@ -753,8 +763,8 @@ export default function Agents() {
       {error && (
         <div style={{
           marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
-          background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)',
-          borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#f87171',
+          background: `rgba(255,51,85,0.07)`, border: `1px solid ${C.red}30`,
+          borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red,
         }}>
           <AlertCircle size={15} />
           {error}
@@ -765,32 +775,22 @@ export default function Agents() {
       <CeoBriefing />
 
       {/* ── AGENT ROSTER ── */}
-      <div style={{
-        background: '#0c0c12',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderRadius: 14,
-        overflow: 'hidden',
-        marginBottom: 16,
-      }}>
+      <div style={{ ...panel(), overflow: 'hidden', marginBottom: 16 }}>
         {/* Roster header */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: '32px 1fr auto auto auto',
           gap: 14,
           padding: '8px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          background: 'rgba(255,255,255,0.02)',
+          borderBottom: `1px solid ${C.borderDim}`,
         }}>
           <div />
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.18)', fontFamily: '"JetBrains Mono", monospace' }}>
-            EMPLOYEE / LAST MISSION — CLICK TO CHAT
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.18)', fontFamily: '"JetBrains Mono", monospace', textAlign: 'right' }}>
-            TIME
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.18)', fontFamily: '"JetBrains Mono", monospace', textAlign: 'right', minWidth: 72 }}>
-            STATUS
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 4, height: 4, borderRadius: '50%', background: C.cyan, opacity: 0.4 }} />
+            <span style={label()}>AGENT / LAST MISSION — CLICK TO CHAT</span>
+          </div>
+          <span style={{ ...label(), textAlign: 'right' }}>TIME</span>
+          <span style={{ ...label(), textAlign: 'right', minWidth: 72 }}>STATUS</span>
           <div />
         </div>
 
@@ -811,30 +811,31 @@ export default function Agents() {
       <TemplateStats />
 
       {/* ── OPERATIONS LOG ── */}
-      <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+      <div style={{ ...panel(), overflow: 'hidden' }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+          padding: '12px 18px', borderBottom: `1px solid ${C.borderDim}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Activity size={13} color="rgba(255,255,255,0.3)" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>Operations Log</span>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 6px ${C.green}`, animation: 'orbBreathe 1.8s ease-in-out infinite' }} />
+            <Activity size={13} color={C.textMid} />
+            <span style={{ ...label(), color: C.textMid, fontSize: 9 }}>OPERATIONS LOG</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {activeSession && (
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', fontFamily: '"JetBrains Mono", monospace' }}>
+              <span style={{ fontSize: 10, color: C.textDim, fontFamily: C.mono }}>
                 session {activeSession}
               </span>
             )}
             {running && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#10b981' }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', animation: 'orbBreathe 1.5s ease-in-out infinite' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.green }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, animation: 'orbBreathe 1.5s ease-in-out infinite' }} />
                 Live
               </span>
             )}
             <button
               onClick={() => { setActiveSession(null); fetchLogs() }}
-              style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 11, color: C.textDim, background: 'none', border: 'none', cursor: 'pointer' }}
             >
               Show all
             </button>
@@ -842,8 +843,8 @@ export default function Agents() {
         </div>
         <div style={{ padding: '4px 18px', maxHeight: 420, overflowY: 'auto' }}>
           {displayLogs.length === 0 ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(255,255,255,0.18)', fontSize: 12, fontFamily: '"JetBrains Mono", monospace' }}>
-              No activity yet — hit Deploy to start
+            <div style={{ padding: '40px 0', textAlign: 'center', color: C.textDim, fontSize: 12, fontFamily: C.mono, letterSpacing: '0.1em' }}>
+              NO ACTIVITY YET — HIT DEPLOY TO START
             </div>
           ) : (
             displayLogs.map(log => <LogLine key={log.id} log={log} />)

@@ -73,4 +73,13 @@ export const webhooks = {
   logReply: (lead_id, message) => api.post(`/webhooks/manual-reply/${lead_id}`, { message }),
 }
 
+export const payments = {
+  createCheckout: (lead_id) => api.post(`/payments/create-checkout/${lead_id}`),
+  getLink: (lead_id) => api.get(`/payments/link/${lead_id}`),
+}
+
+export const publicStats = {
+  live: () => api.get('/dashboard/live'),
+}
+
 export default api

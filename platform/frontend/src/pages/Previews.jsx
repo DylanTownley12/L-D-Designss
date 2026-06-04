@@ -2,6 +2,24 @@ import { useState, useEffect, useCallback } from 'react'
 import { previews as previewsApi, agents } from '../api/client'
 import { Globe, Copy, RefreshCcw, ExternalLink, Plus, AlertCircle } from 'lucide-react'
 
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const label = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panel = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
+
 const PAGE_SIZE = 50
 
 const STATUS_DOT = {
@@ -211,7 +229,7 @@ export default function Previews() {
           position: 'fixed', top: 16, right: 16, zIndex: 50,
           padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 500,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : 'linear-gradient(135deg, #D4A843, #F0C96A)',
+          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
           color: toast.type === 'error' ? 'white' : 'black',
         }}>
           {toast.msg}
@@ -221,16 +239,20 @@ export default function Previews() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Previews</h1>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+            <span style={label()}>PREVIEW ASSETS</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Previews</h1>
+          <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
             {total > 0 ? `${total} preview websites · page ${page} of ${totalPages}` : 'No previews yet'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={load} disabled={loading} className="btn-ghost" style={{ fontSize: 12 }}>
+          <button onClick={load} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.borderDim}`, color: C.textMid, padding: '7px 12px', borderRadius: 8, cursor: 'pointer' }}>
             <RefreshCcw size={12} /> Refresh
           </button>
-          <button onClick={runBatch} disabled={generating} className="btn-gold" style={{ fontSize: 12 }}>
+          <button onClick={runBatch} disabled={generating} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`, border: 'none', color: '#000', fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: generating ? 'not-allowed' : 'pointer' }}>
             {generating ? (
               <><div style={{ width: 12, height: 12, border: '1.5px solid rgba(0,0,0,0.4)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Generating...</>
             ) : (
@@ -244,16 +266,14 @@ export default function Previews() {
       {total > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
-            { label: 'Total Previews', value: total, color: '#D4A843' },
-            { label: 'Sent This Page', value: data.filter(p => ['outreach_sent','replied'].includes(p.leads?.status)).length, color: '#06b6d4' },
-            { label: 'Pages', value: `${page} of ${totalPages}`, color: '#a855f7' },
+            { lbl: 'Total Previews', value: total, color: C.gold },
+            { lbl: 'Sent This Page', value: data.filter(p => ['outreach_sent','replied'].includes(p.leads?.status)).length, color: C.cyan },
+            { lbl: 'Pages', value: `${page} of ${totalPages}`, color: '#a855f7' },
           ].map(s => (
-            <div key={s.label} style={{
-              background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 12, padding: '14px 16px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: s.color, letterSpacing: '-0.03em' }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{s.label}</div>
+            <div key={s.lbl} style={{ ...panel({ padding: '14px 16px', textAlign: 'center', position: 'relative', overflow: 'hidden' }) }}>
+              <div style={{ ...label(), marginBottom: 5, fontSize: 7.5 }}>{s.lbl}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: s.color, fontFamily: C.mono, letterSpacing: '-0.03em', textShadow: `0 0 16px ${s.color}50` }}>{s.value}</div>
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 50, height: 50, background: `radial-gradient(circle at 100% 100%, ${s.color}12 0%, transparent 70%)`, pointerEvents: 'none' }} />
             </div>
           ))}
         </div>
@@ -261,12 +281,9 @@ export default function Previews() {
 
       {/* Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '64px 0', fontSize: 13 }}>Loading previews...</div>
+        <div style={{ textAlign: 'center', color: C.textMid, padding: '64px 0', fontSize: 13, fontFamily: C.mono, letterSpacing: '0.1em' }}>LOADING PREVIEWS...</div>
       ) : data.length === 0 ? (
-        <div style={{
-          background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 16, padding: '64px 24px', textAlign: 'center',
-        }}>
+        <div style={{ ...panel({ padding: '64px 24px', textAlign: 'center' }) }}>
           <div style={{
             width: 56, height: 56, borderRadius: 14, background: 'rgba(212,168,67,0.08)',
             border: '1px solid rgba(212,168,67,0.15)', display: 'flex', alignItems: 'center',

@@ -2,6 +2,24 @@ import { useState, useEffect } from 'react'
 import api from '../api/client'
 import { Phone, Plus, X, Play, Pause, Trash2, Send, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react'
 
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const label = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panel = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
+
 const TRADES = ['plumber', 'electrician', 'builder', 'carpenter', 'painter', 'decorator', 'roofer', 'plasterer', 'tiler', 'landscaper', 'other']
 
 function ClientCard({ client, onToggle, onDelete, onTest }) {
@@ -273,13 +291,13 @@ export default function MissedCall() {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {toast && (
         <div style={{
           position: 'fixed', top: 16, right: 16, zIndex: 50,
           padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 500,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : 'linear-gradient(135deg, #D4A843, #F0C96A)',
+          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
           color: toast.type === 'error' ? 'white' : 'black',
         }}>
           {toast.msg}
@@ -291,10 +309,19 @@ export default function MissedCall() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Missed Call Text-Back</h1>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Auto-reply SMS when tradespeople miss a call</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+            <span style={label()}>MISSED CALL TEXT-BACK</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Text-Back System</h1>
+          <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>Auto-reply SMS when tradespeople miss a call — £49/month per client</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-gold" style={{ fontSize: 13 }}>
+        <button onClick={() => setShowAdd(true)} style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
+          color: '#000', fontWeight: 700, fontSize: 12,
+          padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+        }}>
           <Plus size={13} /> Add Client
         </button>
       </div>
@@ -303,29 +330,26 @@ export default function MissedCall() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {[
-            { label: 'Active Clients', value: stats.active_clients,   color: '#34d399' },
-            { label: 'Texts Today',    value: stats.sent_today,       color: '#D4A843' },
-            { label: 'This Month',     value: stats.sent_this_month,  color: '#60a5fa' },
-            { label: 'MRR',            value: `£${(stats.mrr || 0).toFixed(0)}`, color: '#34d399' },
+            { lbl: 'Active Clients', value: stats.active_clients,   color: C.green },
+            { lbl: 'Texts Today',    value: stats.sent_today,       color: C.gold },
+            { lbl: 'This Month',     value: stats.sent_this_month,  color: C.cyan },
+            { lbl: 'MRR',            value: `£${(stats.mrr || 0).toFixed(0)}`, color: C.green },
           ].map(s => (
-            <div key={s.label} style={{
-              background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 12, padding: '14px 16px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: s.color, letterSpacing: '-0.03em' }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{s.label}</div>
+            <div key={s.lbl} style={{ ...panel({ padding: '14px 16px', textAlign: 'center', position: 'relative', overflow: 'hidden' }) }}>
+              <div style={{ ...label(), marginBottom: 6, fontSize: 7.5 }}>{s.lbl}</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: s.color, fontFamily: C.mono, letterSpacing: '-0.02em', textShadow: `0 0 16px ${s.color}50` }}>{s.value}</div>
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 50, height: 50, background: `radial-gradient(circle at 100% 100%, ${s.color}12 0%, transparent 70%)`, pointerEvents: 'none' }} />
             </div>
           ))}
         </div>
       )}
 
       {/* How it works */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(212,168,67,0.07) 0%, #0c0c12 100%)',
-        border: '1px solid rgba(212,168,67,0.18)',
-        borderRadius: 14, padding: '16px 20px',
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#D4A843', marginBottom: 12 }}>How it works</div>
+      <div style={{ background: `rgba(212,168,67,0.05)`, border: `1px solid rgba(212,168,67,0.2)`, borderRadius: 10, padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, boxShadow: `0 0 6px ${C.gold}` }} />
+          <span style={{ ...label(), color: C.gold, fontSize: 9 }}>HOW IT WORKS</span>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {[
             { n: '1', text: 'Client misses a call on their business phone' },
@@ -333,14 +357,14 @@ export default function MissedCall() {
             { n: '3', text: "Caller gets an SMS within seconds — client never loses a lead" },
           ].map(s => (
             <div key={s.n} style={{ display: 'flex', gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#D4A843', flexShrink: 0 }}>{s.n}.</span>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{s.text}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: C.gold, flexShrink: 0 }}>{s.n}.</span>
+              <span style={{ fontSize: 12, color: C.textMid, lineHeight: 1.5 }}>{s.text}</span>
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11.5, color: 'rgba(255,255,255,0.3)' }}>
-          <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>Webhook URL:</span>{' '}
-          <code style={{ color: 'rgba(212,168,67,0.7)', background: 'rgba(212,168,67,0.08)', padding: '2px 7px', borderRadius: 5, fontSize: 10.5, fontFamily: '"JetBrains Mono", monospace' }}>
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.borderDim}`, fontSize: 11.5, color: C.textDim }}>
+          <span style={{ color: C.textMid, fontWeight: 500 }}>Webhook URL:</span>{' '}
+          <code style={{ color: `${C.gold}90`, background: 'rgba(212,168,67,0.08)', padding: '2px 7px', borderRadius: 5, fontSize: 10.5, fontFamily: C.mono }}>
             POST /api/textback/webhook/missed-call/{'{client_id}'}
           </code>
           {' '}— configure in Twilio for each client's number.
@@ -349,22 +373,26 @@ export default function MissedCall() {
 
       {/* Clients */}
       {loading ? (
-        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '48px 0', fontSize: 13 }}>Loading clients...</div>
+        <div style={{ textAlign: 'center', color: C.textMid, padding: '48px 0', fontSize: 13, fontFamily: C.mono, letterSpacing: '0.1em' }}>LOADING CLIENTS...</div>
       ) : clients.length === 0 ? (
-        <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(212,168,67,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-            <Phone size={22} color="#D4A843" style={{ opacity: 0.6 }} />
+        <div style={{ ...panel({ padding: '48px 24px', textAlign: 'center' }) }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: `rgba(212,168,67,0.08)`, border: `1px solid rgba(212,168,67,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+            <Phone size={22} color={C.gold} style={{ opacity: 0.6 }} />
           </div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 500 }}>No clients yet.</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginBottom: 18 }}>
+          <div style={{ fontSize: 14, color: C.textMid, marginBottom: 6, fontWeight: 500 }}>No clients yet.</div>
+          <div style={{ fontSize: 12, color: C.textDim, marginBottom: 18 }}>
             Pitch it as: "Never lose a lead from a missed call — £49/month."
           </div>
-          <button onClick={() => setShowAdd(true)} className="btn-gold">Add First Client</button>
+          <button onClick={() => setShowAdd(true)} style={{
+            background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`, color: '#000', fontWeight: 700,
+            fontSize: 12, padding: '9px 20px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          }}>Add First Client</button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.28)' }}>
-            Clients ({clients.length})
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, opacity: 0.5 }} />
+            <span style={label()}>CLIENTS ({clients.length})</span>
           </div>
           {clients.map(c => (
             <ClientCard key={c.id} client={c} onToggle={toggleClient} onDelete={deleteClient} onTest={testTextback} />

@@ -1,6 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
-import { leads as leadsApi, agents, previews as previewsApi, outreach as outreachApi } from '../api/client'
-import { Search, RefreshCcw, Play, Globe, Send, XCircle, ChevronLeft, ChevronRight, Flame } from 'lucide-react'
+import { leads as leadsApi, agents, previews as previewsApi, outreach as outreachApi, payments } from '../api/client'
+import { Search, RefreshCcw, Play, Globe, Send, XCircle, ChevronLeft, ChevronRight, Flame, CreditCard, MessageSquare, X } from 'lucide-react'
+
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const lbl = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panelStyle = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
 
 const PAGE_SIZE = 50
 
@@ -58,7 +76,119 @@ function QualityScore({ score }) {
   )
 }
 
-function LeadRow({ lead, onAction }) {
+function relTime(iso) {
+  const d = Date.now() - new Date(iso).getTime()
+  if (d < 8000) return 'just now'
+  if (d < 60000) return `${Math.floor(d / 1000)}s ago`
+  if (d < 3600000) return `${Math.floor(d / 60000)}m ago`
+  return `${Math.floor(d / 3600000)}h ago`
+}
+
+function ConversationDrawer({ lead, onClose }) {
+  const [detail, setDetail] = useState(null)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+
+  useEffect(() => {
+    if (!lead) return
+    leadsApi.get(lead.id).then(setDetail).catch(() => {})
+  }, [lead?.id])
+
+  const sendPaymentLink = async () => {
+    setPaymentLoading(true)
+    try {
+      const { checkout_url } = await payments.createCheckout(lead.id)
+      window.open(checkout_url, '_blank')
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setPaymentLoading(false)
+    }
+  }
+
+  const msgs = detail?.messages || []
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: 420,
+      background: 'rgba(2, 2, 14, 0.97)',
+      backdropFilter: 'blur(20px)',
+      borderLeft: `1px solid ${C.border}`,
+      display: 'flex', flexDirection: 'column',
+      zIndex: 1000,
+      boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '16px 18px', borderBottom: `1px solid ${C.borderDim}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: `rgba(0,212,255,0.03)`,
+      }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{lead?.business_name}</div>
+          <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{lead?.city} · {lead?.phone || 'no phone'}</div>
+        </div>
+        <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.borderDim}`, borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: C.textMid }}>
+          <X size={14} />
+        </button>
+      </div>
+
+      {/* Status + payment button */}
+      {['replied', 'interested'].includes(lead?.status) && (
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.borderDim}`, background: 'rgba(212,168,67,0.04)' }}>
+          <div style={{ ...lbl(), color: C.gold, marginBottom: 8, fontSize: 8 }}>READY TO CONVERT</div>
+          <button
+            onClick={sendPaymentLink}
+            disabled={paymentLoading}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
+              color: '#000', fontWeight: 700, fontSize: 13,
+              padding: '11px', borderRadius: 9, border: 'none', cursor: paymentLoading ? 'wait' : 'pointer',
+              opacity: paymentLoading ? 0.7 : 1,
+              boxShadow: `0 0 20px ${C.gold}30`,
+            }}
+          >
+            <CreditCard size={14} />
+            {paymentLoading ? 'Creating link...' : 'Send £75 Deposit Link (Stripe)'}
+          </button>
+          <div style={{ fontSize: 10, color: C.textDim, textAlign: 'center', marginTop: 6 }}>
+            Opens Stripe checkout — on payment, lead auto-converts and onboarding message queued
+          </div>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {!detail ? (
+          <div style={{ textAlign: 'center', color: C.textDim, paddingTop: 40, fontFamily: C.mono, letterSpacing: '0.1em', fontSize: 10 }}>LOADING THREAD...</div>
+        ) : msgs.length === 0 ? (
+          <div style={{ textAlign: 'center', color: C.textDim, paddingTop: 40, fontSize: 12 }}>No messages yet.</div>
+        ) : msgs.map((m, i) => {
+          const isOut = m.direction === 'outbound'
+          const channelColor = m.channel === 'whatsapp' ? '#25D366' : m.channel === 'email' ? '#60a5fa' : '#a78bfa'
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
+              <div style={{ ...lbl(), color: channelColor + '90', marginBottom: 3, fontSize: 7.5 }}>
+                {m.channel?.toUpperCase()} · {isOut ? 'OUTBOUND' : 'INBOUND'} · {relTime(m.created_at)}
+              </div>
+              <div style={{
+                maxWidth: '90%', padding: '9px 13px', borderRadius: isOut ? '12px 12px 3px 12px' : '3px 12px 12px 12px',
+                background: isOut ? `rgba(0,212,255,0.1)` : 'rgba(255,255,255,0.05)',
+                border: isOut ? `1px solid ${C.border}` : '1px solid rgba(255,255,255,0.07)',
+                fontSize: 12, lineHeight: 1.55, color: isOut ? C.text : C.textMid,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              }}>
+                {m.body || m.subject || '—'}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function LeadRow({ lead, onAction, onSelect }) {
   const [hovered, setHovered] = useState(false)
   const ws = WEBSITE_META[lead.website_status] || WEBSITE_META.unknown
 
@@ -66,15 +196,17 @@ function LeadRow({ lead, onAction }) {
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => onSelect && onSelect(lead)}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 14,
         padding: '10px 14px',
         borderRadius: 10,
-        border: `1px solid ${hovered ? 'rgba(255,255,255,0.09)' : 'transparent'}`,
-        background: hovered ? 'rgba(255,255,255,0.025)' : 'transparent',
+        border: `1px solid ${hovered ? C.border : 'transparent'}`,
+        background: hovered ? 'rgba(0,212,255,0.03)' : 'transparent',
         transition: 'all 0.15s ease',
+        cursor: 'pointer',
       }}
     >
       <QualityScore score={lead.quality_score} />
@@ -109,40 +241,30 @@ function LeadRow({ lead, onAction }) {
         opacity: hovered ? 1 : 0, transition: 'opacity 0.15s ease',
       }}>
         <button
-          onClick={() => onAction('pipeline', lead)}
+          onClick={e => { e.stopPropagation(); onAction('pipeline', lead) }}
           title="Run full pipeline"
-          style={{
-            width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(212,168,67,0.3)',
-            background: 'rgba(212,168,67,0.1)', color: '#D4A843', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
+          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid rgba(212,168,67,0.3)`, background: 'rgba(212,168,67,0.1)', color: C.gold, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <Play size={11} />
         </button>
         <button
-          onClick={() => onAction('preview', lead)}
+          onClick={e => { e.stopPropagation(); onAction('preview', lead) }}
           title="Generate preview"
-          className="btn-ghost"
-          style={{ width: 28, height: 28, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.borderDim}`, background: 'rgba(0,212,255,0.04)', color: C.textMid, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <Globe size={11} />
         </button>
         <button
-          onClick={() => onAction('outreach', lead)}
+          onClick={e => { e.stopPropagation(); onAction('outreach', lead) }}
           title="Generate outreach"
-          className="btn-ghost"
-          style={{ width: 28, height: 28, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.borderDim}`, background: 'rgba(0,212,255,0.04)', color: C.textMid, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <Send size={11} />
         </button>
         <button
-          onClick={() => onAction('dnc', lead)}
+          onClick={e => { e.stopPropagation(); onAction('dnc', lead) }}
           title="Do not contact"
-          style={{
-            width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(239,68,68,0.2)',
-            background: 'transparent', color: 'rgba(239,68,68,0.5)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
-          }}
+          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.red}30`, background: 'transparent', color: `${C.red}70`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
         >
           <XCircle size={11} />
         </button>
@@ -158,6 +280,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ status: '', city: '', search: '' })
   const [toast, setToast] = useState(null)
+  const [selectedLead, setSelectedLead] = useState(null)
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -200,12 +323,19 @@ export default function Leads() {
   return (
     <div style={{ padding: '24px', maxWidth: 1100, margin: '0 auto' }}>
 
+      {selectedLead && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 999 }} onClick={() => setSelectedLead(null)} />
+          <ConversationDrawer lead={selectedLead} onClose={() => setSelectedLead(null)} />
+        </>
+      )}
+
       {toast && (
         <div style={{
-          position: 'fixed', top: 16, right: 16, zIndex: 50,
+          position: 'fixed', top: 16, right: 16, zIndex: 9999,
           padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 500,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : 'linear-gradient(135deg, #D4A843, #F0C96A)',
+          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
           color: toast.type === 'error' ? 'white' : 'black',
         }}>
           {toast.msg}
@@ -215,12 +345,16 @@ export default function Leads() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Leads</h1>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
-            {total > 0 ? `${total.toLocaleString()} leads · page ${page} of ${totalPages}` : 'Loading...'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+            <span style={lbl()}>LEAD INTELLIGENCE</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Leads</h1>
+          <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
+            {total > 0 ? `${total.toLocaleString()} leads · page ${page} of ${totalPages} · click any lead to view thread` : 'Loading...'}
           </p>
         </div>
-        <button onClick={load} className="btn-ghost" style={{ fontSize: 12 }}>
+        <button onClick={load} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.borderDim}`, color: C.textMid, padding: '7px 12px', borderRadius: 8, cursor: 'pointer' }}>
           <RefreshCcw size={12} /> Refresh
         </button>
       </div>
@@ -228,12 +362,12 @@ export default function Leads() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative' }}>
-          <Search size={13} color="rgba(255,255,255,0.25)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+          <Search size={13} color={C.textDim} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           <input
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.09)',
-              color: 'white',
+              background: 'rgba(0,8,28,0.6)',
+              border: `1px solid ${C.borderDim}`,
+              color: C.text,
               borderRadius: 9,
               padding: '8px 12px 8px 30px',
               fontSize: 13,
@@ -288,40 +422,42 @@ export default function Leads() {
       {/* Hot leads */}
       {hotLeads.length > 0 && !filters.status && (
         <div style={{
-          background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, #0c0c12 100%)',
-          border: '1px solid rgba(245,158,11,0.22)',
-          borderRadius: 14,
+          background: 'rgba(212,168,67,0.04)',
+          border: `1px solid rgba(212,168,67,0.22)`,
+          borderRadius: 12,
           padding: '14px 16px',
           marginBottom: 14,
-          boxShadow: '0 0 24px rgba(245,158,11,0.06)',
+          boxShadow: `0 0 24px rgba(212,168,67,0.06)`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-            <Flame size={13} color="#f59e0b" />
-            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(245,158,11,0.7)' }}>
-              Needs Your Attention
-            </span>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, boxShadow: `0 0 8px ${C.gold}`, animation: 'orbBreathe 1.5s ease-in-out infinite' }} />
+            <span style={{ ...lbl(), color: `${C.gold}90`, fontSize: 9 }}>NEEDS YOUR ATTENTION — {hotLeads.length} LEADS</span>
+            <div style={{ marginLeft: 'auto', fontSize: 10, color: C.textDim, fontFamily: C.mono }}>click any lead to view thread + send payment link</div>
           </div>
-          {hotLeads.map(lead => <LeadRow key={lead.id} lead={lead} onAction={handleAction} />)}
+          {hotLeads.map(lead => <LeadRow key={lead.id} lead={lead} onAction={handleAction} onSelect={setSelectedLead} />)}
         </div>
       )}
 
       {/* Main list */}
-      <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.28)' }}>All Leads</span>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{loading ? '...' : `${data.length} shown`}</span>
+      <div style={{ ...panelStyle(), overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderDim}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, opacity: 0.5 }} />
+            <span style={lbl()}>ALL LEADS</span>
+          </div>
+          <span style={{ fontSize: 11, color: C.textDim, fontFamily: C.mono }}>{loading ? '...' : `${data.length} shown`}</span>
         </div>
         {loading ? (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Loading leads...</div>
+          <div style={{ padding: '48px 0', textAlign: 'center', color: C.textMid, fontSize: 13, fontFamily: C.mono, letterSpacing: '0.1em' }}>LOADING LEADS...</div>
         ) : data.length === 0 ? (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
-            No leads. Run the Lead Finder from the Dashboard.
+          <div style={{ padding: '48px 0', textAlign: 'center', color: C.textMid, fontSize: 13 }}>
+            No leads found. Run the Lead Finder from the Dashboard.
           </div>
         ) : (
           <div style={{ padding: '6px 4px' }}>
             {data
               .filter(l => !['replied', 'interested'].includes(l.status) || !!filters.status)
-              .map(lead => <LeadRow key={lead.id} lead={lead} onAction={handleAction} />)
+              .map(lead => <LeadRow key={lead.id} lead={lead} onAction={handleAction} onSelect={setSelectedLead} />)
             }
           </div>
         )}

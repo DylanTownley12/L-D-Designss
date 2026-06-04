@@ -231,3 +231,51 @@ async def yesterday_summary():
         "date": yesterday,
         "agents": sorted(agents.values(), key=lambda x: x["last_at"], reverse=True),
     }
+
+
+@router.get("/live")
+async def live_public_stats():
+    """Public read-only stats for the JARVIS LIVE TikTok page — no auth required."""
+    db = get_db()
+    today = date.today().isoformat()
+
+    def count(table, **filters):
+        q = db.table(table).select("id", count="exact")
+        for k, v in filters.items():
+            q = q.eq(k, v)
+        return q.execute().count or 0
+
+    def count_gte(table, field, value, **filters):
+        q = db.table(table).select("id", count="exact").gte(field, value)
+        for k, v in filters.items():
+            q = q.eq(k, v)
+        return q.execute().count or 0
+
+    total_leads   = count("leads")
+    outreach_sent = count("leads", status="outreach_sent")
+    replied       = count("leads", status="replied")
+    interested    = count("leads", status="interested")
+    converted     = count("leads", status="converted")
+    preview_ready = count("leads", status="preview_ready")
+    sent_today    = count_gte("outreach_messages", "sent_at", f"{today}T00:00:00", status="sent")
+    pipeline_val  = (outreach_sent + interested + replied) * 150
+
+    recent_logs = (
+        db.table("agent_logs")
+        .select("agent_name, action, created_at")
+        .order("created_at", desc=True)
+        .limit(5)
+        .execute().data or []
+    )
+
+    return {
+        "total_leads":    total_leads,
+        "outreach_sent":  outreach_sent,
+        "replied":        replied,
+        "interested":     interested,
+        "converted":      converted,
+        "preview_ready":  preview_ready,
+        "sent_today":     sent_today,
+        "pipeline_value": pipeline_val,
+        "recent_actions": recent_logs,
+    }

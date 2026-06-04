@@ -1,5 +1,23 @@
 import { Key, Database, Mail, Phone, Sliders, ExternalLink, DollarSign } from 'lucide-react'
 
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const label = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panel = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
+
 const sections = [
   {
     Icon: Mail,
@@ -64,60 +82,68 @@ const links = [
 
 export default function Settings() {
   return (
-    <div style={{ padding: '24px', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Settings</h1>
-        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+    <div style={{ padding: '24px', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+          <span style={label()}>SYSTEM CONFIGURATION</span>
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Settings</h1>
+        <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
           All settings live in{' '}
-          <code style={{ fontSize: 11, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 6px', borderRadius: 5, color: '#D4A843', fontFamily: '"JetBrains Mono", monospace' }}>
+          <code style={{ fontSize: 11, background: 'rgba(0,212,255,0.07)', border: `1px solid ${C.border}`, padding: '1px 6px', borderRadius: 5, color: C.gold, fontFamily: C.mono }}>
             platform/backend/.env
           </code>
         </p>
       </div>
 
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, #0c0c12 100%)',
-        border: '1px solid rgba(245,158,11,0.2)',
-        borderRadius: 12, padding: '12px 16px',
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#fbbf24', marginBottom: 4 }}>How to change settings</div>
-        <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>
-          Edit <code style={{ color: '#fbbf24', background: 'rgba(245,158,11,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: 11, fontFamily: '"JetBrains Mono", monospace' }}>platform/backend/.env</code> directly.
-          Never commit this file to GitHub. Restart the backend after changes.
+      {/* How to change notice */}
+      <div style={{ background: 'rgba(212,168,67,0.06)', border: '1px solid rgba(212,168,67,0.2)', borderRadius: 10, padding: '12px 16px' }}>
+        <div style={{ ...label(), color: C.gold, marginBottom: 5, fontSize: 9 }}>HOW TO CHANGE SETTINGS</div>
+        <p style={{ fontSize: 12.5, color: C.textMid, margin: 0, lineHeight: 1.6 }}>
+          Edit <code style={{ color: C.gold, background: 'rgba(212,168,67,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: 11, fontFamily: C.mono }}>platform/backend/.env</code> directly.
+          Never commit to GitHub. Restart backend after changes. Railway Variables override .env in production.
+        </p>
+      </div>
+
+      {/* Stripe notice */}
+      <div style={{ background: 'rgba(0,212,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 16px' }}>
+        <div style={{ ...label(), color: C.cyan, marginBottom: 5, fontSize: 9 }}>STRIPE PAYMENTS — REQUIRED TO TAKE DEPOSITS</div>
+        <p style={{ fontSize: 12.5, color: C.textMid, margin: 0, lineHeight: 1.6 }}>
+          Add <code style={{ color: C.cyan, background: 'rgba(0,212,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: 11, fontFamily: C.mono }}>STRIPE_SECRET_KEY</code> and{' '}
+          <code style={{ color: C.cyan, background: 'rgba(0,212,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: 11, fontFamily: C.mono }}>STRIPE_WEBHOOK_SECRET</code> to Railway Variables.
+          Set the webhook URL to <code style={{ fontSize: 10, color: C.textMid, fontFamily: C.mono }}>https://l-d-designss-production.up.railway.app/api/webhooks/stripe</code>
         </p>
       </div>
 
       {sections.map(section => {
         const Icon = section.Icon
         return (
-          <div key={section.title} style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+          <div key={section.title} style={{ ...panel(), overflow: 'hidden' }}>
             <div style={{
-              padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-              display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.02)',
+              padding: '12px 18px', borderBottom: `1px solid ${C.borderDim}`,
+              display: 'flex', alignItems: 'center', gap: 8,
             }}>
-              <Icon size={14} color="rgba(255,255,255,0.4)" />
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>{section.title}</span>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, opacity: 0.5 }} />
+              <Icon size={13} color={C.textMid} />
+              <span style={{ ...label(), color: C.textMid, fontSize: 9 }}>{section.title}</span>
             </div>
             <div>
               {section.items.map((item, i) => (
                 <div key={item.label} style={{
                   padding: '12px 18px',
-                  borderBottom: i < section.items.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  borderBottom: i < section.items.length - 1 ? `1px solid ${C.borderDim}` : 'none',
                   display: 'flex', alignItems: 'flex-start', gap: 16,
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: 11.5, fontWeight: 600, color: '#D4A843', marginBottom: 3,
-                      fontFamily: '"JetBrains Mono", monospace',
-                    }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: C.gold, marginBottom: 3, fontFamily: C.mono }}>
                       {item.label}
                     </div>
-                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>{item.note}</div>
+                    <div style={{ fontSize: 11.5, color: C.textMid, lineHeight: 1.5 }}>{item.note}</div>
                   </div>
-                  <div style={{
-                    fontSize: 11, color: 'rgba(255,255,255,0.2)', flexShrink: 0, marginTop: 1,
-                    fontFamily: '"JetBrains Mono", monospace',
-                  }}>
+                  <div style={{ fontSize: 11, color: C.textDim, flexShrink: 0, marginTop: 1, fontFamily: C.mono }}>
                     {item.value}
                   </div>
                 </div>
@@ -128,25 +154,26 @@ export default function Settings() {
       })}
 
       {/* Cost breakdown */}
-      <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.02)' }}>
-          <DollarSign size={14} color="rgba(255,255,255,0.4)" />
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>Running Costs</span>
+      <div style={{ ...panel(), overflow: 'hidden' }}>
+        <div style={{ padding: '12px 18px', borderBottom: `1px solid ${C.borderDim}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: 0.6 }} />
+          <DollarSign size={13} color={C.textMid} />
+          <span style={{ ...label(), color: C.textMid, fontSize: 9 }}>RUNNING COSTS</span>
         </div>
         <div>
           {costs.map((c, i) => (
             <div key={c.item} style={{
               padding: '10px 18px',
-              borderBottom: i < costs.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+              borderBottom: i < costs.length - 1 ? `1px solid ${C.borderDim}` : 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               background: c.highlight ? 'rgba(212,168,67,0.04)' : 'transparent',
             }}>
-              <span style={{ fontSize: 13, color: c.highlight ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.5)', fontWeight: c.highlight ? 600 : 400 }}>
+              <span style={{ fontSize: 13, color: c.highlight ? C.text : C.textMid, fontWeight: c.highlight ? 600 : 400 }}>
                 {c.item}
               </span>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: c.highlight ? '#D4A843' : 'rgba(255,255,255,0.8)' }}>{c.cost}</div>
-                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.28)' }}>{c.period}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: c.highlight ? C.gold : C.text, fontFamily: C.mono, textShadow: c.highlight ? `0 0 10px ${C.gold}50` : 'none' }}>{c.cost}</div>
+                <div style={{ fontSize: 10.5, color: C.textDim }}>{c.period}</div>
               </div>
             </div>
           ))}
@@ -154,23 +181,24 @@ export default function Settings() {
       </div>
 
       {/* Useful links */}
-      <div style={{ background: '#0c0c12', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 18 }}>
+      <div style={{ ...panel(), padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <ExternalLink size={14} color="rgba(255,255,255,0.4)" />
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>Useful Links</span>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, opacity: 0.5 }} />
+          <ExternalLink size={13} color={C.textMid} />
+          <span style={{ ...label(), color: C.textMid, fontSize: 9 }}>USEFUL LINKS</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {links.map(([label, url]) => (
-            <a key={label} href={url} target="_blank" rel="noopener noreferrer" style={{
+          {links.map(([lbl, url]) => (
+            <a key={lbl} href={url} target="_blank" rel="noopener noreferrer" style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 12.5, color: 'rgba(255,255,255,0.45)', textDecoration: 'none',
+              fontSize: 12.5, color: C.textMid, textDecoration: 'none',
               padding: '7px 10px', borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.06)',
-              background: 'rgba(255,255,255,0.02)',
+              border: `1px solid ${C.borderDim}`,
+              background: 'rgba(0,212,255,0.02)',
               transition: 'all 0.15s ease',
             }}>
-              <ExternalLink size={11} color="rgba(255,255,255,0.2)" />
-              {label}
+              <ExternalLink size={11} color={C.textDim} />
+              {lbl}
             </a>
           ))}
         </div>

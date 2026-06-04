@@ -3,6 +3,24 @@ import { useSearchParams } from 'react-router-dom'
 import { outreach as outreachApi, agents, instagram as instagramApi } from '../api/client'
 import { MessageCircle, Mail, AtSign, RefreshCcw, Trash2, CheckCircle2, X, Send, Clock, Copy, ExternalLink } from 'lucide-react'
 
+const C = {
+  bg:        '#02020e',
+  panel:     'rgba(0, 8, 28, 0.7)',
+  border:    'rgba(0, 212, 255, 0.1)',
+  borderDim: 'rgba(0, 212, 255, 0.06)',
+  cyan:      '#00D4FF',
+  blue:      '#0055FF',
+  gold:      '#D4A843',
+  green:     '#00FF88',
+  red:       '#FF3355',
+  text:      'rgba(255,255,255,0.88)',
+  textMid:   'rgba(255,255,255,0.42)',
+  textDim:   'rgba(255,255,255,0.16)',
+  mono:      '"JetBrains Mono", monospace',
+}
+const label = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
+const panel = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
+
 const Instagram = AtSign
 
 function MessageBody({ text }) {
@@ -397,7 +415,7 @@ export default function Outreach() {
           position: 'fixed', top: 16, right: 16, zIndex: 50,
           padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 500,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : 'linear-gradient(135deg, #D4A843, #F0C96A)',
+          background: toast.type === 'error' ? 'rgba(239,68,68,0.9)' : `linear-gradient(135deg, ${C.gold}, #F0C96A)`,
           color: toast.type === 'error' ? 'white' : 'black',
         }}>
           {toast.msg}
@@ -406,11 +424,11 @@ export default function Outreach() {
 
       {generating && (
         <div style={{
-          background: 'rgba(212,168,67,0.08)', border: '1px solid rgba(212,168,67,0.25)',
+          background: `rgba(212,168,67,0.06)`, border: `1px solid rgba(212,168,67,0.25)`,
           borderRadius: 10, padding: '10px 16px', marginBottom: 16,
-          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#D4A843',
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: C.gold,
         }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#D4A843', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.gold, animation: 'orbBreathe 1.5s ease-in-out infinite' }} />
           Writing in background — auto-refreshing every 5s
         </div>
       )}
@@ -418,31 +436,35 @@ export default function Outreach() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.9)' }}>Outreach</h1>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Review and send your messages</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+            <span style={label()}>OUTREACH COMMAND</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Outreach</h1>
+          <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>Review and deploy messages</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={load} disabled={loading} className="btn-ghost" style={{ fontSize: 12 }}>
+          <button onClick={load} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.borderDim}`, color: C.textMid, padding: '7px 12px', borderRadius: 8, cursor: 'pointer' }}>
             <RefreshCcw size={12} /> {loading ? 'Loading...' : 'Refresh'}
           </button>
           {tab === 'whatsapp' && (
             <>
-              <button onClick={generateWhatsApp} disabled={generating} className="btn-gold" style={{ fontSize: 12 }}>
+              <button onClick={generateWhatsApp} disabled={generating} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`, border: 'none', color: '#000', fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: generating ? 'not-allowed' : 'pointer' }}>
                 <MessageCircle size={12} /> {generating ? 'Generating...' : 'Generate WhatsApp'}
               </button>
               <button onClick={async () => { await outreachApi.clearInvalidWhatsapp(); showToast('Cleared invalid'); load() }}
-                      className="btn-ghost" style={{ fontSize: 12, color: 'rgba(239,68,68,0.6)' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'transparent', border: `1px solid ${C.red}30`, color: `${C.red}80`, padding: '7px 12px', borderRadius: 8, cursor: 'pointer' }}>
                 <Trash2 size={12} /> Clear Invalid
               </button>
             </>
           )}
           {tab === 'queue' && (
             <>
-              <button onClick={writeOutreach} disabled={generating} className="btn-ghost" style={{ fontSize: 12 }}>
+              <button onClick={writeOutreach} disabled={generating} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.borderDim}`, color: C.textMid, padding: '7px 12px', borderRadius: 8, cursor: 'pointer' }}>
                 {generating ? 'Writing...' : 'Write Emails'}
               </button>
               {queue.length > 0 && (
-                <button onClick={sendAll} className="btn-gold" style={{ fontSize: 12 }}>
+                <button onClick={sendAll} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`, border: 'none', color: '#000', fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer' }}>
                   <Send size={12} /> Send All ({queue.length})
                 </button>
               )}
@@ -455,17 +477,15 @@ export default function Outreach() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 18 }}>
           {[
-            { label: 'WA to Send',    value: whatsappQueue.length, active: whatsappQueue.length > 0, color: '#22c55e' },
-            { label: 'Sent Today',    value: whatsappSentToday.length, active: false, color: '#D4A843' },
-            { label: 'Emails Today',  value: `${stats.emails_sent_today}/${stats.email_limit}`, active: stats.emails_sent_today >= stats.email_limit, color: '#3b82f6' },
-            { label: 'Email Queue',   value: queue.length, active: false, color: '#a855f7' },
+            { lbl: 'WA to Send',   value: whatsappQueue.length, color: C.green },
+            { lbl: 'Sent Today',   value: whatsappSentToday.length, color: C.gold },
+            { lbl: 'Emails Today', value: `${stats.emails_sent_today}/${stats.email_limit}`, color: C.cyan },
+            { lbl: 'Email Queue',  value: queue.length, color: '#a855f7' },
           ].map(s => (
-            <div key={s.label} style={{
-              background: '#0c0c12', border: `1px solid ${s.active ? s.color + '30' : 'rgba(255,255,255,0.07)'}`,
-              borderRadius: 10, padding: '12px 14px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: s.active ? s.color : 'rgba(255,255,255,0.55)', letterSpacing: '-0.02em' }}>{s.value}</div>
-              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{s.label}</div>
+            <div key={s.lbl} style={{ ...panel({ padding: '12px 14px', textAlign: 'center', position: 'relative', overflow: 'hidden' }) }}>
+              <div style={{ ...label(), marginBottom: 5, fontSize: 7.5 }}>{s.lbl}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: C.mono, letterSpacing: '-0.02em', textShadow: `0 0 16px ${s.color}50` }}>{s.value}</div>
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 40, height: 40, background: `radial-gradient(circle at 100% 100%, ${s.color}12 0%, transparent 70%)`, pointerEvents: 'none' }} />
             </div>
           ))}
         </div>
@@ -474,8 +494,8 @@ export default function Outreach() {
       {/* Tabs */}
       <div style={{
         display: 'flex', gap: 4,
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)',
+        background: `rgba(0,8,28,0.5)`,
+        border: `1px solid ${C.borderDim}`,
         borderRadius: 10,
         padding: 4,
         width: 'fit-content',
@@ -494,8 +514,8 @@ export default function Outreach() {
                 padding: '7px 14px', borderRadius: 7,
                 fontSize: 12.5, fontWeight: 500,
                 border: 'none', cursor: 'pointer',
-                background: isActive ? 'linear-gradient(135deg, #D4A843, #F0C96A)' : 'transparent',
-                color: isActive ? '#000' : 'rgba(255,255,255,0.45)',
+                background: isActive ? `linear-gradient(135deg, ${C.gold}, #F0C96A)` : 'transparent',
+                color: isActive ? '#000' : C.textMid,
                 transition: 'all 0.15s ease',
                 fontFamily: 'Inter, sans-serif',
               }}

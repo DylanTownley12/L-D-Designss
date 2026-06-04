@@ -12,3 +12,4 @@ twilio==9.1.0
 python-multipart==0.0.9
 pytz==2024.1
 requests==2.32.3
+stripe>=8.0.0

@@ -1,12 +1,14 @@
 """
 Webhooks endpoint
-Handles inbound replies from email (Gmail polling) and SMS (Twilio webhook).
-When a lead replies, the notification agent is triggered.
+Handles inbound replies from email (Gmail polling), SMS (Twilio), and Stripe payments.
 """
 from fastapi import APIRouter, Request, HTTPException, Form
 from db.client import get_db
 from agents import notification_agent, followup_agent
+from config import settings
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
@@ -146,3 +148,90 @@ async def log_manual_reply(lead_id: str, request: Request):
     followup_agent.stop_sequence(lead_id, reason="replied")
 
     return {"status": "logged", "lead_id": lead_id}
+
+
+@router.post("/stripe")
+async def stripe_webhook(request: Request):
+    """
+    Stripe sends payment events here.
+    On checkout.session.completed: mark lead converted + notify Dylan.
+    Set webhook URL in Stripe Dashboard → Webhooks → Add endpoint.
+    """
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        import stripe
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        if settings.STRIPE_WEBHOOK_SECRET:
+            event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
+        else:
+            import json
+            event = json.loads(payload)
+    except Exception as e:
+        logger.error(f"Stripe webhook error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        lead_id = session.get("metadata", {}).get("lead_id")
+        business_name = session.get("metadata", {}).get("business_name", "Unknown")
+        amount_gbp = session.get("amount_total", 7500) / 100
+
+        if lead_id:
+            db = get_db()
+
+            # Mark lead converted
+            db.table("leads").update({"status": "converted"}).eq("id", lead_id).execute()
+
+            # Stop follow-up sequences
+            followup_agent.stop_sequence(lead_id, reason="converted")
+
+            # Notify Dylan
+            db.table("notifications").insert({
+                "lead_id": lead_id,
+                "type": "payment_received",
+                "title": f"💰 Deposit received from {business_name}!",
+                "body": f"£{amount_gbp:.0f} deposit paid. Build their site — use the preview as the base. Aim for 3 days.",
+                "action_url": f"/leads/{lead_id}",
+            }).execute()
+
+            # Auto-send onboarding message to lead via outreach queue
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "whatsapp",
+                "direction": "outbound",
+                "body": (
+                    f"Sorted! Deposit received — I'll get started on your site. "
+                    f"Just need a couple of things from you whenever you get a minute: "
+                    f"your opening hours, list of services, and any photos you'd like on it. "
+                    f"Should be ready for your approval within 3 days. 🔥"
+                ),
+                "status": "queued",
+                "approved_by_founder": True,
+            }).execute()
+
+            # Notify via email
+            try:
+                notification_agent._send_founder_email(
+                    subject=f"💰 £{amount_gbp:.0f} deposit from {business_name} — L&D Designs",
+                    body=(
+                        f"Deposit received!\n\n"
+                        f"Business: {business_name}\n"
+                        f"Amount: £{amount_gbp:.0f}\n"
+                        f"Lead ID: {lead_id}\n\n"
+                        f"Onboarding message queued for WhatsApp.\n"
+                        f"Build starts now. Use the preview as the base.\n\n"
+                        f"L&D Designs Platform"
+                    ),
+                )
+            except Exception as e:
+                logger.warning(f"Email alert failed (non-critical): {e}")
+
+            logger.info(f"Stripe payment processed: {business_name} → converted (lead {lead_id})")
+
+    return {"received": True}
