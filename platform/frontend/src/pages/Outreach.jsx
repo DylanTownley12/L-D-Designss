@@ -326,9 +326,9 @@ export default function Outreach() {
     try {
       const [q, wa, waSent, ig, h, s] = await Promise.all([
         outreachApi.queue('queued'),
-        outreachApi.queueByChannel('whatsapp', 'queued'),
+        outreachApi.queueByChannel('whatsapp', 'queued,draft'),
         outreachApi.queueByChannel('whatsapp', 'sent'),
-        instagramApi.queue(),
+        outreachApi.queueByChannel('instagram', 'queued,draft'),
         outreachApi.history(50),
         outreachApi.statsToday(),
       ])

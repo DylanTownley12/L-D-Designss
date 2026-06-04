@@ -10,17 +10,22 @@ router = APIRouter(prefix="/outreach", tags=["outreach"])
 @router.get("/queue")
 async def get_queue(status: str = "queued", channel: str = None):
     db = get_db()
-    q = (
-        db.table("outreach_messages")
-        .select("*, leads(business_name, city, email, phone, status)")
-        .eq("status", status)
-        .eq("direction", "outbound")
-        .order("created_at")
-    )
-    if channel:
-        q = q.eq("channel", channel)
-    result = q.execute()
-    return {"messages": result.data or []}
+    # Support comma-separated statuses e.g. "queued,draft"
+    statuses = [s.strip() for s in status.split(",")]
+    all_messages = []
+    for s in statuses:
+        q = (
+            db.table("outreach_messages")
+            .select("*, leads(business_name, city, email, phone, status, instagram_url)")
+            .eq("status", s)
+            .eq("direction", "outbound")
+            .order("created_at")
+        )
+        if channel:
+            q = q.eq("channel", channel)
+        result = q.execute()
+        all_messages.extend(result.data or [])
+    return {"messages": all_messages}
 
 
 @router.get("/history")
