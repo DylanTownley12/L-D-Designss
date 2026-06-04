@@ -1097,7 +1097,7 @@ function StrategyBriefPanel() {
   const [err, setErr] = useState(null)
 
   useEffect(() => {
-    strategyApi.getBrief().then(r => { if (r.data?.brief) setBrief(r.data.brief) }).catch(() => {})
+    strategyApi.getBrief().then(r => { if (r?.brief) setBrief(r.brief) }).catch(() => {})
   }, [])
 
   const runBrief = async () => {
@@ -1105,8 +1105,8 @@ function StrategyBriefPanel() {
     setErr(null)
     try {
       const r = await strategyApi.runBrief()
-      if (r.data?.brief) setBrief(r.data.brief)
-      else setErr('Response: ' + JSON.stringify(r.data))
+      if (r?.brief) setBrief(r.brief)
+      else setErr('Response: ' + JSON.stringify(r))
     } catch(e) {
       setErr(e?.response?.data?.detail || e?.message || 'Request failed')
     }
