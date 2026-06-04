@@ -106,7 +106,7 @@ const PLAN = [
   },
   {
     day: 4, date: '2026-06-07', label: 'Sat 7 Jun', week: 1,
-    focus: 'Saturday review — close open threads, log what\'s working',
+    focus: 'Saturday review — close open threads, surface warm leads from the 113 already sent',
     bottlenecks: [],
     tasks: {
       dylan: [
@@ -120,8 +120,8 @@ const PLAN = [
         'Write down the most common thing barbers say when they actually reply — that\'s the most valuable data you can report.',
       ],
       claude: [
-        'Add Pending Approvals section to Outreach page — shows sales agent drafts for interested leads with approve/edit/send buttons',
-        'Add status freshness guard in WA campaign generator — re-fetch lead status inside loop, skip if already changed',
+        'Add Pending Approvals section to Outreach page — sales agent drafts for interested leads with approve/edit/send buttons',
+        'Scan all 113 outreach_sent leads: find any with inbound replies, surface them as a "Re-engage today" list on the dashboard — these are warmer than any new cold lead',
       ],
       openclaw: [
         'Weekend quiet mode — monitoring inbound only',
@@ -170,7 +170,6 @@ const PLAN = [
       claude: [
         'Add conversation thread panel to lead detail — all outreach_messages chronological, colour-coded inbound/outbound',
         'Rewrite weakest A/B opener variant based on Dylan\'s objection feedback',
-        'Fix lead status race condition in WA campaign generator',
       ],
       openclaw: [
         '9am batch continues into Week 2',
@@ -181,8 +180,8 @@ const PLAN = [
   },
   {
     day: 7, date: '2026-06-10', label: 'Tue 10 Jun', week: 2,
-    focus: 'Push warm leads to a decision — voice notes for friend\'s warmest threads',
-    bottlenecks: ['OpenAI still in use (costs more)', 'Phone dedup missing from lead finder'],
+    focus: 'Push warm leads to a decision — draft closing messages for every replied lead',
+    bottlenecks: [],
     tasks: {
       dylan: [
         'Message your 3 warmest WA leads personally — reference their specific last message, push for a yes or a no. "A maybe just wastes both our time."',
@@ -195,8 +194,8 @@ const PLAN = [
         'Voice note your 3 hottest leads — personal, casual, under 30 seconds. Mention their shop name. Voice notes get 3x higher open rate than text.',
       ],
       claude: [
-        'Switch outreach_writer from OpenAI GPT-4o-mini to Claude Haiku 4.5 — same quality, no extra API key',
-        'Add phone number deduplication to lead_finder — same barber with different name spellings gets one entry, not two',
+        'For every lead with status "replied" or "interested": pull their conversation history, draft a personalised closing message Dylan can send in one click — surfaces on dashboard as "Ready to send" drafts',
+        'A/B analysis on the 113 sends: which opener variant got more replies? Kill the loser, write a better replacement for tomorrow\'s batch based on what actually worked',
       ],
       openclaw: [
         '9am batch with updated opener variant',
@@ -232,8 +231,8 @@ const PLAN = [
   },
   {
     day: 9, date: '2026-06-12', label: 'Thu 12 Jun', week: 2,
-    focus: 'Check for deposits — push every open thread to a decision',
-    bottlenecks: ['CEO subprocess can crash Railway', 'WA delivery not actually confirmed'],
+    focus: 'Check for deposits — re-engage cold leads with a fresh angle',
+    bottlenecks: [],
     tasks: {
       dylan: [
         'Check Stripe dashboard: any deposits in? If yes — WhatsApp the barber within 10 minutes: "Sorted! I\'ll get started — just send me your opening hours and any photos whenever."',
@@ -246,8 +245,8 @@ const PLAN = [
         'For your warmest DM lead: check if they have a phone number or email in bio — if yes, try WhatsApp directly. Higher conversion than Instagram DM.',
       ],
       claude: [
-        'Wrap CEO agent retries in FastAPI BackgroundTasks — can\'t crash Railway anymore',
-        'Add delivery_status tracking to outreach_messages — Baz confirms actual delivery, flags phantom "sent" leads',
+        'Find all leads contacted 7+ days ago with no reply and no follow-up — pull 10 of the highest quality_score ones, write a fresh re-engagement message with a completely different angle ("Wanted to show you what I built for a barber in [nearby city]..."), queue them for tomorrow\'s WA batch',
+        'Analyse all inbound reply text so far — group by intent (interested, objection, wrong number, auto-reply). Surface the "warm but not yet interested" ones Dylan should personally message today',
       ],
       openclaw: [
         '9am batch',
@@ -258,7 +257,7 @@ const PLAN = [
   {
     day: 10, date: '2026-06-13', label: 'Fri 13 Jun', week: 2,
     focus: 'Friday closing push — get that deposit before the weekend',
-    bottlenecks: ['Agent uptime display showing wrong %'],
+    bottlenecks: [],
     tasks: {
       dylan: [
         'Friday push: message your single warmest lead with a genuine offer — "Happy to drop the deposit to £50 if you want to lock it in this week." Close it today.',
@@ -271,8 +270,8 @@ const PLAN = [
         'Voice note your 3 hottest DM leads — short, personal, specific to their shop. Mention you\'ve already built their preview.',
       ],
       claude: [
-        'Fix agent uptime display — scheduled agents show ON SCHEDULE, only genuinely failed agents show OFFLINE',
-        'Document Resend migration plan for post-£1k/month email deliverability upgrade',
+        'City analysis on all sends to date: which UK cities have the best reply rate? Show it on dashboard, redirect tomorrow\'s WA batch to prioritise the top 3 cities',
+        'Draft 5 personalised re-engagement messages for the 5 highest quality_score leads that never replied — specific to their business name and location, different angle from the original outreach, ready for Dylan to send manually',
       ],
       openclaw: [
         'Friday batch + 72h follow-ups for leads that went silent',
