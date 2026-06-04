@@ -1094,6 +1094,7 @@ function StrategyBriefPanel() {
   const [brief, setBrief] = useState(null)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [err, setErr] = useState(null)
 
   useEffect(() => {
     strategyApi.getBrief().then(r => { if (r.data?.brief) setBrief(r.data.brief) }).catch(() => {})
@@ -1101,10 +1102,14 @@ function StrategyBriefPanel() {
 
   const runBrief = async () => {
     setLoading(true)
+    setErr(null)
     try {
       const r = await strategyApi.runBrief()
       if (r.data?.brief) setBrief(r.data.brief)
-    } catch(e) {}
+      else setErr('No brief returned')
+    } catch(e) {
+      setErr(e?.response?.data?.detail || e?.message || 'Request failed')
+    }
     setLoading(false)
   }
 
@@ -1128,7 +1133,12 @@ function StrategyBriefPanel() {
         </div>
       </div>
 
-      {!brief && !loading && (
+      {err && (
+        <div style={{ fontSize: 9.5, color: '#f87171', fontFamily: C.mono, padding: '6px 8px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, marginBottom: 6 }}>
+          ERROR: {err}
+        </div>
+      )}
+      {!brief && !loading && !err && (
         <div style={{ fontSize: 10, color: C.textDim, fontFamily: C.mono, textAlign: 'center', padding: '8px 0' }}>
           No brief yet — click RUN
         </div>
