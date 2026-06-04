@@ -412,6 +412,103 @@ async def mark_wa_sent(message_ids: list):
     return {"updated": updated}
 
 
+@router.post("/admin/re-engage-broken-links")
+async def re_engage_broken_links():
+    """
+    Finds the 68 leads that received outreach with a localhost preview link,
+    and generates a new WhatsApp re-engagement message with the working preview URL.
+    Messages are queued as 'draft' for Dylan to review and send manually.
+    """
+    from db.client import get_db
+    from agents import outreach_writer, preview_generator
+    import logging
+    logger = logging.getLogger(__name__)
+    db = get_db()
+
+    # Find all sent outbound WA messages that contain a localhost URL
+    result = (
+        db.table("outreach_messages")
+        .select("id, lead_id, body")
+        .eq("status", "sent")
+        .eq("channel", "whatsapp")
+        .eq("direction", "outbound")
+        .ilike("body", "%localhost%")
+        .limit(200)
+        .execute()
+    )
+
+    queued = 0
+    skipped = 0
+    errors = 0
+    leads_processed = set()
+
+    for msg in (result.data or []):
+        lead_id = msg.get("lead_id")
+        if not lead_id or lead_id in leads_processed:
+            skipped += 1
+            continue
+
+        leads_processed.add(lead_id)
+
+        try:
+            # Get lead details + their current preview URL
+            lead = db.table("leads").select("*").eq("id", lead_id).single().execute().data
+            if not lead:
+                skipped += 1
+                continue
+
+            # Skip leads that have already replied or been converted
+            if lead.get("status") in ("replied", "interested", "converted", "not_interested", "do_not_contact"):
+                skipped += 1
+                continue
+
+            # Get their preview URL
+            preview_row = (
+                db.table("previews")
+                .select("preview_url")
+                .eq("lead_id", lead_id)
+                .limit(1)
+                .execute()
+            )
+            preview_url = (preview_row.data or [{}])[0].get("preview_url") or ""
+
+            if not preview_url or "localhost" in preview_url:
+                skipped += 1
+                continue
+
+            name = lead.get("business_name", "the shop")
+            body = (
+                f"Hiya, Dylan here — sorry about this, the link I sent you the other day was broken on my end. "
+                f"Here's the working one for {name}: {preview_url}\n\n"
+                f"Let me know what you think — still got a spot available if you want it live."
+            )
+
+            # Queue as draft so Dylan reviews before sending
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "whatsapp",
+                "direction": "outbound",
+                "body": body,
+                "status": "draft",
+                "sequence_day": 2,
+                "ai_generated": False,
+                "approved_by_founder": False,
+            }).execute()
+
+            queued += 1
+
+        except Exception as e:
+            logger.error(f"re-engage failed for lead {lead_id}: {e}")
+            errors += 1
+
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "errors": errors,
+        "message": f"Queued {queued} re-engagement messages. Review them in the Outreach page before sending.",
+    }
+
+
 @router.post("/admin/backfill-followups")
 async def backfill_followup_sequences():
     """One-time backfill: start follow-up sequences for all outreach_sent leads that don't have one."""

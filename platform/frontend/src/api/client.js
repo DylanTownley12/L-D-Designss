@@ -22,6 +22,7 @@ export const leads = {
   update: (id, data) => api.patch(`/leads/${id}`, data),
   delete: (id) => api.delete(`/leads/${id}`),
   doNotContact: (id) => api.post(`/leads/${id}/do-not-contact`),
+  logReply: (lead_id, message) => api.post(`/webhooks/manual-reply/${lead_id}`, { message }),
 }
 
 export const outreach = {
