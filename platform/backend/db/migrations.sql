@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS previews (
 CREATE TABLE IF NOT EXISTS outreach_messages (
     id                    UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     lead_id               UUID REFERENCES leads(id) ON DELETE CASCADE,
-    channel               TEXT NOT NULL CHECK (channel IN ('email','sms','whatsapp')),
+    channel               TEXT NOT NULL CHECK (channel IN ('email','sms','whatsapp','instagram')),
     direction             TEXT NOT NULL CHECK (direction IN ('outbound','inbound')),
     subject               TEXT,
     body                  TEXT NOT NULL,
