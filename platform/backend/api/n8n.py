@@ -777,6 +777,75 @@ def get_health_check():
     return {"checks": checks, "passed": len(checks) - len(failed), "failed": len(failed), "healthy": not failed, "auto_fixes": auto_fixes, "needs_attention": bool(auto_fixes)}
 
 
+@router.post("/action-brief")
+def get_action_brief():
+    """
+    Full daily brief — Dylan's task list, mate's task list, hot leads, revenue health.
+    Called by Loop 2 and by the dashboard DO NEXT page.
+    """
+    from db.client import get_db
+    from config import settings
+    db = get_db()
+
+    pipeline = {}
+    for s in ["preview_ready", "outreach_sent", "replied", "interested", "converted"]:
+        pipeline[s] = db.table("leads").select("id", count="exact").eq("status", s).execute().count or 0
+
+    wa_q = db.table("outreach_messages").select("id", count="exact").eq("channel", "whatsapp").in_("status", ["queued", "draft"]).eq("direction", "outbound").execute().count or 0
+    ig_q = db.table("outreach_messages").select("id", count="exact").eq("channel", "instagram").in_("status", ["queued", "draft"]).eq("direction", "outbound").execute().count or 0
+
+    hot_data = db.table("leads").select("id,business_name,city,phone,instagram_url,status,notes").in_("status", ["replied", "interested"]).limit(10).execute().data or []
+    hot_leads = []
+    for lead in hot_data:
+        has_link = "stripe_session:" in (lead.get("notes") or "")
+        phone = (lead.get("phone") or "").replace(" ", "").replace("-", "").lstrip("0")
+        if phone:
+            phone = "+44" + phone
+        hot_leads.append({
+            "lead_id": lead["id"], "name": lead["business_name"], "city": lead.get("city"),
+            "status": lead["status"], "phone": phone or lead.get("phone"),
+            "instagram_url": lead.get("instagram_url"), "has_payment_link": has_link,
+            "action": "Send Stripe link" if (lead["status"] == "interested" and not has_link) else "Follow up",
+        })
+
+    stripe_ok = bool(settings.STRIPE_SECRET_KEY and "test" not in (settings.STRIPE_SECRET_KEY or ""))
+    can_make_money = stripe_ok and (pipeline["interested"] > 0 or pipeline["replied"] > 0)
+
+    dylan_tasks = []
+    for lead in [l for l in hot_leads if l["status"] == "interested" and not l["has_payment_link"]]:
+        dylan_tasks.append({"priority": 1, "action": f"Send payment link to {lead['name']} ({lead['city']})", "type": "payment_link", "lead_id": lead["lead_id"], "contact": lead["phone"]})
+    for lead in [l for l in hot_leads if l["status"] == "replied"]:
+        dylan_tasks.append({"priority": 2, "action": f"Reply to {lead['name']} — they responded", "type": "reply", "lead_id": lead["lead_id"], "contact": lead["phone"]})
+    if not dylan_tasks:
+        dylan_tasks.append({"priority": 3, "action": f"Send today's WhatsApp batch ({wa_q} ready)", "type": "send_wa", "lead_id": None, "contact": None})
+
+    mate_tasks = []
+    if ig_q > 0:
+        mate_tasks.append({"priority": 1, "action": f"Send {min(ig_q, 15)} Instagram DMs from the queue", "type": "send_ig", "count": min(ig_q, 15)})
+    mate_tasks.append({"priority": 2, "action": "Reply to any Instagram DM responses", "type": "reply_ig"})
+
+    blockers = []
+    if not stripe_ok:
+        blockers.append({"key": "stripe_test", "title": "Stripe in test mode — no real money", "severity": "critical"})
+    if wa_q == 0:
+        blockers.append({"key": "wa_empty", "title": "WhatsApp queue empty", "severity": "warning", "fix": "POST /api/agents/run {agent: whatsapp_campaign}"})
+
+    top_action = dylan_tasks[0]["action"] if dylan_tasks else (f"Fix: {blockers[0]['title']}" if blockers else f"Send outreach — {wa_q} WA + {ig_q} IG ready")
+
+    return {
+        "can_make_money_now": can_make_money,
+        "revenue_status": "READY" if can_make_money else ("STRIPE_TEST" if not stripe_ok else "NO_HOT_LEADS"),
+        "top_action": top_action,
+        "pipeline": pipeline,
+        "wa_queued": wa_q, "ig_queued": ig_q,
+        "hot_leads": hot_leads,
+        "dylan_tasks": dylan_tasks[:5],
+        "mate_tasks": mate_tasks[:5],
+        "blockers": blockers,
+        "generated_at": _now().isoformat(),
+    }
+
+
 @router.get("/daily-stats")
 def get_daily_stats():
     """Today's performance numbers."""
