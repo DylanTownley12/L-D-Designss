@@ -35,6 +35,47 @@ def _send_founder_email(subject: str, body: str) -> bool:
         return False
 
 
+def _get_stripe_payment_url(lead_id: str) -> str | None:
+    """Create a Stripe checkout session and return the URL, or None if Stripe isn't configured."""
+    try:
+        from config import settings as _s
+        if not _s.STRIPE_SECRET_KEY:
+            return None
+        import stripe as _stripe
+        _stripe.api_key = _s.STRIPE_SECRET_KEY
+
+        db = get_db()
+        lead = db.table("leads").select("business_name,city").eq("id", lead_id).single().execute().data or {}
+
+        session_params = {
+            "mode": "payment",
+            "success_url": _s.STRIPE_SUCCESS_URL + f"&lead={lead_id}",
+            "cancel_url": _s.STRIPE_CANCEL_URL,
+            "metadata": {"lead_id": lead_id, "business_name": lead.get("business_name", ""), "city": lead.get("city", "")},
+            "payment_method_types": ["card"],
+        }
+        if _s.STRIPE_PRICE_ID:
+            session_params["line_items"] = [{"price": _s.STRIPE_PRICE_ID, "quantity": 1}]
+        else:
+            session_params["line_items"] = [{
+                "price_data": {
+                    "currency": "gbp",
+                    "unit_amount": 7500,
+                    "product_data": {
+                        "name": "Website Deposit — L&D Designs",
+                        "description": f"£75 deposit for {lead.get('business_name', 'your barber website')}",
+                    },
+                },
+                "quantity": 1,
+            }]
+        session = _stripe.checkout.Session.create(**session_params)
+        db.table("leads").update({"notes": f"stripe_session:{session.id}"}).eq("id", lead_id).execute()
+        return session.url
+    except Exception as e:
+        logger.warning(f"Could not create Stripe link for reply notification: {e}")
+        return None
+
+
 def notify_reply_received(lead_id: str, message_body: str) -> None:
     """Called when a lead replies to outreach."""
     db = get_db()
@@ -56,6 +97,14 @@ def notify_reply_received(lead_id: str, message_body: str) -> None:
     # Update lead status
     db.table("leads").update({"status": "replied"}).eq("id", lead_id).execute()
 
+    # Pre-generate Stripe payment link so Dylan can paste it straight into WhatsApp
+    payment_url = _get_stripe_payment_url(lead_id)
+    payment_section = (
+        f"\nREADY-TO-SEND PAYMENT LINK (copy into WhatsApp):\n{payment_url}\n"
+        if payment_url else
+        "\n(Stripe not configured — send payment link manually from dashboard)\n"
+    )
+
     # Alert founder via email
     subject = f"🔔 Reply from {lead['business_name']} — L&D Designs"
     body = (
@@ -64,7 +113,8 @@ def notify_reply_received(lead_id: str, message_body: str) -> None:
         f"City: {lead.get('city', 'Unknown')}\n"
         f"Phone: {lead.get('phone', 'Not provided')}\n"
         f"Email: {lead.get('email', 'Not provided')}\n\n"
-        f"Their message:\n{message_body}\n\n"
+        f"Their message:\n{message_body}\n"
+        f"{payment_section}\n"
         f"Reply to them personally now while they're warm.\n\n"
         f"L&D Designs Platform"
     )

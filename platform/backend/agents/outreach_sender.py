@@ -42,7 +42,7 @@ def _is_rate_limited(db, channel: str) -> bool:
 # ── Gmail SMTP ─────────────────────────────────────────────────────────
 
 def _send_email(to_email: str, subject: str, body: str) -> dict:
-    """Send an email via Gmail SMTP. Returns {'success': bool, 'error': str|None}."""
+    """Send an email via Gmail SMTP. Returns {'success': bool, 'error': str|None, 'gmail_message_id': str|None}."""
     try:
         msg = MIMEMultipart()
         msg["From"] = settings.GMAIL_ADDRESS
@@ -50,18 +50,21 @@ def _send_email(to_email: str, subject: str, body: str) -> dict:
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
 
+        # Capture the generated Message-ID before sending so we can detect replies later
+        gmail_message_id = msg.get("Message-ID")
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(settings.GMAIL_ADDRESS, settings.GMAIL_APP_PASSWORD)
             server.sendmail(settings.GMAIL_ADDRESS, to_email, msg.as_string())
 
-        return {"success": True, "error": None}
+        return {"success": True, "error": None, "gmail_message_id": gmail_message_id}
 
     except smtplib.SMTPAuthenticationError:
-        return {"success": False, "error": "Gmail auth failed — check App Password in .env"}
+        return {"success": False, "error": "Gmail auth failed — check App Password in .env", "gmail_message_id": None}
     except smtplib.SMTPRecipientsRefused:
-        return {"success": False, "error": f"Email address rejected: {to_email}"}
+        return {"success": False, "error": f"Email address rejected: {to_email}", "gmail_message_id": None}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": str(e), "gmail_message_id": None}
 
 
 # ── SMS Sending (TextMagic preferred, Twilio fallback) ─────────────────
@@ -150,6 +153,8 @@ def send_message(message_id: str, retry: bool = False) -> dict:
         if not to_email:
             return {"success": False, "error": "No email address for lead"}
         result = _send_email(to_email, msg.get("subject", ""), msg["body"])
+        if result.get("gmail_message_id"):
+            extra_data["gmail_message_id"] = result["gmail_message_id"]
 
     elif msg["channel"] == "sms":
         to_phone = lead.get("phone")
@@ -170,6 +175,9 @@ def send_message(message_id: str, retry: bool = False) -> dict:
     # Update lead status if first outreach
     if result["success"] and lead.get("status") in ("new", "preview_ready", "outreach_queued"):
         db.table("leads").update({"status": "outreach_sent"}).eq("id", lead["id"]).execute()
+        # Start follow-up sequence so Day 3/7/14 messages fire automatically
+        from agents import followup_agent
+        followup_agent.start_sequence(lead["id"], msg["channel"])
 
     duration_ms = int((datetime.now() - start).total_seconds() * 1000)
     log_agent_action(

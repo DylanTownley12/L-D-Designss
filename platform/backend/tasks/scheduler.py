@@ -120,6 +120,15 @@ async def _process_queue():
         logger.error(f"[outreach_sender] Failed: {e}", exc_info=True)
 
 
+async def _poll_gmail_replies():
+    try:
+        from agents.gmail_poller import run
+        result = run()
+        logger.info(f"[gmail_poller] checked={result['checked']}, replies={result['replies_found']}")
+    except Exception as e:
+        logger.error(f"[gmail_poller] Failed: {e}", exc_info=True)
+
+
 async def _analyze_new_leads():
     try:
         from agents.website_analyzer import run
@@ -264,6 +273,10 @@ def start_scheduler():
     scheduler.add_job(**job(_process_queue, id="process_queue",
         trigger=IntervalTrigger(minutes=30)))
 
+    # Every 30 mins — poll Gmail inbox for replies to outreach emails
+    scheduler.add_job(**job(_poll_gmail_replies, id="gmail_poller",
+        trigger=IntervalTrigger(minutes=30, start_date=None)))
+
     # Every 2 hours — analyse new leads' websites
     scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
         trigger=IntervalTrigger(hours=2)))
@@ -313,7 +326,7 @@ def start_scheduler():
         trigger=CronTrigger(hour=3, minute=30, timezone=TZ)))
 
     scheduler.start()
-    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst, 3:30am cleanup | morning: 5:55am health, 6am leads, 6:05am enricher, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude, 11:30am preview-refresh | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
+    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst, 3:30am cleanup | morning: 5:55am health, 6am leads, 6:05am enricher, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude, 11:30am preview-refresh | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue+gmail poller")
 
 
 def stop_scheduler():
