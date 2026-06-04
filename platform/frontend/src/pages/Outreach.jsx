@@ -258,10 +258,18 @@ function MessageCard({ msg, onApprove, onReject }) {
   )
 }
 
-function InstagramCard({ msg }) {
-  const [copied, setCopied] = useState(false)
+function InstagramCard({ msg, onMarkSent }) {
+  const [sending, setSending] = useState(false)
   const igUrl = msg.leads?.instagram_url
-  const copy = () => { navigator.clipboard.writeText(msg.body); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  const searchUrl = `https://www.instagram.com/direct/new/`
+  const openUrl = igUrl || searchUrl
+
+  const handleSend = async () => {
+    navigator.clipboard.writeText(msg.body)
+    window.open(openUrl, '_blank')
+    setSending(true)
+    try { if (onMarkSent) await onMarkSent(msg.id) } finally { setSending(false) }
+  }
 
   return (
     <div style={{
@@ -287,13 +295,14 @@ function InstagramCard({ msg }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-        {igUrl && (
-          <a href={igUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 12, color: '#c084fc', textDecoration: 'none' }}>
-            <ExternalLink size={11} /> Open Instagram
-          </a>
-        )}
-        <button onClick={copy} className="btn-gold" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}>
-          {copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Copy size={12} /> Copy DM</>}
+        <button onClick={handleSend} disabled={sending} style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          fontSize: 12, background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
+          border: 'none', color: '#fff', fontWeight: 700, padding: '8px 14px',
+          borderRadius: 8, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1,
+        }}>
+          <Instagram size={12} />
+          {sending ? 'Opening...' : igUrl ? 'Open Instagram — mark as sent' : 'Copy & open Instagram DMs'}
         </button>
       </div>
     </div>
@@ -368,6 +377,7 @@ export default function Outreach() {
   }, [queue.length, whatsappQueue.length, generating])
 
   const markWASent = async id => { await outreachApi.markSent(id); showToast('Marked as sent'); await load() }
+  const markIGSent = async id => { await outreachApi.markSent(id); showToast('Marked as sent'); await load() }
   const logReply = async (message_id, reply_text) => { await outreachApi.logReply(message_id, reply_text); showToast('Reply logged!'); await load() }
   const approve = async id => { try { await outreachApi.approve(id); showToast('Sent!'); load() } catch (e) { showToast(e.message, 'error') } }
   const reject = async id => { try { await outreachApi.reject(id); showToast('Rejected'); load() } catch (e) { showToast(e.message, 'error') } }
@@ -587,7 +597,7 @@ export default function Outreach() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)' }}>{instagramQueue.length} scripts ready — copy and send manually.</p>
-            {instagramQueue.map(msg => <InstagramCard key={msg.id} msg={msg} />)}
+            {instagramQueue.map(msg => <InstagramCard key={msg.id} msg={msg} onMarkSent={markIGSent} />)}
           </div>
         )
       ) : tab === 'queue' ? (
