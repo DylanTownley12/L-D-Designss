@@ -85,11 +85,25 @@ async def inbound_email_webhook(request: Request):
     return {"status": "ok"}
 
 
+_INTEREST_KEYWORDS = [
+    "yes", "yeah", "yep", "interested", "sounds good", "go ahead", "do it",
+    "how much", "price", "cost", "how do i pay", "how to pay", "pay",
+    "send me", "send the link", "link", "sort it", "let's do it", "lets do it",
+    "i want", "sign me up", "book me in",
+]
+
+
+def _is_buying_intent(text: str) -> bool:
+    t = text.lower()
+    return any(kw in t for kw in _INTEREST_KEYWORDS)
+
+
 @router.post("/whatsapp-reply")
 async def whatsapp_reply(request: Request):
     """
     Called by OpenClaw when a barber replies on WhatsApp.
-    Looks up the lead by phone number and marks them as replied.
+    Looks up the lead by phone number, marks them as replied,
+    and if the message shows buying intent, queues a payment link reply.
     """
     body = await request.json()
     phone = (body.get("phone") or "").strip()
@@ -110,6 +124,8 @@ async def whatsapp_reply(request: Request):
     lead = result.data[0]
     lead_id = lead["id"]
 
+    payment_queued = False
+
     # Only update if not already replied/interested/converted
     if lead.get("status") not in ("replied", "interested", "converted"):
         db.table("outreach_messages").insert({
@@ -123,7 +139,54 @@ async def whatsapp_reply(request: Request):
         notification_agent.notify_reply_received(lead_id, message)
         followup_agent.stop_sequence(lead_id, reason="replied")
 
-    return {"status": "ok", "lead_id": lead_id, "business_name": lead.get("business_name")}
+    # If the barber is showing buying intent, queue a payment link reply
+    if _is_buying_intent(message) and lead.get("status") not in ("converted",):
+        try:
+            import stripe as _stripe_lib
+            _stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+            session = _stripe_lib.checkout.Session.create(
+                mode="payment",
+                success_url=settings.STRIPE_SUCCESS_URL + f"&lead={lead_id}",
+                cancel_url=settings.STRIPE_CANCEL_URL,
+                metadata={"lead_id": lead_id, "business_name": lead.get("business_name", "")},
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": "gbp",
+                        "unit_amount": 7500,
+                        "product_data": {
+                            "name": "Website Deposit — L&D Designs",
+                            "description": f"£75 deposit for {lead.get('business_name', 'your barber website')}",
+                        },
+                    },
+                    "quantity": 1,
+                }],
+            )
+            reply_body = (
+                f"Brilliant! To get started I just need a £75 deposit — "
+                f"pay securely here: {session.url} 🔥 "
+                f"Once it's done I'll crack on straight away."
+            )
+            db.table("outreach_messages").insert({
+                "lead_id": lead_id,
+                "channel": "whatsapp",
+                "direction": "outbound",
+                "body": reply_body,
+                "status": "queued",
+                "approved_by_founder": False,
+            }).execute()
+            db.table("leads").update({"notes": f"stripe_session:{session.id}"}).eq("id", lead_id).execute()
+            payment_queued = True
+            logger.info(f"Payment link reply queued for {lead.get('business_name')} (lead {lead_id})")
+        except Exception as e:
+            logger.warning(f"Could not queue payment link for lead {lead_id}: {e}")
+
+    return {
+        "status": "ok",
+        "lead_id": lead_id,
+        "business_name": lead.get("business_name"),
+        "payment_queued": payment_queued,
+    }
 
 
 @router.post("/manual-reply/{lead_id}")
