@@ -233,8 +233,8 @@ function ConversationDrawer({ lead, onClose }) {
         </button>
       </div>
 
-      {/* Payment status — always show for replied/interested/converted */}
-      {['replied', 'interested', 'converted'].includes(lead?.status) && (
+      {/* Payment status — show for any lead past outreach_queued */}
+      {!['new', 'analyzing', 'do_not_contact'].includes(lead?.status) && (
         <PaymentStatusBlock lead={lead} />
       )}
 
