@@ -375,17 +375,66 @@ async def mark_wa_sent(message_ids: list):
     """Mark WhatsApp messages as sent after Baz delivers them."""
     from db.client import get_db
     from datetime import datetime
+    from agents import followup_agent
+    import logging
+    logger = logging.getLogger(__name__)
     db = get_db()
 
     updated = 0
     for mid in message_ids:
         try:
+            # Get message + lead before updating
+            msg = db.table("outreach_messages").select("lead_id, channel").eq("id", mid).single().execute()
+            if not msg.data:
+                continue
+
+            lead_id = msg.data["lead_id"]
+            channel = msg.data.get("channel", "whatsapp")
+
+            # Mark message as sent
             db.table("outreach_messages").update({
                 "status": "sent",
                 "sent_at": datetime.utcnow().isoformat(),
             }).eq("id", mid).execute()
+
+            # Update lead status if first outreach
+            lead = db.table("leads").select("status").eq("id", lead_id).single().execute()
+            if lead.data and lead.data.get("status") in ("new", "preview_ready", "outreach_queued"):
+                db.table("leads").update({"status": "outreach_sent"}).eq("id", lead_id).execute()
+
+            # Start follow-up sequence
+            followup_agent.start_sequence(lead_id, channel)
+
             updated += 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"wa-sent failed for {mid}: {e}")
 
     return {"updated": updated}
+
+
+@router.post("/admin/backfill-followups")
+async def backfill_followup_sequences():
+    """One-time backfill: start follow-up sequences for all outreach_sent leads that don't have one."""
+    from db.client import get_db
+    from agents import followup_agent
+    db = get_db()
+
+    # Get all outreach_sent leads
+    leads = db.table("leads").select("id").eq("status", "outreach_sent").execute()
+    started = 0
+    skipped = 0
+
+    for lead in (leads.data or []):
+        lead_id = lead["id"]
+        # Check if sequence already exists
+        existing = db.table("follow_up_sequences").select("id").eq("lead_id", lead_id).execute()
+        if existing.data:
+            skipped += 1
+            continue
+        # Find the channel from their last sent message
+        msg = db.table("outreach_messages").select("channel").eq("lead_id", lead_id).eq("status", "sent").order("sent_at", desc=True).limit(1).execute()
+        channel = msg.data[0]["channel"] if msg.data else "whatsapp"
+        followup_agent.start_sequence(lead_id, channel)
+        started += 1
+
+    return {"started": started, "skipped": skipped, "total_leads": len(leads.data or [])}
