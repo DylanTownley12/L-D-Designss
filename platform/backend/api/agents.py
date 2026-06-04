@@ -292,43 +292,68 @@ async def get_wa_queue(limit: int = 10):
 @router.post("/admin/fix-preview-urls")
 async def fix_preview_urls():
     """
-    One-shot fix: replaces localhost preview URLs with the production Railway URL.
-    Run once after setting PREVIEW_BASE_URL in Railway.
-    Safe to run multiple times — only updates rows that still contain localhost.
+    Fixes preview records with NULL/empty preview_url by reconstructing the URL
+    from the preview's own ID. Also fixes any remaining localhost URLs.
+    Safe to run multiple times.
     """
     from db.client import get_db
     db = get_db()
 
     PROD = "https://l-d-designss-production.up.railway.app"
-    OLD = "http://localhost:8000"
+    fixed = 0
 
+    # Fix 1: records with NULL or empty preview_url — reconstruct from ID
     result = (
+        db.table("previews")
+        .select("id, preview_url, html_content")
+        .is_("preview_url", "null")
+        .limit(2000)
+        .execute()
+    )
+    for row in (result.data or []):
+        if row.get("html_content"):
+            new_url = f"{PROD}/previews/serve/{row['id']}"
+            db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
+            fixed += 1
+
+    # Fix 2: records with empty string preview_url
+    result2 = (
+        db.table("previews")
+        .select("id, preview_url, html_content")
+        .eq("preview_url", "")
+        .limit(2000)
+        .execute()
+    )
+    for row in (result2.data or []):
+        if row.get("html_content"):
+            new_url = f"{PROD}/previews/serve/{row['id']}"
+            db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
+            fixed += 1
+
+    # Fix 3: any remaining localhost URLs
+    result3 = (
         db.table("previews")
         .select("id, preview_url")
         .ilike("preview_url", "%localhost%")
         .limit(2000)
         .execute()
     )
-    rows = result.data or []
-    fixed = 0
-    for row in rows:
+    for row in (result3.data or []):
         old_url = row.get("preview_url") or ""
-        new_url = old_url.replace(OLD, PROD).replace("http://localhost:8000", PROD)
+        new_url = old_url.replace("http://localhost:8000", PROD).replace("http://localhost", PROD)
         if new_url != old_url:
             db.table("previews").update({"preview_url": new_url}).eq("id", row["id"]).execute()
             fixed += 1
 
-    from db.client import get_db as _get_db
-    db2 = _get_db()
-    total = db2.table("previews").select("id", count="exact").execute().count or 0
+    total = db.table("previews").select("id", count="exact").execute().count or 0
     valid = (
-        db2.table("previews").select("id", count="exact")
+        db.table("previews").select("id", count="exact")
         .ilike("preview_url", "%/previews/serve/%")
         .execute().count or 0
     )
 
     try:
-        db2.table("agent_logs").insert({
+        db.table("agent_logs").insert({
             "agent_name": "admin",
             "action": f"fix_preview_urls: fixed {fixed} broken URLs",
             "status": "success",
