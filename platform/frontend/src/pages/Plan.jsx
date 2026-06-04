@@ -475,33 +475,37 @@ export default function Plan() {
   const week2 = PLAN.filter(d => d.week === 2)
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div style={{ padding: '24px', maxWidth: 920, margin: '0 auto' }}>
+
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">2-Week Plan</h1>
-        <p className="text-white/40 text-sm">3 Jun – 16 Jun 2026 · First sale target · Click a day to expand — click any task to tick it off</p>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}`, animation: 'orbBreathe 2s ease-in-out infinite' }} />
+          <span style={lbl()}>2-WEEK OPERATIONS PLAN</span>
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, margin: 0 }}>Plan</h1>
+        <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
+          3 Jun – 16 Jun 2026 · First sale target · Click a day to expand — click any task to tick it off
+        </p>
       </div>
 
       {/* Overall progress */}
-      <div className="bg-dark-2 border border-white/6 rounded-xl p-4 mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-white/60">Overall progress</span>
-          <span className="text-sm font-bold text-gold">{totalDone}/{totalTotal} tasks</span>
+      <div style={{ ...panelStyle({ padding: '14px 18px', marginBottom: 20 }) }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: C.textMid }}>Overall progress</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: C.mono }}>{totalDone}/{totalTotal} tasks</span>
         </div>
-        <div className="w-full bg-white/5 rounded-full h-2.5">
-          <div
-            className="h-2.5 rounded-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: '#C9A84C' }}
-          />
+        <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 999, height: 5, overflow: 'hidden', marginBottom: 14 }}>
+          <div style={{ height: '100%', borderRadius: 999, transition: 'width 0.5s ease', background: `linear-gradient(90deg, ${C.gold}, #F0C96A)`, width: `${pct}%` }} />
         </div>
-        <div className="flex gap-4 mt-3">
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
           {PEOPLE.map(p => {
             const allTasks = PLAN.flatMap(d => (d.tasks[p.key] || []).map((_, i) => taskKey(d.day, p.key, i)))
             const doneTasks = allTasks.filter(k => checked[k]).length
             return (
-              <div key={p.key} className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${p.bg} border ${p.border}`} />
-                <span className={`text-xs ${p.color}`}>{p.label}: {doneTasks}/{allTasks.length}</span>
+              <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, boxShadow: `0 0 5px ${p.color}50` }} />
+                <span style={{ fontSize: 11, color: p.color, fontFamily: C.mono }}>{p.label}: {doneTasks}/{allTasks.length}</span>
               </div>
             )
           })}
@@ -511,96 +515,178 @@ export default function Plan() {
       {/* Today banner */}
       {todayDay && (
         <div
-          className="bg-gold/10 border border-gold/30 rounded-xl p-3 mb-6 cursor-pointer flex items-center justify-between"
+          style={{
+            background: 'rgba(212,168,67,0.05)',
+            border: '1px solid rgba(212,168,67,0.28)',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 20,
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            boxShadow: '0 0 20px rgba(212,168,67,0.05)',
+          }}
           onClick={() => setExpandedDay(expandedDay === todayDay ? null : todayDay)}
         >
-          <div className="flex items-center gap-2">
-            <span className="text-gold text-sm font-bold">Today</span>
-            <span className="text-white/60 text-sm">— {PLAN.find(d => d.day === todayDay)?.focus}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, boxShadow: `0 0 6px ${C.gold}`, animation: 'orbBreathe 1.5s ease-in-out infinite' }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>Today</span>
+            <span style={{ fontSize: 12, color: C.textMid }}>— {PLAN.find(d => d.day === todayDay)?.focus}</span>
           </div>
-          <span className="text-gold/60 text-xs">
+          <span style={{ fontSize: 11, color: `${C.gold}80`, fontFamily: C.mono }}>
             {dayProgress(todayDay).done}/{dayProgress(todayDay).total} done
           </span>
         </div>
       )}
 
-      {[{ label: 'Week 1 — Get the machine running and close the first sale', days: week1 },
-        { label: 'Week 2 — Push for first sale + build aesthetics demo', days: week2 }
+      {[
+        { label: 'WEEK 1 — GET THE MACHINE RUNNING AND CLOSE THE FIRST SALE', days: week1 },
+        { label: 'WEEK 2 — PUSH FOR FIRST SALE + BUILD AESTHETICS DEMO', days: week2 },
       ].map(week => (
-        <div key={week.label} className="mb-8">
-          <h2 className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">{week.label}</h2>
-          <div className="space-y-2">
+        <div key={week.label} style={{ marginBottom: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div style={{ flex: 1, height: 1, background: C.borderDim }} />
+            <span style={lbl({ color: C.textDim })}>{week.label}</span>
+            <div style={{ flex: 1, height: 1, background: C.borderDim }} />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {week.days.map(day => {
               const { done, total } = dayProgress(day.day)
               const isToday = day.day === todayDay
               const isExpanded = expandedDay === day.day
               const isPast = todayDay && day.day < todayDay
+              const isComplete = isPast && done === total && total > 0
+
+              const rowBg = isToday
+                ? 'rgba(212,168,67,0.04)'
+                : isComplete
+                ? 'rgba(0,255,136,0.03)'
+                : C.panel
+              const rowBorder = isToday
+                ? 'rgba(212,168,67,0.28)'
+                : isComplete
+                ? 'rgba(0,255,136,0.18)'
+                : C.border
 
               return (
                 <div
                   key={day.day}
-                  className={`border rounded-xl overflow-hidden transition-all ${
-                    isToday
-                      ? 'border-gold/30 bg-gold/5'
-                      : isPast && done === total && total > 0
-                      ? 'border-green-400/20 bg-green-400/5'
-                      : 'border-white/6 bg-dark-2'
-                  }`}
+                  style={{
+                    background: rowBg,
+                    border: `1px solid ${rowBorder}`,
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    transition: 'all 0.15s ease',
+                  }}
                 >
                   {/* Day header */}
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer',
+                    }}
                     onClick={() => setExpandedDay(isExpanded ? null : day.day)}
                   >
-                    <div className={`text-xs font-bold w-6 text-center rounded ${isToday ? 'text-gold' : 'text-white/25'}`}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 800, width: 22, textAlign: 'center',
+                      color: isToday ? C.gold : isPast ? C.textDim : C.textMid,
+                      fontFamily: C.mono,
+                    }}>
                       {day.day}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${isToday ? 'text-gold' : isPast ? 'text-white/50' : 'text-white/80'}`}>
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600,
+                          color: isToday ? C.gold : isPast ? C.textMid : C.text,
+                        }}>
                           {day.label}
                         </span>
-                        {isToday && <span className="text-xs bg-gold text-black font-bold px-1.5 py-0.5 rounded">Today</span>}
+                        {isToday && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                            background: C.gold, color: '#000', letterSpacing: '0.08em',
+                          }}>TODAY</span>
+                        )}
+                        {isComplete && (
+                          <span style={{ fontSize: 10, color: C.green }}>✓</span>
+                        )}
                       </div>
-                      <div className="text-xs text-white/30 mt-0.5 truncate">{day.focus}</div>
+                      <div style={{ fontSize: 11, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {day.focus}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {done > 0 && (
-                        <span className={`text-xs ${done === total ? 'text-green-400' : 'text-white/40'}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      {total > 0 && (
+                        <span style={{ fontSize: 11, fontFamily: C.mono, color: done === total ? C.green : C.textDim }}>
                           {done}/{total}
                         </span>
                       )}
-                      <span className="text-white/20 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                      {total > 0 && (
+                        <div style={{ width: 42, height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 99, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 99,
+                            background: isToday ? `linear-gradient(90deg, ${C.gold}, #F0C96A)` : isComplete ? C.green : `linear-gradient(90deg, ${C.cyan}, ${C.blue})`,
+                            width: `${total > 0 ? (done / total) * 100 : 0}%`,
+                            transition: 'width 0.4s ease',
+                          }} />
+                        </div>
+                      )}
+                      <span style={{ fontSize: 9, color: C.textDim }}>{isExpanded ? '▲' : '▼'}</span>
                     </div>
                   </button>
 
                   {/* Expanded tasks */}
                   {isExpanded && (
-                    <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div style={{
+                      padding: '4px 16px 16px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                      gap: 10,
+                    }}>
                       {PEOPLE.map(person => {
                         const tasks = day.tasks[person.key] || []
                         if (!tasks.length) return null
                         return (
-                          <div key={person.key} className={`rounded-lg border p-3 ${person.bg} ${person.border}`}>
-                            <div className={`text-xs font-bold mb-2 ${person.color}`}>{person.label}</div>
-                            <ul className="space-y-2">
+                          <div
+                            key={person.key}
+                            style={{
+                              background: person.panelBg,
+                              border: `1px solid ${person.panelBorder}`,
+                              borderRadius: 9,
+                              padding: '12px 14px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                              <div style={{ width: 5, height: 5, borderRadius: '50%', background: person.color, boxShadow: `0 0 5px ${person.color}60` }} />
+                              <span style={{ ...lbl({ color: person.color, fontSize: 8 }) }}>{person.label}</span>
+                            </div>
+                            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {tasks.map((task, idx) => {
                                 const key = taskKey(day.day, person.key, idx)
                                 const done = checked[key]
                                 return (
                                   <li
                                     key={idx}
-                                    className="flex items-start gap-2 cursor-pointer"
+                                    style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer' }}
                                     onClick={() => toggle(day.day, person.key, idx)}
                                   >
-                                    <div className={`mt-0.5 w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-all ${
-                                      done
-                                        ? `${person.bg} ${person.border}`
-                                        : 'border-white/20 bg-transparent'
-                                    }`}>
-                                      {done && <span className={`text-xs ${person.color}`}>✓</span>}
+                                    <div style={{
+                                      marginTop: 2, width: 14, height: 14, flexShrink: 0, borderRadius: 4,
+                                      border: `1px solid ${done ? person.color : 'rgba(255,255,255,0.2)'}`,
+                                      background: done ? person.panelBg : 'transparent',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      transition: 'all 0.15s ease',
+                                      boxShadow: done ? `0 0 5px ${person.color}40` : 'none',
+                                    }}>
+                                      {done && <span style={{ fontSize: 8, color: person.color, fontWeight: 900 }}>✓</span>}
                                     </div>
-                                    <span className={`text-xs leading-relaxed ${done ? 'line-through text-white/25' : 'text-white/70'}`}>
+                                    <span style={{
+                                      fontSize: 11.5, lineHeight: 1.55,
+                                      color: done ? C.textDim : C.textMid,
+                                      textDecoration: done ? 'line-through' : 'none',
+                                      transition: 'all 0.15s ease',
+                                    }}>
                                       {task}
                                     </span>
                                   </li>
