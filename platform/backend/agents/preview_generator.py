@@ -110,6 +110,10 @@ def _build_context(lead: dict) -> dict:
     if whatsapp_number.startswith("0"):
         whatsapp_number = "44" + whatsapp_number[1:]
 
+    import urllib.parse
+    _preview_msg = urllib.parse.quote(f"Hi Dylan, I just saw the preview site you built for {name} — I'm interested in getting it live.")
+    dylan_whatsapp_url = f"https://wa.me/447504683058?text={_preview_msg}"
+
     taglines = [
         f"Trusted by {city}'s finest — fresh cuts, no compromises.",
         f"The go-to barbers in {city}. Walk in, leave looking class.",
@@ -144,6 +148,7 @@ def _build_context(lead: dict) -> dict:
         "barber_image_url": _pick(BARBER_IMAGE_POOL, seed, offset=1),
         "booking_url": f"https://wa.me/{whatsapp_number}?text=Hi%2C%20I%27d%20like%20to%20book%20an%20appointment",
         "whatsapp_url": f"https://wa.me/{whatsapp_number}",
+        "dylan_whatsapp_url": dylan_whatsapp_url,
         "about_heading": f"The Barbers {city} Trusts",
         "about_text": _pick(about_texts, seed, offset=2),
         "highlights": [
