@@ -9,6 +9,7 @@ import MissedCall from './pages/MissedCall'
 import Agents from './pages/Agents'
 import Plan from './pages/Plan'
 import Live from './pages/Live'
+import Command from './pages/Command'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/agents" element={<Agents />} />
                 <Route path="/plan" element={<Plan />} />
+                <Route path="/command" element={<Command />} />
               </Routes>
             </main>
           </div>

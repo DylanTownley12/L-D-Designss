@@ -86,6 +86,11 @@ export const publicStats = {
   live: () => api.get('/dashboard/live'),
 }
 
+export const ops = {
+  actionQueue: (limit = 50) => api.get('/ops/action-queue', { params: { limit } }),
+  blockers: () => api.get('/ops/blockers'),
+}
+
 export const strategy = {
   getBrief: () => api.get('/strategy/brief'),
   runBrief: () => api.post('/strategy/brief/run'),

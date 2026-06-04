@@ -2,11 +2,12 @@ import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { dashboard as dashApi, agents as agentsApi } from '../api/client'
 import {
-  Radio, Users, Database, Crosshair, Globe, MessageSquare, Map, Settings,
+  Radio, Users, Database, Crosshair, Globe, MessageSquare, Map, Settings, Zap,
 } from 'lucide-react'
 
 const nav = [
-  { to: '/dashboard',   Icon: Radio,         label: 'COMMAND' },
+  { to: '/command',     Icon: Zap,           label: 'DO NEXT', highlight: true },
+  { to: '/dashboard',   Icon: Radio,         label: 'JARVIS' },
   { to: '/agents',      Icon: Users,         label: 'WORKFORCE' },
   { to: '/leads',       Icon: Database,      label: 'INTELLIGENCE' },
   { to: '/outreach',    Icon: Crosshair,     label: 'OPERATIONS' },
@@ -35,7 +36,7 @@ function LogoMark() {
   )
 }
 
-function NavItem({ to, Icon, label, badge }) {
+function NavItem({ to, Icon, label, badge, highlight }) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -55,14 +56,18 @@ function NavItem({ to, Icon, label, badge }) {
         textDecoration: 'none',
         transition: 'all 0.13s ease',
         fontFamily: '"JetBrains Mono", monospace',
-        borderLeft: isActive ? `2px solid ${CYAN}` : '2px solid transparent',
+        borderLeft: isActive ? `2px solid ${highlight ? GOLD : CYAN}` : '2px solid transparent',
         background: isActive
-          ? `linear-gradient(90deg, rgba(0,212,255,0.08) 0%, rgba(0,212,255,0.01) 100%)`
+          ? highlight
+            ? `linear-gradient(90deg, rgba(212,168,67,0.12) 0%, rgba(212,168,67,0.02) 100%)`
+            : `linear-gradient(90deg, rgba(0,212,255,0.08) 0%, rgba(0,212,255,0.01) 100%)`
           : hovered
           ? 'rgba(255,255,255,0.04)'
+          : highlight
+          ? 'rgba(212,168,67,0.04)'
           : 'transparent',
-        color: isActive ? 'rgba(255,255,255,0.9)' : hovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)',
-        boxShadow: isActive ? `inset 0 0 20px rgba(0,212,255,0.04)` : 'none',
+        color: isActive ? 'rgba(255,255,255,0.9)' : hovered ? 'rgba(255,255,255,0.6)' : highlight ? 'rgba(212,168,67,0.7)' : 'rgba(255,255,255,0.25)',
+        boxShadow: isActive ? `inset 0 0 20px ${highlight ? 'rgba(212,168,67,0.06)' : 'rgba(0,212,255,0.04)'}` : 'none',
       })}
     >
       {({ isActive }) => (
@@ -70,10 +75,10 @@ function NavItem({ to, Icon, label, badge }) {
           <Icon
             size={14}
             style={{
-              color: isActive ? CYAN : hovered ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)',
+              color: isActive ? (highlight ? GOLD : CYAN) : hovered ? 'rgba(255,255,255,0.4)' : highlight ? GOLD : 'rgba(255,255,255,0.2)',
               flexShrink: 0,
               transition: 'color 0.13s ease',
-              filter: isActive ? `drop-shadow(0 0 4px ${CYAN}80)` : 'none',
+              filter: isActive ? `drop-shadow(0 0 4px ${highlight ? GOLD : CYAN}80)` : 'none',
             }}
           />
           <span style={{ flex: 1 }}>{label}</span>
@@ -190,7 +195,8 @@ export default function Sidebar() {
             to={item.to}
             Icon={item.Icon}
             label={item.label}
-            badge={item.label === 'COMMAND' ? unread : 0}
+            badge={item.label === 'JARVIS' ? unread : 0}
+            highlight={item.highlight}
           />
         ))}
       </nav>
