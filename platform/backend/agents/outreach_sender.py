@@ -6,7 +6,7 @@ Has rate limiting, retry logic, and full logging.
 import smtplib
 import logging
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from config import settings
@@ -162,7 +162,7 @@ def send_message(message_id: str, retry: bool = False) -> dict:
     # Update message status in DB
     update_data = {
         "status": "sent" if result["success"] else "failed",
-        "sent_at": datetime.now().isoformat() if result["success"] else None,
+        "sent_at": datetime.now(timezone.utc).isoformat() if result["success"] else None,
         **extra_data,
     }
     db.table("outreach_messages").update(update_data).eq("id", message_id).execute()

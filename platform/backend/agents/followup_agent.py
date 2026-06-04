@@ -62,11 +62,12 @@ def run() -> dict:
     skipped = 0
     errors = 0
 
-    # Get all active sequences (not stopped, lead hasn't replied)
+    # Get active sequences (not stopped) — process in batches to cap memory usage
     result = (
         db.table("follow_up_sequences")
         .select("*, leads(*)")
         .eq("stopped", False)
+        .limit(500)
         .execute()
     )
 

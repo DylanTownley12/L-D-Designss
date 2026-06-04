@@ -244,19 +244,42 @@ def _write_whatsapp(lead: dict, preview_url: str | None = None, variant_index: i
     return _WHATSAPP_TEMPLATES[idx].format(name=name, city=city, preview_suffix=preview_suffix)
 
 
+MAX_WA_PER_DAY = 10
+
+
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
     """
     Generate WhatsApp messages for preview_ready leads with mobile numbers.
-    Stored as queued outreach messages — Dylan clicks the wa.me link to send manually.
+    Capped at MAX_WA_PER_DAY to prevent ban risk.
+    Stored as queued outreach messages — Baz sends them at 9am.
     """
     from db.client import get_db
+    from datetime import date
     db = get_db()
+
+    # Count how many WA messages already queued or sent today
+    today = date.today().isoformat()
+    already_queued = (
+        db.table("outreach_messages")
+        .select("id", count="exact")
+        .eq("channel", "whatsapp")
+        .eq("direction", "outbound")
+        .in_("status", ["queued", "draft", "sent"])
+        .gte("created_at", f"{today}T00:00:00")
+        .execute().count or 0
+    )
+    slots_left = MAX_WA_PER_DAY - already_queued
+    if slots_left <= 0:
+        logger.info(f"WA daily cap reached ({MAX_WA_PER_DAY}/day) — skipping campaign generation")
+        return {"generated": 0, "skipped": 0, "capped": True}
+
+    effective_limit = min(limit, slots_left)
 
     result = (
         db.table("leads")
         .select("*")
         .eq("status", "preview_ready")
-        .limit(limit)
+        .limit(effective_limit * 5)
         .execute()
     )
     # Only leads with a UK mobile number — landlines won't work on WhatsApp
@@ -264,7 +287,7 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
         p = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
         return p.startswith("07") or p.startswith("+447") or p.startswith("447")
 
-    leads = [l for l in (result.data or []) if l.get("phone") and _is_mobile(l["phone"])]
+    leads = [l for l in (result.data or []) if l.get("phone") and _is_mobile(l["phone"])][:effective_limit]
 
     generated = 0
     skipped = 0

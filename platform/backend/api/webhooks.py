@@ -160,21 +160,19 @@ async def stripe_webhook(request: Request):
     if not settings.STRIPE_SECRET_KEY:
         raise HTTPException(status_code=503, detail="Stripe not configured")
 
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="STRIPE_WEBHOOK_SECRET not set — add it to Railway Variables")
+
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
     try:
         import stripe
         stripe.api_key = settings.STRIPE_SECRET_KEY
-
-        if settings.STRIPE_WEBHOOK_SECRET:
-            event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
-        else:
-            import json
-            event = json.loads(payload)
+        event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
     except Exception as e:
-        logger.error(f"Stripe webhook error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Stripe webhook signature error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]

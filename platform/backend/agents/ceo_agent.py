@@ -22,13 +22,14 @@ def run() -> dict:
     warnings = []
     stats = {}
 
-    # 1. Lead pipeline counts
+    # 1. Lead pipeline counts — use per-status count queries (not a full table scan)
     try:
-        all_leads = db.table("leads").select("status").execute().data or []
+        statuses = ["new", "analyzing", "preview_ready", "outreach_queued",
+                    "outreach_sent", "replied", "interested", "converted",
+                    "not_interested", "do_not_contact"]
         pipeline = {}
-        for lead in all_leads:
-            s = lead.get("status", "unknown")
-            pipeline[s] = pipeline.get(s, 0) + 1
+        for s in statuses:
+            pipeline[s] = db.table("leads").select("id", count="exact").eq("status", s).execute().count or 0
         stats["pipeline"] = pipeline
 
         if pipeline.get("new", 0) > 50:
@@ -179,11 +180,16 @@ def _run_agent(name: str):
     return None
 
 
+MAX_RETRIES_PER_AGENT_PER_DAY = 3
+
+
 def _retry_failed(db, two_hours_ago: str) -> list:
-    """Find agents that errored in the last 2h without recovering, and re-run them."""
+    """Find agents that errored in the last 2h without recovering, and re-run them.
+    Capped at MAX_RETRIES_PER_AGENT_PER_DAY to prevent retry storms."""
     actions = []
     try:
-        # Agents that errored recently (excluding monitoring agents)
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
         error_logs = (
             db.table("agent_logs").select("agent_name")
             .eq("status", "error")
@@ -203,9 +209,27 @@ def _retry_failed(db, two_hours_ago: str) -> list:
         )
         recovered = {l["agent_name"] for l in success_logs}
 
+        # Count how many times CEO has already retried each agent today
+        retry_logs = (
+            db.table("agent_logs").select("details")
+            .eq("agent_name", "ceo_agent")
+            .gte("created_at", today_start)
+            .execute().data or []
+        )
+        retry_counts: dict = {}
+        for log in retry_logs:
+            d = log.get("details") or {}
+            retried = d.get("auto_retry")
+            if retried:
+                retry_counts[retried] = retry_counts.get(retried, 0) + 1
+
         to_retry = errored - recovered
 
         for name in to_retry:
+            if retry_counts.get(name, 0) >= MAX_RETRIES_PER_AGENT_PER_DAY:
+                actions.append(f"{name} hit retry cap ({MAX_RETRIES_PER_AGENT_PER_DAY}/day) — needs manual check")
+                logger.warning(f"[ceo_agent] Retry cap reached for {name}")
+                continue
             try:
                 result = _run_agent(name)
                 msg = f"Auto-retried {name} after failure"
@@ -284,12 +308,13 @@ def send_daily_briefing() -> bool:
     yesterday = (date.today() - timedelta(days=1)).isoformat()
 
     try:
-        # Pipeline counts
-        all_leads = db.table("leads").select("status").execute().data or []
+        # Pipeline counts — per-status count queries
+        statuses = ["new", "analyzing", "preview_ready", "outreach_queued",
+                    "outreach_sent", "replied", "interested", "converted",
+                    "not_interested", "do_not_contact"]
         pipeline = {}
-        for lead in all_leads:
-            s = lead.get("status", "unknown")
-            pipeline[s] = pipeline.get(s, 0) + 1
+        for s in statuses:
+            pipeline[s] = db.table("leads").select("id", count="exact").eq("status", s).execute().count or 0
 
         # Replies in last 24h
         replies_24h = (

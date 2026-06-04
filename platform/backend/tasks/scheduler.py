@@ -35,10 +35,10 @@ async def _morning_health_check():
 
         wa_queued = _count("outreach_messages", status="queued", channel="whatsapp", direction="outbound")
 
-        preview_result = db.table("previews").select("preview_url").limit(2000).execute()
-        valid_previews = sum(
-            1 for p in (preview_result.data or [])
-            if 'railway' in (p.get("preview_url") or '') or '/previews/serve/' in (p.get("preview_url") or '')
+        valid_previews = (
+            db.table("previews").select("id", count="exact")
+            .ilike("preview_url", "%/previews/serve/%")
+            .execute().count or 0
         )
 
         replied_24h = (
@@ -209,6 +209,27 @@ async def _refresh_stale_previews():
         logger.error(f"[preview_refresher] Failed: {e}", exc_info=True)
 
 
+async def _enrich_leads():
+    try:
+        from agents.lead_enricher import run
+        result = run(limit=100)
+        logger.info(f"[lead_enricher] checked={result['checked']}, emails={result['emails_found']}, instagram={result['instagram_found']}")
+    except Exception as e:
+        logger.error(f"[lead_enricher] Failed: {e}", exc_info=True)
+
+
+async def _cleanup_old_logs():
+    try:
+        from db.client import get_db
+        from datetime import datetime, timedelta, timezone as _tz
+        db = get_db()
+        cutoff = (datetime.now(_tz.utc) - timedelta(days=30)).isoformat()
+        db.table("agent_logs").delete().lt("created_at", cutoff).execute()
+        logger.info("[log_cleanup] Deleted agent_logs older than 30 days")
+    except Exception as e:
+        logger.error(f"[log_cleanup] Failed: {e}", exc_info=True)
+
+
 # ── Scheduler setup ──────────────────────────────────────────────────────────
 
 def start_scheduler():
@@ -241,7 +262,7 @@ def start_scheduler():
 
     # Every 30 mins — send approved email queue
     scheduler.add_job(**job(_process_queue, id="process_queue",
-        trigger=CronTrigger(minute=30, timezone=TZ)))
+        trigger=IntervalTrigger(minutes=30)))
 
     # Every 2 hours — analyse new leads' websites
     scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
@@ -283,8 +304,16 @@ def start_scheduler():
     scheduler.add_job(**job(_refresh_stale_previews, id="preview_refresher",
         trigger=CronTrigger(hour=11, minute=30, timezone=TZ)))
 
+    # 6:05am — Enrich preview_ready leads (find emails + Instagram handles)
+    scheduler.add_job(**job(_enrich_leads, id="lead_enricher",
+        trigger=CronTrigger(hour=6, minute=5, timezone=TZ)))
+
+    # 3:30am — Delete agent_logs older than 30 days
+    scheduler.add_job(**job(_cleanup_old_logs, id="log_cleanup",
+        trigger=CronTrigger(hour=3, minute=30, timezone=TZ)))
+
     scheduler.start()
-    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst | morning: 5:55am health, 6am leads, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
+    logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst, 3:30am cleanup | morning: 5:55am health, 6am leads, 6:05am enricher, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude, 11:30am preview-refresh | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
 
 
 def stop_scheduler():

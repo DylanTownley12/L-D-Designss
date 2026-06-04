@@ -146,11 +146,10 @@ async def health_check():
                 q = q.eq(k, v)
             return q.execute().count or 0
 
-        preview_result = db.table("previews").select("preview_url").limit(2000).execute()
-        valid_previews = sum(
-            1 for p in (preview_result.data or [])
-            if '/previews/serve/' in (p.get("preview_url") or '')
-            and 'localhost' not in (p.get("preview_url") or '')
+        valid_previews = (
+            db.table("previews").select("id", count="exact")
+            .ilike("preview_url", "%/previews/serve/%")
+            .execute().count or 0
         )
 
         replied_24h = (
