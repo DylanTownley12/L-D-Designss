@@ -290,12 +290,17 @@ async def get_wa_queue(limit: int = 10):
 
 
 @router.post("/admin/fix-preview-urls")
-async def fix_preview_urls():
+async def fix_preview_urls(background_tasks: BackgroundTasks):
     """
     Fixes preview records with NULL/empty preview_url by reconstructing the URL
     from the preview's own ID. Also fixes any remaining localhost URLs.
-    Safe to run multiple times.
+    Runs in background to avoid timeout. Safe to run multiple times.
     """
+    background_tasks.add_task(_run_fix_preview_urls)
+    return {"status": "started", "message": "Fix running in background — check agent logs"}
+
+
+def _run_fix_preview_urls():
     from db.client import get_db
     db = get_db()
 
