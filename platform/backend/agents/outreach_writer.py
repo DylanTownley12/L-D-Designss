@@ -257,21 +257,19 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     from datetime import date
     db = get_db()
 
-    # Count how many WA messages already queued or sent today
-    today = date.today().isoformat()
+    # Count messages currently in the pipeline (not yet sent) — sent messages don't count against cap
     already_queued = (
         db.table("outreach_messages")
         .select("id", count="exact")
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
-        .in_("status", ["queued", "draft", "sent"])
-        .gte("created_at", f"{today}T00:00:00")
+        .in_("status", ["queued", "draft"])
         .execute().count or 0
     )
     slots_left = MAX_WA_PER_DAY - already_queued
     if slots_left <= 0:
-        logger.info(f"WA daily cap reached ({MAX_WA_PER_DAY}/day) — skipping campaign generation")
-        return {"generated": 0, "skipped": 0, "capped": True}
+        logger.info(f"WA pipeline full ({already_queued} pending) — skipping generation")
+        return {"generated": 0, "skipped": 0, "capped": True, "pending": already_queued}
 
     effective_limit = min(limit, slots_left)
 
@@ -395,15 +393,15 @@ def generate_instagram_campaign(limit: int = 50) -> dict:
     from db.client import get_db
     db = get_db()
 
-    # Fetch a wide batch and filter for instagram_url in Python
+    # All preview_ready leads — instagram_url not required since friend sends manually
     result = (
         db.table("leads")
         .select("*")
         .eq("status", "preview_ready")
-        .limit(limit * 4)
+        .limit(limit)
         .execute()
     )
-    leads = [l for l in (result.data or []) if l.get("instagram_url")][:limit]
+    leads = result.data or []
 
     generated = 0
     skipped = 0

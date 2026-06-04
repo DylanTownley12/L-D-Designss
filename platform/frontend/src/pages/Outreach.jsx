@@ -278,11 +278,10 @@ function InstagramCard({ msg }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 13.5, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{msg.leads?.business_name || 'Unknown'}</span>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{msg.leads?.city}</span>
-            {igUrl && (
-              <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto', fontSize: 11, color: '#c084fc', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
-                {igUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '')}
-              </a>
-            )}
+            {igUrl
+              ? <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto', fontSize: 11, color: '#c084fc', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>{igUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '')}</a>
+              : <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(168,85,247,0.5)', fontStyle: 'italic' }}>Search "{msg.leads?.business_name}" on Instagram</span>
+            }
           </div>
           <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '10px 12px' }}>{msg.body}</div>
         </div>
@@ -389,7 +388,12 @@ export default function Outreach() {
   const generateWhatsApp = async () => {
     setGenerating(true)
     try {
-      await agents.run('whatsapp_campaign')
+      const res = await agents.run('whatsapp_campaign')
+      if (res?.data?.capped || res?.data?.pending > 0) {
+        showToast(`${res.data.pending || whatsappQueue.length} messages already queued — Baz sends 10/day`, 'success')
+        setGenerating(false)
+        return
+      }
       showToast('Generating WhatsApp messages...')
       let attempts = 0
       if (pollRef.current) clearInterval(pollRef.current)
@@ -397,8 +401,11 @@ export default function Outreach() {
     } catch (e) { showToast(e.message, 'error'); setGenerating(false) }
   }
   const generateInstagram = async () => {
-    try { await agents.run('instagram_campaign'); showToast('Generating Instagram DMs...'); setTimeout(load, 3000) }
-    catch (e) { showToast(e.message, 'error') }
+    try {
+      await agents.run('instagram_campaign')
+      showToast('Generating Instagram DMs...')
+      setTimeout(load, 3000)
+    } catch (e) { showToast(e.message, 'error') }
   }
 
   const tabs = [
