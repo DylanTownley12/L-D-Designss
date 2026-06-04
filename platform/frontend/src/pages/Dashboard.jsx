@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { dashboard as dashApi, agents as agentsApi } from '../api/client'
+import { dashboard as dashApi, agents as agentsApi, strategy as strategyApi } from '../api/client'
 import { RefreshCcw, AlertCircle } from 'lucide-react'
 import NeuralCore from '../components/NeuralCore'
 
@@ -1078,11 +1078,88 @@ function RightColumn({ stats, logs }) {
       boxSizing: 'border-box',
       overflowY: 'auto',
     }}>
+      <StrategyBriefPanel />
       <CEOPanel />
       <PredictiveIntelligence stats={stats} />
       <PipelineFunnel stats={stats} />
       <BazPanel stats={stats} />
       <AgentCivilization logs={logs} />
+    </div>
+  )
+}
+
+/* ─── Strategy Brief Panel ───────────────────────────────────────────── */
+
+function StrategyBriefPanel() {
+  const [brief, setBrief] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    strategyApi.getBrief().then(r => { if (r.data?.brief) setBrief(r.data.brief) }).catch(() => {})
+  }, [])
+
+  const runBrief = async () => {
+    setLoading(true)
+    try {
+      const r = await strategyApi.runBrief()
+      if (r.data?.brief) setBrief(r.data.brief)
+    } catch(e) {}
+    setLoading(false)
+  }
+
+  const ago = brief ? (() => {
+    const mins = Math.round((Date.now() - new Date(brief.generated_at)) / 60000)
+    return mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`
+  })() : null
+
+  return (
+    <div style={{ ...panel(), padding: '13px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, boxShadow: `0 0 8px ${C.gold}` }} />
+          <span style={{ ...label(), fontSize: 9 }}>STRATEGY BRIEF</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {ago && <span style={{ fontSize: 8.5, color: C.textDim, fontFamily: C.mono }}>{ago}</span>}
+          <button onClick={runBrief} disabled={loading} style={{ background: 'none', border: `1px solid ${C.gold}40`, borderRadius: 4, padding: '2px 7px', fontSize: 8.5, color: C.gold, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1 }}>
+            {loading ? '...' : '↻ RUN'}
+          </button>
+        </div>
+      </div>
+
+      {!brief && !loading && (
+        <div style={{ fontSize: 10, color: C.textDim, fontFamily: C.mono, textAlign: 'center', padding: '8px 0' }}>
+          No brief yet — click RUN
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ fontSize: 10, color: C.cyan, fontFamily: C.mono, textAlign: 'center', padding: '8px 0' }}>
+          Claude + GPT debating...
+        </div>
+      )}
+
+      {brief && !loading && (
+        <>
+          <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, lineHeight: 1.5, marginBottom: 8, padding: '8px 10px', background: `${C.gold}10`, borderRadius: 6, border: `1px solid ${C.gold}25` }}>
+            {brief.verdict}
+          </div>
+          <button onClick={() => setExpanded(e => !e)} style={{ background: 'none', border: 'none', color: C.textDim, fontSize: 8.5, cursor: 'pointer', padding: 0, fontFamily: C.mono }}>
+            {expanded ? '▲ hide details' : '▼ see both takes'}
+          </button>
+          {expanded && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 9.5, color: C.textMid, lineHeight: 1.5 }}>
+                <span style={{ color: C.cyan, fontWeight: 700 }}>CLAUDE: </span>{brief.claude}
+              </div>
+              <div style={{ fontSize: 9.5, color: C.textMid, lineHeight: 1.5 }}>
+                <span style={{ color: '#4ade80', fontWeight: 700 }}>GPT: </span>{brief.gpt}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

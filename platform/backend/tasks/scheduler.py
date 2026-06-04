@@ -102,6 +102,24 @@ async def _instagram_campaign():
         logger.error(f"[instagram_campaign] Failed: {e}", exc_info=True)
 
 
+async def _strategy_brief():
+    try:
+        from api.strategy import generate_brief
+        result = generate_brief()
+        logger.info(f"[strategy_brief] verdict={result.get('verdict', '')[:80]}")
+    except Exception as e:
+        logger.error(f"[strategy_brief] Failed: {e}", exc_info=True)
+
+
+async def _refill_queues():
+    try:
+        from agents.outreach_writer import refill_queues
+        result = refill_queues()
+        logger.info(f"[refill_queues] {result}")
+    except Exception as e:
+        logger.error(f"[refill_queues] Failed: {e}", exc_info=True)
+
+
 async def _check_followups():
     try:
         from agents.followup_agent import run
@@ -266,6 +284,14 @@ def start_scheduler():
 
     # Every 2 hours — analyse new leads' websites
     scheduler.add_job(**job(_analyze_new_leads, id="analyze_leads",
+        trigger=IntervalTrigger(hours=2)))
+
+    # Every 2 hours — refill WA + IG queues if running low
+    scheduler.add_job(**job(_refill_queues, id="refill_queues",
+        trigger=IntervalTrigger(hours=2)))
+
+    # Every 2 hours — Claude + GPT strategy debate
+    scheduler.add_job(**job(_strategy_brief, id="strategy_brief",
         trigger=IntervalTrigger(hours=2)))
 
     # Every 2 hours — CEO system health check + auto-fix

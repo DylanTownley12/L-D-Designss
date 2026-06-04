@@ -247,7 +247,9 @@ def _write_whatsapp(lead: dict, preview_url: str | None = None, variant_index: i
     return _WHATSAPP_TEMPLATES[idx].format(name=name, city=city, preview_suffix=preview_suffix)
 
 
-MAX_WA_PER_DAY = 10
+MAX_WA_PER_DAY = 15
+MAX_IG_PER_DAY = 15
+MIN_QUEUE_BUFFER = 30  # auto-refill when queue drops below this
 
 
 def generate_whatsapp_campaign(limit: int = 50) -> dict:
@@ -458,6 +460,37 @@ def generate_instagram_campaign(limit: int = 50) -> dict:
         pass
 
     return {"generated": generated, "skipped": skipped, "errors": errors}
+
+
+def refill_queues() -> dict:
+    """Auto-refill WA and Instagram queues if they drop below MIN_QUEUE_BUFFER."""
+    from db.client import get_db
+    db = get_db()
+
+    def queue_count(channel):
+        return db.table("outreach_messages").select("id", count="exact") \
+            .eq("channel", channel).eq("direction", "outbound") \
+            .in_("status", ["queued", "draft"]).execute().count or 0
+
+    results = {}
+    wa_count = queue_count("whatsapp")
+    ig_count = queue_count("instagram")
+
+    if wa_count < MIN_QUEUE_BUFFER:
+        needed = MIN_QUEUE_BUFFER - wa_count
+        logger.info(f"[refill] WA queue low ({wa_count}) — generating {needed} more")
+        results["whatsapp"] = generate_whatsapp_campaign(limit=needed)
+    else:
+        results["whatsapp"] = {"skipped": True, "pending": wa_count}
+
+    if ig_count < MIN_QUEUE_BUFFER:
+        needed = MIN_QUEUE_BUFFER - ig_count
+        logger.info(f"[refill] IG queue low ({ig_count}) — generating {needed} more")
+        results["instagram"] = generate_instagram_campaign(limit=needed)
+    else:
+        results["instagram"] = {"skipped": True, "pending": ig_count}
+
+    return results
 
 
 def run_batch(limit: int = 50) -> dict:

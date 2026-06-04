@@ -86,4 +86,9 @@ export const publicStats = {
   live: () => api.get('/dashboard/live'),
 }
 
+export const strategy = {
+  getBrief: () => api.get('/strategy/brief'),
+  runBrief: () => api.post('/strategy/brief/run'),
+}
+
 export default api
