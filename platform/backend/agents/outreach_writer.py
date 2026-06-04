@@ -287,7 +287,7 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
                 continue
 
             # Delete any stale queued/approved WhatsApp messages so we can regenerate fresh
-            db.table("outreach_messages").delete().eq("lead_id", lead_id).eq("channel", "whatsapp").in_("status", ["queued", "approved"]).execute()
+            db.table("outreach_messages").delete().eq("lead_id", lead_id).eq("channel", "whatsapp").in_("status", ["queued", "approved", "draft"]).execute()
 
             preview_result = (
                 db.table("previews")

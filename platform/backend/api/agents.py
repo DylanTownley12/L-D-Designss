@@ -232,7 +232,7 @@ async def get_wa_queue(limit: int = 10):
     result = (
         db.table("outreach_messages")
         .select("id, body, leads(business_name, phone)")
-        .eq("status", "queued")
+        .in_("status", ["queued", "draft"])
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
         .order("created_at")
