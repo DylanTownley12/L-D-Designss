@@ -229,9 +229,9 @@ _WHATSAPP_TEMPLATES = [
     # V3 — social proof + preview link
     "Hey, came across {name} — I build websites for barbers and I've already made a free preview for yours{preview_suffix}. Reply if you want a look, happy to send it over",
     # V4 — simple question
-    "Hi, came across {name} in {city} — do you have a website? I build them for local barbers, just wondering if it's something you'd want.",
+    "Hi, came across {name} in {city} — do you have a website yet? I build free previews for barbers to show what it'd look like. Worth a look?",
     # V5 — curiosity hook
-    "Hey, you the owner of {name}? Got something that might help get more customers through the door — worth a quick chat?",
+    "Hey, you the owner of {name}? Got something that might help get more customers through the door — worth a look?",
 ]
 
 import random as _random
