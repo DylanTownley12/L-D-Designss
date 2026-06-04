@@ -126,3 +126,16 @@ async def get_payment_link(lead_id: str):
     """Quick redirect — creates a checkout and returns the URL."""
     result = await create_checkout(lead_id)
     return {"url": result["checkout_url"]}
+
+
+@router.get("/link-by-phone/{phone}")
+async def get_payment_link_by_phone(phone: str):
+    """Baz calls this with the barber's phone number to get a Stripe checkout URL."""
+    db = get_db()
+    clean = phone.replace("+44", "0").replace("+", "").replace(" ", "").replace("-", "")
+    result = db.table("leads").select("id, business_name").ilike("phone", f"%{clean[-9:]}%").limit(1).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No lead found for this phone number")
+    lead_id = result.data[0]["id"]
+    checkout = await create_checkout(lead_id)
+    return {"url": checkout["checkout_url"], "business_name": result.data[0]["business_name"]}
