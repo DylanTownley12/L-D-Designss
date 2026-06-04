@@ -53,6 +53,28 @@ async def generate_batch(limit: int = 10, background_tasks: BackgroundTasks = No
     return {"generated": generated, "total": len(lead_ids)}
 
 
+@router.get("/by-phone/{phone}")
+async def get_preview_by_phone(phone: str):
+    """Baz calls this with a barber's phone number to get their preview URL."""
+    db = get_db()
+    clean = phone.replace("+44", "0").replace("+", "").replace(" ", "").replace("-", "")
+    lead_result = db.table("leads").select("id").ilike("phone", f"%{clean[-9:]}%").limit(1).execute()
+    if not lead_result.data:
+        raise HTTPException(status_code=404, detail="No lead found for this phone number")
+    lead_id = lead_result.data[0]["id"]
+    preview_result = (
+        db.table("previews")
+        .select("preview_url")
+        .eq("lead_id", lead_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not preview_result.data or not preview_result.data[0].get("preview_url"):
+        raise HTTPException(status_code=404, detail="No preview found for this number")
+    return {"url": preview_result.data[0]["preview_url"]}
+
+
 @router.get("/by-lead/{lead_id}")
 async def get_preview_by_lead(lead_id: str):
     """Get the latest preview URL for a lead."""
