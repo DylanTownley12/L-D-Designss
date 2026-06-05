@@ -178,13 +178,14 @@ def _enrich_lead(lead: dict) -> dict:
 def run(limit: int = 100) -> dict:
     """
     Enrich preview_ready leads that have no email and no instagram_url.
-    Uses Google Places Details + website scraping.
+    First pass: extract Instagram from the website field (free, instant).
+    Second pass: Google Places Details + website scraping.
     """
     db = get_db()
 
     result = (
         db.table("leads")
-        .select("id,business_name,city,phone,email,instagram_url")
+        .select("id,business_name,city,phone,email,instagram_url,website")
         .eq("status", "preview_ready")
         .is_("email", "null")
         .is_("instagram_url", "null")
@@ -199,6 +200,19 @@ def run(limit: int = 100) -> dict:
 
     for lead in leads:
         try:
+            # Fast pass: if website field is already an Instagram URL, extract it directly
+            website = lead.get("website") or ""
+            ig_match = INSTAGRAM_RE.search(website)
+            if ig_match:
+                handle = ig_match.group(1)
+                if handle.lower() not in _IG_SKIP and len(handle) > 2:
+                    db.table("leads").update({
+                        "instagram_url": f"https://www.instagram.com/{handle}/"
+                    }).eq("id", lead["id"]).execute()
+                    enriched_instagram += 1
+                    checked += 1
+                    continue
+
             updates = _enrich_lead(lead)
             if updates:
                 db.table("leads").update(updates).eq("id", lead["id"]).execute()

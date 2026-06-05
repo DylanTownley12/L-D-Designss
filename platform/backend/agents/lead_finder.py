@@ -53,6 +53,39 @@ UK_CITIES = [
     "Cardiff", "Swansea", "Newport", "Wrexham",
     # Northern Ireland
     "Belfast", "Derry",
+    # North West (smaller towns)
+    "Leigh", "Atherton", "Hindley", "Westhoughton", "Horwich", "Chorley",
+    "Leyland", "Skelmersdale", "Ormskirk", "Southport", "Formby",
+    "Widnes", "Runcorn", "Crewe", "Macclesfield", "Wilmslow",
+    "Altrincham", "Sale", "Stretford", "Eccles", "Irlam",
+    # Yorkshire (smaller towns)
+    "Keighley", "Dewsbury", "Batley", "Castleford", "Pontefract",
+    "Harrogate", "Selby", "Goole", "Grimsby", "Scunthorpe",
+    "Cleethorpes", "Beverley", "Bridlington",
+    # West Midlands (smaller towns)
+    "Cannock", "Tamworth", "Lichfield", "Stafford", "Burton upon Trent",
+    "Hereford", "Kidderminster", "Redditch", "Bromsgrove", "Nuneaton",
+    "Rugby", "Leamington Spa", "Stratford-upon-Avon",
+    # East Midlands (smaller towns)
+    "Mansfield", "Newark", "Loughborough", "Hinckley", "Corby",
+    "Kettering", "Wellingborough", "Bedford", "Luton",
+    # South East (smaller towns)
+    "Maidstone", "Canterbury", "Folkestone", "Margate", "Thanet",
+    "Hastings", "Eastbourne", "Worthing", "Crawley", "Horsham",
+    "Basingstoke", "Winchester", "Salisbury", "Andover",
+    "Aldershot", "Farnham", "Woking", "Staines",
+    # East of England
+    "Stevenage", "Hertford", "St Albans", "Watford", "Hemel Hempstead",
+    "Lowestoft", "Great Yarmouth", "Kings Lynn",
+    # South West (smaller towns)
+    "Taunton", "Yeovil", "Weston-super-Mare", "Torquay", "Paignton",
+    "Barnstaple", "Truro", "Falmouth", "Penzance",
+    # North East (smaller towns)
+    "Hartlepool", "Stockton-on-Tees", "Bishop Auckland", "Consett",
+    "Hexham", "Alnwick",
+    # Scotland (smaller towns)
+    "Paisley", "Motherwell", "Hamilton", "Ayr", "Kilmarnock",
+    "Dumfries", "Perth", "Kirkcaldy", "Falkirk",
 ]
 
 

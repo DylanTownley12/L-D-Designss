@@ -236,17 +236,24 @@ function WhatsAppSentCard({ msg, onLogReply }) {
 }
 
 function InstagramCard({ msg, onMarkSent, isFirst }) {
-  const [sending, setSending] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [marking, setMarking] = useState(false)
   const igUrl = msg.leads?.instagram_url
   const name = msg.leads?.business_name || ''
   const city = msg.leads?.city || ''
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' ' + city + ' instagram')}`
-  const handleSend = async () => {
+
+  const handleCopy = () => {
     navigator.clipboard.writeText(msg.body)
-    window.open(igUrl || 'https://www.instagram.com/direct/new/', '_blank')
-    setSending(true)
-    try { if (onMarkSent) await onMarkSent(msg.id) } finally { setSending(false) }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+    if (igUrl) window.open(igUrl, '_blank')
   }
+  const handleMarkSent = async () => {
+    setMarking(true)
+    try { if (onMarkSent) await onMarkSent(msg.id) } finally { setMarking(false) }
+  }
+
   return (
     <div style={{ ...card('rgba(168,85,247,0.15)'), opacity: isFirst ? 0.4 : 1 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -266,14 +273,22 @@ function InstagramCard({ msg, onMarkSent, isFirst }) {
         <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6, margin: 0 }}>{msg.body}</p>
       </div>
       <div style={{ padding: '10px 16px', display: 'flex', gap: 8 }}>
-        <button onClick={handleSend} disabled={sending} style={{
+        <button onClick={handleCopy} style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          padding: '10px', borderRadius: 8, border: 'none', cursor: sending ? 'not-allowed' : 'pointer',
-          background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: 'white',
-          fontSize: 13, fontWeight: 600, opacity: sending ? 0.6 : 1,
+          padding: '10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          background: copied ? 'rgba(0,255,136,0.15)' : 'linear-gradient(135deg, #a855f7, #7c3aed)',
+          border: copied ? '1px solid rgba(0,255,136,0.3)' : 'none',
+          color: copied ? C.green : 'white', fontSize: 13, fontWeight: 600,
         }}>
-          <Instagram size={14} />
-          {sending ? 'Opening...' : igUrl ? 'Open Instagram — mark sent' : 'Copy script — mark sent'}
+          <Copy size={14} />
+          {copied ? 'Copied!' : igUrl ? 'Copy & open profile' : 'Copy script'}
+        </button>
+        <button onClick={handleMarkSent} disabled={marking} style={{
+          padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(168,85,247,0.3)',
+          background: 'none', color: C.purple, fontSize: 12, fontWeight: 600,
+          cursor: marking ? 'not-allowed' : 'pointer', opacity: marking ? 0.5 : 1,
+        }}>
+          {marking ? '...' : 'Mark sent'}
         </button>
       </div>
     </div>
