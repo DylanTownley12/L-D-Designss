@@ -243,11 +243,15 @@ function InstagramCard({ msg, onMarkSent, isFirst }) {
   const city = msg.leads?.city || ''
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' ' + city + ' instagram')}`
 
+  // Extract handle and build direct DM link: ig.me/m/handle opens the DM chat directly
+  const igHandle = igUrl ? igUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '') : null
+  const dmUrl = igHandle ? `https://ig.me/m/${igHandle}` : null
+
   const handleCopy = () => {
     navigator.clipboard.writeText(msg.body)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-    if (igUrl) window.open(igUrl, '_blank')
+    if (dmUrl) window.open(dmUrl, '_blank')
   }
   const handleMarkSent = async () => {
     setMarking(true)
@@ -281,7 +285,7 @@ function InstagramCard({ msg, onMarkSent, isFirst }) {
           color: copied ? C.green : 'white', fontSize: 13, fontWeight: 600,
         }}>
           <Copy size={14} />
-          {copied ? 'Copied!' : igUrl ? 'Copy & open profile' : 'Copy script'}
+          {copied ? 'Copied!' : dmUrl ? 'Copy & open DMs' : 'Copy script'}
         </button>
         <button onClick={handleMarkSent} disabled={marking} style={{
           padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(168,85,247,0.3)',
