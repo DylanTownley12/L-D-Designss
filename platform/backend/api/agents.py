@@ -373,9 +373,14 @@ def _run_fix_preview_urls():
     }
 
 
+class WaSentRequest(BaseModel):
+    message_ids: list[str]
+
+
 @router.post("/wa-sent")
-async def mark_wa_sent(message_ids: list):
+async def mark_wa_sent(req: WaSentRequest):
     """Mark WhatsApp messages as sent after Baz delivers them."""
+    message_ids = req.message_ids
     from db.client import get_db
     from datetime import datetime
     from agents import followup_agent
