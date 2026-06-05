@@ -19,234 +19,207 @@ const C = {
 const lbl = (extra = {}) => ({ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.textDim, fontFamily: C.mono, ...extra })
 const panelStyle = (extra = {}) => ({ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...extra })
 
-// Each day maps directly to bottlenecks from the CTO audit.
-// Claude tasks = actual code changes made that day.
-// Dylan/Friend tasks = only things a human can do.
-// OpenClaw = fully automated, no human input needed.
 const PLAN = [
   {
     day: 1, date: '2026-06-04', label: 'Wed 4 Jun', week: 1,
-    focus: 'Run preview URL fix + switch Stripe to LIVE — last two blockers before first money',
-    bottlenecks: ['707 previews have broken URLs', 'Stripe still in test mode — no real money possible'],
+    focus: 'Foundation day — Baz connected, previews fixed, Stripe live',
+    bottlenecks: ['Baz disconnected', 'Preview URLs broken', 'Stripe in test mode'],
     tasks: {
       dylan: [
-        'Run the preview URL fix: Dashboard → Agents page → run "Fix Preview URLs" admin job (or tell Claude to POST /api/agents/admin/fix-preview-urls). Fixes 707 broken links — do this first.',
-        'Switch Stripe to LIVE mode: stripe.com → Developers → API Keys → toggle to Live → copy the new STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET → update both in Railway Variables.',
-        'Confirm WA ban is lifted: check dashboard for this morning\'s 9am batch. 10 messages sent with no errors = you\'re back. If not, tell Claude.',
+        '✅ Baz reconnected and sending',
+        '✅ Preview URL fix ran',
+        'Switch Stripe to LIVE mode: stripe.com → Developers → API Keys → toggle to Live → copy new STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET → paste both into Railway Variables',
       ],
-      friend: [
-        'Find 30 UK barbers on Instagram with no website link in bio — target: Manchester, Leeds, Liverpool, Birmingham, Sheffield. Save handle + shop name + city in a note. These are your DM targets.',
-        'Send 10 personalised DMs from your list. Mention their actual shop name and city. Short: "Hiya — noticed you don\'t have a website. I build them for barbers in [city]. Already got a free preview ready for yours if you\'re interested?"',
-        'Reply to any responses from today\'s DMs before end of day.',
-      ],
+      friend: [],
       claude: [
-        'Run fix-preview-urls: POST /api/agents/admin/fix-preview-urls — fixes all 707 broken preview URLs in one call',
-        'Add "Send Payment Link" button to lead detail page on dashboard',
-        'Add GET /api/previews/by-phone/{phone} endpoint so Baz looks up previews via API instead of a static list',
+        '✅ WA cap fixed to 10/day',
+        '✅ 286 drafts promoted to queued',
+        '✅ Preview CTA bug fixed (was pointing to barber\'s own number)',
       ],
       openclaw: [
-        'Hold the 9am batch until Dylan confirms previews are fixed',
-        'Once confirmed — queue ready for tomorrow morning',
-        'Monitor all inbound, alert Dylan immediately on any warm signal',
+        '✅ Baz back online and connected',
+        'Monitor inbound — alert Dylan immediately on any warm signal',
       ],
     },
   },
   {
     day: 2, date: '2026-06-05', label: 'Thu 5 Jun', week: 1,
-    focus: 'First proper WA batch with working links — activate reply detection',
-    bottlenecks: ['Follow-up channel bug (WA → email)', 'Quality ordering missing', 'Gmail reply detection off'],
+    focus: 'Fix the Instagram page — it\'s killing your credibility before you even speak',
+    bottlenecks: ['Instagram page looks fake — 1 follower, no posts', 'WA logged out this morning (now fixed)', 'Invalid numbers marked as sent'],
     tasks: {
       dylan: [
-        'At 9:30am: open dashboard → confirm 10 WA messages sent, no red errors in agent feed.',
-        'Any barber replied this morning? Reply yourself immediately — same day, every time. Don\'t wait for Baz on warm leads.',
-        'Review Outreach page → Pending Approvals — approve or rewrite any sales agent drafts queued up.',
+        'Fix Instagram bio RIGHT NOW — 3 lines: "Building websites for UK barbers 🇬🇧 / Free preview built for your shop / 👇 See what yours looks like" + your link',
+        'Change profile picture to your actual face — not a logo, not a graphic. YOUR face. People buy from people.',
+        'Post 9 pieces of content today to fill the grid — 3 before/after screenshots (Google listing with no website vs your preview), 2 more preview screenshots, 2 barber tip posts ("why barbers lose customers without a website"), 1 post about who you are, 1 best reply you\'ve had',
+        'Record one 30-second Reel — your face, screen record the preview tool, say "I build websites for barbers, here\'s what one looks like." One take. Post it.',
+        'Reply to every warm WA lead personally today — same day, every time. Don\'t leave Baz to close them.',
       ],
       friend: [
-        'Send 10 DMs — different city from yesterday. Note which city and how many sent.',
-        'Reply personally to every response from yesterday\'s DMs. If they seem interested, offer to send a preview.',
-        'Find 20 more barbers for tomorrow\'s list — Google Maps "barbers [city]", look for no website in listing.',
+        'Go to the dashboard → Outreach page → Instagram tab',
+        'Send 20 Instagram DMs today using the queue — click "Find on Google →" to find each barber\'s profile, copy the script, DM them, mark sent',
+        'Spread them out: 5 DMs at 9am, 5 at 11am, 5 at 1pm, 5 at 3pm — don\'t blast all 20 at once or Instagram will flag you',
+        'Screenshot every reply and send it to Dylan immediately — every single one',
       ],
       claude: [
-        'Fix follow-up sequences — WA-contacted leads now get WA follow-ups, not email',
-        'Fix quality ordering — generate_whatsapp_campaign() orders by quality_score DESC so best targets go first',
-        'Add Gmail reply polling every 15 mins — detects barber email replies and updates lead status automatically',
+        '✅ WA watchdog built — alerts Dylan within 3 mins if Baz goes down',
+        '✅ DNS fix applied — prevents the dropout that caused the logout',
+        '✅ Instagram card fixed — copy + mark sent split, Google search button added',
+        '✅ 64 Instagram scripts reset from failed → queued',
+        '✅ Enricher fixed to read existing website field for Instagram handles',
+        '✅ 60+ UK cities added to lead finder',
+        '✅ Send script fixed — now requires messageId confirmation, filters landlines',
       ],
       openclaw: [
-        '9am: first batch of 10 WA messages with working preview links, 5-7 min gaps',
-        'Auto-reply every inbound using AGENTS.md playbook',
+        '9am batch — 10 WA messages going out with 5-7 min gaps',
+        'Auto-reply all inbound using AGENTS.md playbook',
         'Alert Dylan within 60 seconds if any barber shows interest or asks about price',
+        'Auto-send Stripe link if barber reacts positively to their preview',
       ],
     },
   },
   {
     day: 3, date: '2026-06-06', label: 'Fri 6 Jun', week: 1,
-    focus: 'Close warm leads from first 2 days — every interested thread gets a response',
-    bottlenecks: ['Multi-channel dedup missing', 'Instagram DMs not surfaced on dashboard'],
+    focus: 'Volume day — WA + 20 Instagram DMs + reply to every warm thread',
+    bottlenecks: [],
     tasks: {
       dylan: [
-        'Read 8am CEO briefing — note any numbers that look wrong, tell Claude.',
-        'Go through every "replied" and "interested" lead on dashboard — reply personally to each one. Check their conversation thread first so you know what Baz already said.',
-        'Send Stripe link to any lead who asked about price or said yes: "Here\'s the link — just £75 to get started: [link]"',
+        'Read 8am briefing — note your real numbers: WA sent, replies, reply rate. Write them down.',
+        'Reply personally to every warm WA thread from this week — push each one to a yes or a no. No maybes.',
+        'Send Stripe link to ANYONE who asked about price or said yes: "Just £75 to kick it off — here\'s the link: [link]." Send it today.',
+        'Message the 2 warm Instagram leads from last week who said "go on" — manually, from your Instagram, right now.',
       ],
       friend: [
-        'Send 10 DMs — new city.',
-        'Follow up Monday and Tuesday DMs that opened but didn\'t reply: "Hey, just checking you got my message?" — one follow-up each, that\'s it.',
-        'For any thread with 2+ messages exchanged, try a 30-second voice note instead of text — casual, mention their shop name.',
+        'Send 20 DMs — different city from yesterday',
+        'Follow up every DM from Day 2 that didn\'t reply: "Hey, just checking you got my message about your website?" — one follow-up, that\'s it',
+        'For any thread with 2+ messages exchanged: send a voice note instead of text. Under 30 seconds. Mention their shop name. Voice notes get opened 3x more.',
+        'Write down the most common reply you\'re getting — exact words. This is gold.',
       ],
       claude: [
-        'Add multi-channel dedup guard — before generating outreach, check if lead already has a sent/queued message on any channel. Skip duplicates.',
-        'Add Instagram DMs section to Outreach page with one-click Copy button so Dylan can paste and send manually',
+        'Rewrite the weakest WA opener variant based on any objection feedback Dylan reports',
+        'Add conversation thread to lead detail page — all messages in one timeline, colour-coded inbound/outbound',
       ],
       openclaw: [
         '9am batch — Day 3',
-        'Day 1 follow-up sequences now triggering for leads that went quiet',
-        'Email queue processing — first batch sending',
+        'Day 1 follow-up sequences triggering for leads that went quiet',
       ],
     },
   },
   {
     day: 4, date: '2026-06-07', label: 'Sat 7 Jun', week: 1,
-    focus: 'Saturday review — close open threads, surface warm leads from the 113 already sent',
+    focus: 'Saturday — lighter day, close any threads that are sitting warm',
     bottlenecks: [],
     tasks: {
       dylan: [
-        'Write down real Week 1 numbers: WA sends, replies, reply rate %, leads marked "interested", revenue. Real numbers only.',
-        'Go through every open warm thread — push each one to a yes or a no. If they\'ve seen the preview and gone quiet: "Still up for it? Happy to tweak anything on it."',
-        'Open Outreach page → copy 5 Instagram DMs and send them from your Instagram account manually.',
+        'Check Baz alerts from overnight — reply to anything warm immediately',
+        'Go through every open warm thread — push each to a yes or a no. "Still up for it? Happy to tweak anything on the preview."',
+        'Spend 30 mins on Instagram — post one more Reel if you haven\'t already, reply to any comments or DMs',
       ],
       friend: [
-        'Send 5 DMs today (Saturday — lighter).',
-        'Go through all your DM threads this week — for any with 2+ messages exchanged, push them toward the preview: "Want me to show you what your site could look like?"',
-        'Write down the most common thing barbers say when they actually reply — that\'s the most valuable data you can report.',
+        'Send 10 DMs — lighter Saturday',
+        'Go through all your DM threads from this week — for any with 2+ messages, push them: "Want me to show you what your site could look like? Already built a free preview."',
+        'Report to Dylan: how many DMs sent total? How many replied? What\'s the most common thing they say?',
       ],
       claude: [
-        'Add Pending Approvals section to Outreach page — sales agent drafts for interested leads with approve/edit/send buttons',
-        'Scan all 113 outreach_sent leads: find any with inbound replies, surface them as a "Re-engage today" list on the dashboard — these are warmer than any new cold lead',
+        'Scan all 113 original outreach_sent leads for inbound replies — surface any re-engage opportunities on dashboard',
+        'A/B analysis: which WA opener has the best reply rate so far? Kill the weakest, write a replacement.',
       ],
       openclaw: [
-        'Weekend quiet mode — monitoring inbound only',
-        'No proactive outreach today',
+        'Weekend quiet mode — monitoring inbound only, no proactive sends',
         'Alert Dylan immediately if any hot lead messages in',
       ],
     },
   },
   {
     day: 5, date: '2026-06-08', label: 'Sun 8 Jun', week: 1,
-    focus: 'Light day — systems run themselves',
+    focus: 'Rest — system runs itself, you think about what\'s working',
     bottlenecks: [],
     tasks: {
       dylan: [
-        'Morning and evening check — 10 mins each. CEO briefing, Baz alerts. Reply immediately to anything warm.',
-        'Think: what\'s the most common thing barbers are saying back? Tell Claude tomorrow — I\'ll rewrite the opener around it.',
+        'Morning check only — 10 minutes. Reply to anything warm.',
+        'Think: what\'s the most common thing barbers say back? Tell me tomorrow and I\'ll rewrite the opener around the real objection.',
       ],
       friend: [
-        'Find 20 more barbers for Monday\'s DM batch.',
-        'Reply to any DMs that came in over the weekend.',
+        'Find 20 barbers for Monday\'s DM batch — save their Instagram handles in a note',
+        'Reply to any weekend DMs that come in',
       ],
       claude: [
-        'Nothing — automated systems run themselves today.',
+        'Automated systems run themselves — enricher, lead finder, follow-up sequences all running',
       ],
       openclaw: [
-        'Quiet monitoring only',
-        'Follow-up sequences running in background',
+        'Quiet monitoring only — follow-up sequences running in background',
       ],
     },
   },
   {
     day: 6, date: '2026-06-09', label: 'Mon 9 Jun', week: 2,
-    focus: 'Week 2 — conversation threads live, rewrite opener from real objections',
-    bottlenecks: ['No conversation thread on lead detail', 'Opener not updated from real replies yet'],
+    focus: 'Week 2 starts — chase a testimonial, rewrite opener from real data',
+    bottlenecks: ['No testimonial yet — kills trust on Instagram', 'Opener not tested on real objections yet'],
     tasks: {
       dylan: [
-        'Tell Claude: most common objection this week — one sentence. I\'ll rewrite the WA opener around it today.',
-        'Open lead detail for your 3 warmest leads — use the new conversation thread to see exactly what Baz said, then reply personally with a proper response to each.',
-        'Write down Week 1 real numbers: total sent, total replies, reply rate %, deposits, revenue. No estimates.',
+        'Tell me the most common objection barbers are giving — one sentence. I\'ll rewrite the opener today.',
+        'Chase a testimonial: message every barber who engaged but didn\'t buy — "Happy to build your site completely free in exchange for an honest review and one referral." One yes = closes the next 10 sales.',
+        'Write down real Week 1 numbers: WA sends, replies, reply rate %, deposits, revenue. No estimates. Bring them here.',
+        'Open your 3 warmest WA threads — reply personally to each one, reference their last message.',
       ],
       friend: [
-        'Send 10 DMs — different city.',
-        'Report back: what are barbers actually saying? Quote exact words — Dylan and Claude need this to improve the opener.',
-        'Pick your warmest DM thread and push it to a decision: "Want me to build you a free preview so you can see what it\'d look like?"',
+        'Send 20 DMs — new city',
+        'Report exact Week 1 numbers: how many DMs sent, how many replied, what did they actually say',
+        'Your warmest DM thread — push to a decision today: "Want me to show you the free preview I built for your shop?"',
       ],
       claude: [
-        'Add conversation thread panel to lead detail — all outreach_messages chronological, colour-coded inbound/outbound',
-        'Rewrite weakest A/B opener variant based on Dylan\'s objection feedback',
+        'Rewrite weakest opener based on Dylan\'s objection data',
+        'Surface "warm but not yet decided" leads — leads that replied positively but haven\'t got a Stripe link yet',
       ],
       openclaw: [
-        '9am batch continues into Week 2',
-        'Week 1 follow-up sequences active for all last-week leads',
-        '8am: Week 1 stats summary emailed to Dylan',
+        '9am batch with updated opener variant',
+        'Week 1 follow-up sequences active for all last week\'s leads',
+        '8am: Week 1 stats in morning briefing',
       ],
     },
   },
   {
     day: 7, date: '2026-06-10', label: 'Tue 10 Jun', week: 2,
-    focus: 'Push warm leads to a decision — draft closing messages for every replied lead',
-    bottlenecks: [],
+    focus: 'Offer improvement day — make it so good saying no feels stupid',
+    bottlenecks: ['Offer is plain — no risk reversal, no guarantee'],
     tasks: {
       dylan: [
-        'Message your 3 warmest WA leads personally — reference their specific last message, push for a yes or a no. "A maybe just wastes both our time."',
-        'Check Gmail inbox: did any barbers reply to emails? Reply personally to all of them today.',
-        'Send Stripe link to any interested lead who hasn\'t paid yet. Don\'t overthink it — just send it.',
+        'Add a guarantee to your pitch: "If you don\'t get more enquiries in 30 days, I\'ll refund every penny." Send this version to your next 3 warm leads and see if it changes the conversation.',
+        'Message your 3 warmest WA leads personally — push for a yes or a no. "A maybe wastes both our time."',
+        'Send Stripe link to every interested lead that hasn\'t paid. Don\'t overthink it — just send it.',
       ],
       friend: [
-        'Send 10 DMs.',
-        'Your 2 warmest DM conversations — offer to send a preview: "I\'ve actually already built a free preview for your shop — want to see it?"',
-        'Voice note your 3 hottest leads — personal, casual, under 30 seconds. Mention their shop name. Voice notes get 3x higher open rate than text.',
+        'Send 20 DMs',
+        'Try this opener today instead of the default: "I built a free preview for your shop — want to see it?" — lead with the offer, not the pitch. Report which gets more replies.',
+        'Voice note your 3 hottest leads — casual, under 30 seconds, mention their shop name. Voice notes get way more responses than text.',
       ],
       claude: [
-        'For every lead with status "replied" or "interested": pull their conversation history, draft a personalised closing message Dylan can send in one click — surfaces on dashboard as "Ready to send" drafts',
-        'A/B analysis on the 113 sends: which opener variant got more replies? Kill the loser, write a better replacement for tomorrow\'s batch based on what actually worked',
+        'Draft closing messages for every lead with status "replied" or "interested" — personalised, one-click send from dashboard',
+        'Add Day 30 follow-up step to sequences — different tone, cold-lead revival message',
       ],
       openclaw: [
-        '9am batch with updated opener variant',
-        'Email queue second week — more contacts now enriched',
+        '9am batch',
+        'Day 3 follow-ups triggering for Week 1 leads',
       ],
     },
   },
   {
     day: 8, date: '2026-06-11', label: 'Wed 11 Jun', week: 2,
-    focus: 'Send that first Stripe link — close the warmest lead today',
-    bottlenecks: ['Day 30 follow-up missing', 'Preview refresher sends broken links'],
-    tasks: {
-      dylan: [
-        'Send the Stripe payment link to your single warmest lead today. Not tomorrow — today. "Ready when you are — here\'s the link: [link]. Just £75 to kick it off."',
-        'Check email replies overnight — reply personally to every one. Same day, every time.',
-        'Any lead marked "interested" that hasn\'t got a Stripe link yet? Send them one.',
-      ],
-      friend: [
-        'Send 10 DMs. Keep momentum.',
-        'Follow up DM list leads that haven\'t replied in 48h — one follow-up: "Did you get a chance to see my message?"',
-        'Try a different opener today: "I built a free preview for your shop — want to see it?" — lead with the offer, not the pitch.',
-      ],
-      claude: [
-        'Add Day 30 follow-up step to sequences — different tone, cold-lead revival message',
-        'Preview refresher validates URL returns HTTP 200 before queuing follow-up — no more sending broken links',
-      ],
-      openclaw: [
-        '9am batch continues',
-        'Day 3 follow-ups triggering for Week 1 leads',
-        'Email queue processing',
-      ],
-    },
-  },
-  {
-    day: 9, date: '2026-06-12', label: 'Thu 12 Jun', week: 2,
-    focus: 'Check for deposits — re-engage cold leads with a fresh angle',
+    focus: 'Send the first Stripe link to a warm lead — today, not tomorrow',
     bottlenecks: [],
     tasks: {
       dylan: [
-        'Check Stripe dashboard: any deposits in? If yes — WhatsApp the barber within 10 minutes: "Sorted! I\'ll get started — just send me your opening hours and any photos whenever."',
-        'Go through every open warm thread — reply to each one. Push for a yes or a no. Nothing stays unanswered.',
-        'Check agent logs: anything failing silently? Flag red errors to Claude.',
+        'Send the Stripe payment link to your single warmest lead today. Not tomorrow. "Ready when you are — just £75 to kick it off: [link]. Once that\'s in I\'ll crack on, usually takes a week."',
+        'If you have a testimonial by now — post it on Instagram immediately. Pin it. Add it to your WA messages.',
+        'Check every "interested" lead — if no Stripe link sent yet, send one today.',
       ],
       friend: [
-        'Send 10 DMs.',
-        'Your best performing DM so far — what made it work? Tell Dylan so you can repeat it.',
-        'For your warmest DM lead: check if they have a phone number or email in bio — if yes, try WhatsApp directly. Higher conversion than Instagram DM.',
+        'Send 20 DMs',
+        'Follow up every DM lead that hasn\'t replied in 48h — one message: "Did you get a chance to see my message?"',
+        'Your warmest lead — if they haven\'t seen the preview yet: "I\'ve already built a free one for your shop, want me to send it over?"',
       ],
       claude: [
-        'Find all leads contacted 7+ days ago with no reply and no follow-up — pull 10 of the highest quality_score ones, write a fresh re-engagement message with a completely different angle ("Wanted to show you what I built for a barber in [nearby city]..."), queue them for tomorrow\'s WA batch',
-        'Analyse all inbound reply text so far — group by intent (interested, objection, wrong number, auto-reply). Surface the "warm but not yet interested" ones Dylan should personally message today',
+        'City performance report — which UK cities have the best reply rate so far? Auto-bias tomorrow\'s WA batch toward the top 3 cities.',
+        'Preview URL validator — check all queued follow-up messages have working preview links before they send',
       ],
       openclaw: [
         '9am batch',
@@ -255,23 +228,48 @@ const PLAN = [
     },
   },
   {
-    day: 10, date: '2026-06-13', label: 'Fri 13 Jun', week: 2,
-    focus: 'Friday closing push — get that deposit before the weekend',
+    day: 9, date: '2026-06-12', label: 'Thu 12 Jun', week: 2,
+    focus: 'Check Stripe — if a deposit landed, reply in 10 minutes or less',
     bottlenecks: [],
     tasks: {
       dylan: [
-        'Friday push: message your single warmest lead with a genuine offer — "Happy to drop the deposit to £50 if you want to lock it in this week." Close it today.',
-        'Review Outreach page → Pending Approvals — approve or rewrite any outstanding drafts.',
-        'Write down mid-point numbers: WA sends, replies, interested, deposits, revenue. How close to that first £75?',
+        'CHECK STRIPE FIRST THING. Any deposit in? If yes — WhatsApp them within 10 minutes: "Sorted! I\'ll get started — just send me your opening hours and any photos of the shop."',
+        'Go through every open warm thread — reply to each. Push for a yes or a no. Nothing stays unanswered.',
+        'Re-engage 5 leads that never replied to the first WA — completely different angle: "Wanted to show you what I built for a barber in [nearby city] — thought yours could look similar."',
       ],
       friend: [
-        'Send 10 DMs.',
-        'Your warmest DM lead — be direct: "Are you still up for it? I\'ve got a slot this week."',
-        'Voice note your 3 hottest DM leads — short, personal, specific to their shop. Mention you\'ve already built their preview.',
+        'Send 20 DMs',
+        'What\'s your best performing opener? Tell Dylan — double down on it.',
+        'For your warmest DM lead: check their bio for a phone number. If it\'s there, WhatsApp them directly — higher conversion rate than Instagram DM.',
       ],
       claude: [
-        'City analysis on all sends to date: which UK cities have the best reply rate? Show it on dashboard, redirect tomorrow\'s WA batch to prioritise the top 3 cities',
-        'Draft 5 personalised re-engagement messages for the 5 highest quality_score leads that never replied — specific to their business name and location, different angle from the original outreach, ready for Dylan to send manually',
+        'Pull 10 highest quality_score leads not yet contacted — write personalised re-engagement messages with a completely different angle, queue for tomorrow\'s WA batch',
+        'Analyse all inbound replies by intent — group into: interested, objection, wrong number. Surface the "warm but not yet decided" ones for Dylan to personally message',
+      ],
+      openclaw: [
+        '9am batch',
+        'Day 7 follow-ups for Week 2 leads now triggering',
+      ],
+    },
+  },
+  {
+    day: 10, date: '2026-06-13', label: 'Fri 13 Jun', week: 2,
+    focus: 'Friday close — get that first £75 deposit before the weekend',
+    bottlenecks: [],
+    tasks: {
+      dylan: [
+        'Friday push: message your single warmest lead with a real close — "Happy to drop the deposit to £50 if you want to lock it in this week." Get a yes or a no by end of day.',
+        'Write down mid-point numbers: WA sends, Instagram DMs, replies, interested leads, deposits, revenue.',
+        'Send Stripe link to every warm lead who hasn\'t got one yet. Not next week — today.',
+      ],
+      friend: [
+        'Send 20 DMs',
+        'Your warmest DM lead — be direct: "Are you still up for it? I\'ve got a slot open this week."',
+        'Voice note your 3 hottest leads — short, real, mention their shop name. No script.',
+      ],
+      claude: [
+        'Draft 5 personalised re-engagement messages for the 5 highest quality_score leads that never replied — ready for Dylan to send manually this weekend',
+        'Update WA templates based on what\'s working — retire any variant with 0 replies',
       ],
       openclaw: [
         'Friday batch + 72h follow-ups for leads that went silent',
@@ -281,43 +279,42 @@ const PLAN = [
   },
   {
     day: 11, date: '2026-06-14', label: 'Sat 14 Jun', week: 2,
-    focus: 'Saturday — close anyone who surfaces, keep momentum going',
+    focus: 'Anyone who surfaces today gets a response in under 10 minutes',
     bottlenecks: [],
     tasks: {
       dylan: [
-        'Morning check — CEO briefing, Baz alerts, overnight replies. 10 minutes.',
-        'Anyone who messages about payment today — respond within 10 minutes. No exceptions.',
-        'Send Stripe link to any warm lead you haven\'t sent one to yet.',
+        'Morning check — 10 minutes. CEO briefing, Baz alerts, overnight replies.',
+        'Anyone who messages about payment today: respond within 10 minutes. No exceptions.',
+        'Post something on Instagram — even one story showing a preview you built this week.',
       ],
       friend: [
-        'Send 5 DMs (lighter Saturday).',
-        'Go through all warm DM threads from Week 2 — follow up anyone who went quiet after 2+ messages.',
-        'Write down this week\'s numbers: DMs sent, replied, showed real interest — ready to report Monday.',
+        'Send 10 DMs (lighter Saturday)',
+        'Go through all warm DM threads from this week — follow up anyone who went quiet after 2+ messages',
+        'Report this week\'s numbers to Dylan: DMs sent, replied, showed real interest',
       ],
       claude: [
-        'Nothing — all Week 2 fixes live.',
+        'Nothing new — all fixes live, automated systems running',
       ],
       openclaw: [
-        'Quiet monitoring — inbound only',
-        'No proactive outreach',
+        'Quiet monitoring — inbound only, no proactive outreach',
       ],
     },
   },
   {
     day: 12, date: '2026-06-15', label: 'Sun 15 Jun', week: 2,
-    focus: 'Rest — think about Week 3 direction',
+    focus: 'Rest — but reply to anything warm',
     bottlenecks: [],
     tasks: {
       dylan: [
-        'Reply to anything warm from the weekend.',
-        'Think: is it working? More volume, better opener, different cities, or something different? Tell Claude tomorrow.',
+        'Reply to anything warm from the weekend — same day, every time.',
+        'Think: is it the volume, the offer, the opener, or the page that\'s the bottleneck right now? Tell me tomorrow.',
       ],
       friend: [
-        'Find 20 barbers for Monday\'s DM batch.',
-        'Reply to any weekend DMs.',
+        'Find 20 barbers for Monday\'s DM batch',
+        'Reply to any weekend DMs',
       ],
       claude: [
-        'Sunday health check — verify all cron jobs ran correctly this week. Flag any silent failures.',
+        'Sunday health check — verify all crons ran correctly this week, flag any silent failures',
       ],
       openclaw: [
         'Quiet mode — monitoring only',
@@ -326,53 +323,54 @@ const PLAN = [
   },
   {
     day: 13, date: '2026-06-16', label: 'Mon 16 Jun', week: 2,
-    focus: 'Final push — close every open thread before end of week',
-    bottlenecks: ['Research/CMO insights never surfaced on dashboard'],
+    focus: 'Close every open thread — by end of today every conversation is a yes, no, or clear next step',
+    bottlenecks: [],
     tasks: {
       dylan: [
-        'Message EVERY open warm thread today — personal, specific, push for a yes or a no. By end of day every conversation has a clear next step or is closed.',
-        'Tell Claude your Week 3 direction: more volume, different city, better closer, or something else.',
-        'Send Stripe link to every interested lead who hasn\'t paid — if they\'ve been interested 3+ days, follow up: "Still want to get this sorted?"',
+        'Message EVERY open warm thread today — personal, specific, push for a yes or a no. Nothing gets left open.',
+        'Tell me your Week 3 direction: more volume, different cities, better closing message, or something else entirely.',
+        'If still no sale: offer one barber a completely free site in exchange for a Google review, a photo testimonial, and one referral. This is your social proof unlock — one yes here closes the next 10 sales.',
       ],
       friend: [
-        'Find 20 new barbers for the list.',
-        'Send 15 DMs — bigger Monday push.',
-        'WhatsApp call your 2 warmest DM leads. Live call closes better than text. 2 minutes each.',
+        'Send 20 DMs — bigger Monday push',
+        'WhatsApp call your 2 warmest DM leads. 2 minutes each. A live call closes better than any text.',
+        'Find 20 new barbers for tomorrow\'s batch',
       ],
       claude: [
-        'Surface research + CMO insights — top 3 cities by reply rate, auto-bias lead_finder to target those first',
+        'Surface top 3 cities by reply rate — auto-bias lead finder and tomorrow\'s WA batch toward those cities',
         'Draft Week 3 plan based on Dylan\'s direction',
       ],
       openclaw: [
         '9am batch continues',
         'Day 14 follow-ups triggering for Week 1 leads — final automated touch',
-        '8am: full 2-week stats summary emailed to Dylan',
+        '8am: full 2-week stats in morning briefing',
       ],
     },
   },
   {
     day: 14, date: '2026-06-17', label: 'Tue 17 Jun', week: 2,
-    focus: '2-week review — first deposit landed or final push to get it',
-    bottlenecks: ['ALL CORE BOTTLENECKS FIXED'],
+    focus: '2-week review — count the money, plan Week 3',
+    bottlenecks: [],
     tasks: {
       dylan: [
-        'Write down real 2-week numbers: total sent (WA + email), total replies, reply rate %, deposits received, revenue. No estimates.',
-        'Message all remaining warm leads one final time — personal, honest, short: "Still thinking about it? No pressure — just want to know either way."',
-        'Follow up every Stripe link sent but not clicked: "Did the payment link work OK? Just checking it went through."',
+        'Real numbers only: total WA sent, total IG DMs sent, total replies, reply rate %, Stripe links sent, deposits received, revenue. Write them down.',
+        'Message every remaining warm lead one final time — honest, short: "Still thinking about it? No pressure — just want to know either way."',
+        'If you have your first sale: celebrate for 10 minutes, then ask them for a referral.',
+        'If you don\'t have a sale yet: you\'re not far. Tell me exactly where the conversations are dying — I\'ll fix it.',
       ],
       friend: [
-        'Final push: message every warm DM lead — "Last chance to claim your free preview before I move on to other barbers in [city]."',
-        'Voice note your 3 hottest leads — short, real, mention their shop name. No script.',
-        'Write down 2-week totals: DMs sent, replied, showed real interest — share with Dylan for the review.',
+        'Final push today: message every warm DM lead — "Last chance to grab your free preview before I move on to other barbers in [city]."',
+        'Voice note your 3 hottest leads — short, real, mention their shop name',
+        'Write down your 2-week totals and share with Dylan: DMs sent, replied, showed real interest',
       ],
       claude: [
-        'Full 2-week report: sends/replies/conversion by channel, city, variant — emailed to Dylan at 8am',
-        'Week 3 plan ready to share immediately after Dylan\'s direction input',
-        'Update HANDOFF.md: mark completed items as done, add outstanding items to Tier 1',
+        'Full 2-week report: sends/replies/conversion by channel, city, template — in the 8am briefing',
+        'Week 3 plan ready immediately after Dylan\'s direction',
+        'Update HANDOFF.md — mark everything completed, add outstanding items',
       ],
       openclaw: [
         '9am batch — Week 3 openers starting',
-        '2-week stats in 8am briefing',
+        '2-week stats summary in morning briefing',
         'All systems running into Week 3',
       ],
     },
@@ -435,7 +433,7 @@ export default function Plan() {
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, margin: 0 }}>Strategy</h1>
         <p style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
-          4–17 Jun 2026 · Each day targets specific bottlenecks · By Day 14: all 25 fixed, first sale closed
+          5–17 Jun 2026 · Volume + follow-up + offer · By Day 14: first sale closed or you'll be blown away by what's built
         </p>
         <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
           {PEOPLE.map(p => (
@@ -486,8 +484,8 @@ export default function Plan() {
       )}
 
       {[
-        { label: 'WEEK 1 — FIX THE PIPELINE, SEND FIRST WORKING MESSAGES', days: week1 },
-        { label: 'WEEK 2 — CLOSE THE FIRST SALE, ALL 25 BOTTLENECKS FIXED', days: week2 },
+        { label: 'WEEK 1 — FIX THE PAGE, FLOOD THE CHANNELS, GET REPLIES', days: week1 },
+        { label: 'WEEK 2 — CONVERT REPLIES INTO £75 DEPOSITS', days: week2 },
       ].map(week => (
         <div key={week.label} style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
