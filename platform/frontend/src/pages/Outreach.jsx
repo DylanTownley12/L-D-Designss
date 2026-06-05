@@ -238,6 +238,9 @@ function WhatsAppSentCard({ msg, onLogReply }) {
 function InstagramCard({ msg, onMarkSent, isFirst }) {
   const [sending, setSending] = useState(false)
   const igUrl = msg.leads?.instagram_url
+  const name = msg.leads?.business_name || ''
+  const city = msg.leads?.city || ''
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' ' + city + ' instagram')}`
   const handleSend = async () => {
     navigator.clipboard.writeText(msg.body)
     window.open(igUrl || 'https://www.instagram.com/direct/new/', '_blank')
@@ -248,13 +251,13 @@ function InstagramCard({ msg, onMarkSent, isFirst }) {
     <div style={{ ...card('rgba(168,85,247,0.15)'), opacity: isFirst ? 0.4 : 1 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{msg.leads?.business_name || 'Unknown'}</span>
-          <span style={{ fontSize: 11, color: C.textDim, marginLeft: 8 }}>{msg.leads?.city}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{name || 'Unknown'}</span>
+          <span style={{ fontSize: 11, color: C.textDim, marginLeft: 8 }}>{city}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {igUrl
             ? <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: C.purple, textDecoration: 'none' }}>{igUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '')}</a>
-            : <span style={{ fontSize: 9.5, color: 'rgba(168,85,247,0.4)', fontStyle: 'italic' }}>Search on Instagram</span>
+            : <a href={searchUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 9.5, color: 'rgba(168,85,247,0.6)', textDecoration: 'none', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 6, padding: '2px 7px' }}>Find on Google →</a>
           }
           {isFirst && <span style={{ fontSize: 9.5, padding: '2px 8px', borderRadius: 99, background: 'rgba(168,85,247,0.1)', color: C.purple, border: '1px solid rgba(168,85,247,0.2)' }}>↑ sent above</span>}
         </div>
@@ -262,15 +265,15 @@ function InstagramCard({ msg, onMarkSent, isFirst }) {
       <div style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.15)' }}>
         <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6, margin: 0 }}>{msg.body}</p>
       </div>
-      <div style={{ padding: '10px 16px' }}>
+      <div style={{ padding: '10px 16px', display: 'flex', gap: 8 }}>
         <button onClick={handleSend} disabled={sending} style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '10px', borderRadius: 8, border: 'none', cursor: sending ? 'not-allowed' : 'pointer',
           background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: 'white',
           fontSize: 13, fontWeight: 600, opacity: sending ? 0.6 : 1,
         }}>
           <Instagram size={14} />
-          {sending ? 'Opening...' : igUrl ? 'Open Instagram — mark sent' : 'Copy & open Instagram DMs'}
+          {sending ? 'Opening...' : igUrl ? 'Open Instagram — mark sent' : 'Copy script — mark sent'}
         </button>
       </div>
     </div>

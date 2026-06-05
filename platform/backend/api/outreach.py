@@ -149,6 +149,27 @@ async def mark_manually_sent(message_id: str):
     return {"status": "sent"}
 
 
+@router.post("/reset-instagram-failed")
+async def reset_instagram_failed():
+    """Reset all failed Instagram scripts back to queued so they appear in the dashboard."""
+    db = get_db()
+    result = (
+        db.table("outreach_messages")
+        .select("id")
+        .eq("channel", "instagram")
+        .eq("direction", "outbound")
+        .eq("status", "failed")
+        .execute()
+    )
+    ids = [r["id"] for r in (result.data or [])]
+    for msg_id in ids:
+        db.table("outreach_messages").update({
+            "status": "queued",
+            "approved_by_founder": True,
+        }).eq("id", msg_id).execute()
+    return {"reset": len(ids)}
+
+
 @router.post("/promote-wa-drafts")
 async def promote_wa_drafts():
     """Promote all draft WhatsApp messages to queued so Baz can send them."""
