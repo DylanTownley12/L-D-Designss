@@ -4,85 +4,121 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-L&D Designs — a solo web design agency targeting UK barber shops with no website. The repo contains two things:
+L&D Designs — a solo web design agency targeting UK barber shops with no website. The repo contains:
 
-1. **Root-level files** — the public-facing portfolio site (`index.html`, `pricing.html`, `showcase.html`), client demo site (`boys-line/`), and legacy Google Colab notebooks for lead finding and outreach
-2. **`platform/`** — a full-stack agency automation platform (FastAPI backend + React frontend)
+1. **Root-level files** — public-facing portfolio site (`index.html`, `pricing.html`, `showcase.html`), client demo (`boys-line/`), and legacy Google Colab notebooks (old manual workflow, superseded by `platform/`)
+2. **`platform/`** — full-stack agency automation platform (FastAPI backend + React frontend)
 
-The Colab notebooks (`.ipynb` files at the root) are the old manual workflow. The `platform/` folder is the new automated system that replaces them.
+## Dev Commands
 
-## Platform Architecture
-
-The platform is split into backend and frontend with no shared code between them.
-
-### Backend (`platform/backend/`)
-
-FastAPI app started with:
 ```bash
+# Backend
 cd platform/backend
 pip install -r requirements.txt
-uvicorn main:app --reload
-```
+uvicorn main:app --reload          # dev server at localhost:8000
+# Requires .env — copy .env.example and fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
 
-Requires a `.env` file — copy from `.env.example`. The app won't start without `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `OPENAI_API_KEY`, `GMAIL_ADDRESS`, and `GMAIL_APP_PASSWORD` set.
-
-**How data flows:**
-- `main.py` registers all routers under `/api` prefix and mounts `static/previews/` for serving generated HTML files
-- `config.py` — single `Settings` object loaded from `.env`, imported directly by agents and API modules
-- `db/client.py` — singleton Supabase client, imported as `from db.client import get_db`
-- `models/schemas.py` — all Pydantic models used across API routes
-
-**Agent pipeline** (each agent has a single `run()` entry point):
-1. `lead_finder.py` — scrapes Yell.com, saves to `leads` table, deduplicates by name+city
-2. `website_analyzer.py` — HTTP checks on lead websites, sets `website_status` and `quality_score`
-3. `preview_generator.py` — renders `templates/barber_site.html` via Jinja2, saves HTML to `static/previews/`, stores URL in `previews` table
-4. `outreach_writer.py` — calls OpenAI `gpt-4o-mini`, returns `{subject, body}` for email or `{body}` for SMS
-5. `qc_agent.py` — validates message before sending, checks for spam phrases, missing contact info, broken preview URLs
-6. `outreach_sender.py` — Gmail SMTP for email, Twilio for SMS; enforces daily rate limits from config
-7. `followup_agent.py` — checks `follow_up_sequences` table, queues Day 3/7/14 messages for active sequences
-8. `notification_agent.py` — creates rows in `notifications` table, emails the founder on reply
-
-`tasks/scheduler.py` runs agents on a schedule via APScheduler (starts on app startup via lifespan).
-
-**Lead status flow:**
-`new` → `analyzing` → `preview_ready` → `outreach_queued` → `outreach_sent` → `replied` → `interested` → `converted`
-
-Statuses `not_interested` and `do_not_contact` are terminal — follow-up sequences stop automatically when a lead reaches these or `replied`/`converted`.
-
-### Frontend (`platform/frontend/`)
-
-React + Vite + Tailwind. Started with:
-```bash
+# Frontend
 cd platform/frontend
 npm install
-npm run dev        # dev server at localhost:5173
+npm run dev        # dev server at localhost:5173 (proxies /api → localhost:8000)
 npm run build      # production build to dist/
 ```
 
-All API calls go through `src/api/client.js` which wraps axios. The base URL is `VITE_API_URL` env var (falls back to `/api` for when frontend and backend are on the same origin). The Vite dev server proxies `/api` to `localhost:8000`.
+No test suite exists — verify changes by running the backend and checking `/docs` (auto-generated FastAPI Swagger UI).
 
-Custom Tailwind colors: `gold` (#C9A84C), `gold-light`, `dark`, `dark-2`, `dark-3`. When using these in `@apply` inside CSS files, avoid hyphenated names — use plain CSS values instead (known PostCSS parsing issue).
+## Deployment
 
-### Database
+- **Backend** → Railway (`platform/backend`, start: `uvicorn main:app --host 0.0.0.0 --port $PORT`). Live: `https://l-d-designss-production.up.railway.app`
+- **Frontend** → Vercel (`platform/frontend`). Live: `https://l-d-designss.vercel.app`
+- **DB** → Supabase. Schema: `platform/backend/db/migrations.sql` — run once in Supabase SQL Editor.
 
-Supabase (PostgreSQL). Schema is in `platform/backend/db/migrations.sql` — run this once in the Supabase SQL Editor to create all tables, indexes, and triggers.
+## Architecture
 
-Key tables: `leads`, `previews`, `outreach_messages`, `follow_up_sequences`, `notifications`, `deployed_websites`, `agent_logs`.
+### Backend (`platform/backend/`)
 
-### Deployment
+`main.py` registers all routers under `/api` and starts the APScheduler via lifespan. Routes:
 
-- **Backend** → Render.com (root dir: `platform/backend`, build: `pip install -r requirements.txt`, start: `uvicorn main:app --host 0.0.0.0 --port $PORT`)
-- **Frontend** → Vercel (root dir: `platform/frontend`, framework: Vite, add `VITE_API_URL` env var pointing to Render URL)
-- **Config** → `platform/vercel.json` needs updating with the actual Render backend URL for API rewrites
+| Module | Prefix | Purpose |
+|---|---|---|
+| `api/agents.py` | `/api/agents` | Run/status for the 12 backend Python agents |
+| `api/team.py` | `/api/team` | Coordination layer for the 9 OpenClaw agents |
+| `api/leads.py` | `/api/leads` | CRUD for lead records |
+| `api/outreach.py` | `/api/outreach` | Message queue management |
+| `api/previews.py` | `/api/previews` | Preview generation + URL fixing |
+| `api/ops.py` | `/api/ops` | Blockers, action queue, DO NEXT |
+| `api/payments.py` | `/api/payments` | Stripe checkout links |
+| `api/n8n.py` | `/api/n8n` | n8n webhook receiver |
+| `api/strategy.py` | `/api/strategy` | Claude vs GPT strategy debate |
+| `api/webhooks.py` | `/api/webhooks` | Twilio SMS + manual WA reply |
 
-### Webhooks
+Preview HTML is served at `/previews/serve/{id}` (not under `/api`) directly from `previews.html_content` in the DB — no static file mount.
 
-Twilio SMS replies hit `POST /api/webhooks/twilio/sms` — configure this URL in the Twilio console. Manual WhatsApp replies are logged via `POST /api/webhooks/manual-reply/{lead_id}`. Both trigger `notification_agent.notify_reply_received()` and stop the follow-up sequence.
+### The Two Agent Systems (critical — don't confuse them)
 
-## Root-Level Files
+**System 1: Backend Python agents** (12 agents, `platform/backend/agents/`)
+Run on a schedule via APScheduler (`tasks/scheduler.py`). Each has a `run()` entry point. The pipeline:
+`lead_finder` → `website_analyzer` → `preview_generator` → `outreach_writer` → `qc_agent` → `outreach_sender` → `followup_agent`
 
-The portfolio/public-facing pages (`index.html`, `pricing.html`, `showcase.html`, `boys-line/`) are deployed via GitHub Pages at `dylantownley12.github.io/L-D-Designss`. These are standalone HTML files with no build step — edit directly and push to deploy.
+Supporting agents: `ceo_agent` (hourly health + self-heal), `lead_enricher`, `preview_refresher`, `notification_agent`, `chat_agent`, `orchestrator`, and frozen agents (`cmo_agent`, `research_agent`, `analyst_agent`, `sales_agent`, `dev_agent`, `claude_agent`).
 
-`generator.html` is a standalone client website generator tool — fills a barber site template from form inputs and downloads the result.
+**System 2: OpenClaw agents** (9 agents, `~/.openclaw/workspaces/`)
+LLM agents (Claude Haiku) that run via `openclaw cron` and call the backend over HTTP. They never touch the DB directly — only via `/api/team/*` endpoints. Agents in daily handoff order: `scout` → `gap` → `judge` → `maker` → `reach` → `executor` → `closer` → `profit` → `chief`.
 
-The root `requirements.txt` and `run.bat`/`run.sh` are legacy files from before the platform was built.
+`executor` queues WA + email directly via `POST /api/team/executor/queue` (no approval gate, capped at `MAX_WHATSAPP_PER_DAY`). Everything else (Instagram, Stripe) is staged as an approval row for the founder.
+
+`chief` runs hourly: calls `GET /api/team/chief/health`, then `POST /api/team/chief/fix` if fixable, or queues a WA alert to the founder if not.
+
+Dashboard pages: `/agents` = WORKFORCE (12 backend Python agents, powered by `/api/agents/*`) and `/hub` = WAR ROOM (9 OpenClaw agents, powered by `/api/team/*`). These are entirely separate.
+
+### Database Client (`db/client.py`)
+
+**Critical:** this is a custom `httpx`-based PostgREST client — do NOT replace with `supabase-py`. The API mimics the supabase-py query builder (`.table().select().eq().execute()`) but is implemented from scratch to avoid the supabase-py dependency. All DB access goes through `from db.client import get_db`.
+
+### Safety Layer (`safety.py`)
+
+Wraps all scheduled jobs that spend money or send messages. Three mechanisms:
+- **Spend cap** — `DAILY_SPEND_CAP_GBP` (default £2/day); guarded jobs block when breached
+- **Kill-switch** — alerts (or pauses) if no revenue for `SAFETY_KILL_SWITCH_DAYS` days
+- **Channel caps** — `MAX_WHATSAPP_PER_DAY=10` (ban protection), `MAX_INSTAGRAM_PER_DAY=20`, `MAX_EMAILS_PER_DAY=50`
+
+Use `@safety.guarded("job_name")` on new scheduled jobs that spend. Use `safety.can_send(channel)` before outreach sends. `safety.record_spend(agent, model, tokens_in, tokens_out)` logs LLM cost after every API call.
+
+### Config (`config.py`)
+
+Single `Settings` object loaded from `.env` via pydantic-settings. Always import as `from config import settings`. Key production vars set in Railway: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `PREVIEW_BASE_URL`, `GOOGLE_PLACES_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+
+### Lead Status Flow
+
+`new` → `analyzing` → `preview_ready` → `outreach_queued` → `outreach_sent` → `replied` → `interested` → `converted`
+
+Terminal statuses: `not_interested`, `do_not_contact` — follow-up sequences stop automatically.
+
+### Scheduler (`tasks/scheduler.py`)
+
+APScheduler starts on app startup. Key times (Europe/London):
+- 5:50am — seed 9-agent team backlog
+- 5:55am — morning health check
+- 6:00am — lead finder, 6:05am — enricher, 6:30am — preview generator
+- 7:00am — WA campaign, 7:15am — Instagram campaign
+- 8:00am — CEO daily briefing email
+- 9:00am — follow-ups
+- Every 1h — CEO health check + auto-fix
+- Every 2h — website analyzer, refill queues, strategy brief
+- Every 30min — email send queue, self-healing retry
+
+### Frontend (`platform/frontend/`)
+
+React + Vite + Tailwind. All API calls go through `src/api/client.js` (axios wrapper). `VITE_API_URL` env var sets the backend URL (falls back to `/api`). Vite proxies `/api` → `localhost:8000` in dev.
+
+Design system: JARVIS-style dark UI with inline styles (not Tailwind classes). Colors: `#0a0a0a` background, `#00d4ff` / `#00ff88` cyan/green accents, `rgba(0,212,255,0.1)` panel borders. All pages use inline styles consistently — do not revert to Tailwind classes on existing pages.
+
+Custom Tailwind colors: `gold` (#C9A84C). Avoid hyphenated color names in `@apply` (PostCSS parsing issue).
+
+### OpenClaw (`~/.openclaw/`)
+
+Baz is the main WhatsApp agent (`~/.openclaw/workspace/`). The 9 growth agents each have `~/.openclaw/workspaces/<name>/` with: `SOUL.md` (identity + brief), `TOOLS.md` (exact curl commands), `AGENTS.md`, `MEMORY.md`, `HEARTBEAT.md`.
+
+**Session stability rules:** never close the TUI terminal (causes status 440 conflict), never open WhatsApp Web in a browser. If 440 occurs: `openclaw channels login --channel whatsapp` to rescan QR.
+
+Restart gateway: `systemctl --user restart openclaw-gateway.service`
