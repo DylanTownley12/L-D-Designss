@@ -203,7 +203,8 @@ def process_queue(max_send: int = 10) -> dict:
         db.table("outreach_messages")
         .select("id, channel, approved_by_founder")
         .in_("status", ["queued", "approved"])
-        .neq("channel", "whatsapp")
+        .neq("channel", "whatsapp")    # WA sent by Baz via OpenClaw
+        .neq("channel", "instagram")   # Instagram = manual deep link only, never auto-sent
         .order("created_at")
         .limit(max_send)
         .execute()

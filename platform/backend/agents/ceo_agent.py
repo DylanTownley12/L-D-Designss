@@ -328,6 +328,8 @@ def _alert_dylan(db, issues: list):
             "body": body,
             "status": "queued",
             "approved_by_founder": True,
+            "lead_id": None,
+            "subject": "ceo_alert",  # tagged so send_outreach.sh can identify + skip cap check
         }).execute()
         logger.info(f"[ceo_agent] P1 alert queued for Dylan: {summary[:80]}")
     except Exception as e:

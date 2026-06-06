@@ -540,10 +540,12 @@ async def executor_queue_message(body: ExecutorQueueIn):
     today = date.today().isoformat()
 
     if body.channel == "whatsapp":
+        # Exclude CEO alerts (subject='ceo_alert') from the outreach cap
         sent_or_queued_today = (
             db.table("outreach_messages").select("id", count="exact")
             .eq("channel", "whatsapp").eq("direction", "outbound")
             .in_("status", ["queued", "sent"])
+            .neq("subject", "ceo_alert")
             .gte("created_at", f"{today}T00:00:00")
             .execute().count or 0
         )
