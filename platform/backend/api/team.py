@@ -84,6 +84,7 @@ class TaskComplete(BaseModel):
     next_type: Optional[str] = None
     next_payload: dict = {}
     next_priority: int = 5
+    next_lead_id: Optional[str] = None   # carry the lead through the chain
 
 
 class ScoreIn(BaseModel):
@@ -211,6 +212,7 @@ async def complete_task(task_id: str, body: TaskComplete):
         if body.next_assigned_to not in VALID_AGENTS:
             raise HTTPException(400, f"unknown next agent '{body.next_assigned_to}'")
         row = db.table("agent_tasks").insert({
+            "lead_id": body.next_lead_id,
             "assigned_to": body.next_assigned_to,
             "type": body.next_type,
             "payload": body.next_payload,
