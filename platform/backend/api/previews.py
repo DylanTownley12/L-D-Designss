@@ -142,20 +142,44 @@ async def list_previews(limit: int = 50, offset: int = 0):
 
 
 @router.post("/fix-urls")
-async def fix_preview_urls():
-    """Repoint any preview whose URL still points at localhost to the live serve
-    path. Safe self-heal: a string rebuild only — never regenerates or sends."""
+async def fix_preview_urls(limit: int = 1000):
+    """Repoint EVERY preview whose URL isn't the live DB-serve path to it.
+
+    Catches all three broken formats that 404 in front of prospects:
+      • localhost URLs (dev leakage)
+      • old static-file URLs  (/previews/<shortid>.html)
+      • null / empty URLs
+    Safe self-heal: a string rebuild only — never regenerates or sends.
+    Walks the whole table in pages so it fixes the full backlog, not just 500.
+    """
     from config import settings
     db = get_db()
-    base = (settings.PREVIEW_BASE_URL or "").rstrip("/")
-    broken = (db.table("previews").select("id, preview_url")
-              .ilike("preview_url", "%localhost%").limit(500).execute().data or [])
+    # Resolved base guards against PREVIEW_BASE_URL still being localhost in prod.
+    base = settings.preview_base_url_resolved.replace("/previews", "").rstrip("/")
+
     fixed = 0
-    for p in broken:
-        new_url = f"{base}/serve/{p['id']}"
-        db.table("previews").update({"preview_url": new_url}).eq("id", p["id"]).execute()
-        fixed += 1
-    return {"ok": True, "fixed": fixed, "base": base}
+    scanned = 0
+    page = 0
+    PAGE = 500
+    while True:
+        rows = (db.table("previews").select("id, preview_url")
+                .order("created_at", desc=True)
+                .range(page * PAGE, page * PAGE + PAGE - 1)
+                .execute().data or [])
+        if not rows:
+            break
+        for p in rows:
+            scanned += 1
+            url = p.get("preview_url") or ""
+            if "/previews/serve/" in url and "localhost" not in url:
+                continue  # already healthy
+            new_url = f"{base}/previews/serve/{p['id']}"
+            db.table("previews").update({"preview_url": new_url}).eq("id", p["id"]).execute()
+            fixed += 1
+        page += 1
+        if page * PAGE >= limit:
+            break
+    return {"ok": True, "fixed": fixed, "scanned": scanned, "base": base}
 
 
 @router.get("/serve/{preview_id}", response_class=HTMLResponse)
