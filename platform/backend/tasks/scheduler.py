@@ -389,9 +389,9 @@ def start_scheduler():
     scheduler.add_job(**job(_strategy_brief, id="strategy_brief",
         trigger=IntervalTrigger(hours=2)))
 
-    # Every 2 hours — CEO system health check + auto-fix
+    # Every hour — CEO system health check + auto-fix
     scheduler.add_job(**job(_ceo_check, guard=False, id="ceo_check",
-        trigger=IntervalTrigger(hours=2, start_date=None)))
+        trigger=IntervalTrigger(hours=1)))
 
     # 8:00am — CEO daily briefing email to founder
     scheduler.add_job(**job(_ceo_daily_briefing, guard=False, id="ceo_briefing",

@@ -18,13 +18,16 @@ Routes (all under /api/team):
   Knowledge  GET  /knowledge      POST /knowledge
   Overview   GET  /summary
 """
-from datetime import datetime, timezone
+import os
+from datetime import datetime, date, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from db.client import get_db
+
+MAX_WHATSAPP_PER_DAY = int(os.getenv("MAX_WHATSAPP_PER_DAY", "10"))
 
 router = APIRouter(prefix="/team", tags=["team"])
 
@@ -498,3 +501,151 @@ def seed_backlog(limit: int = 8) -> dict:
 async def seed_backlog_endpoint(limit: int = 8):
     """Manually top up the team's work queue from the backlog (also runs daily)."""
     return {"ok": True, **seed_backlog(limit)}
+
+
+# ── Executor: direct queue (WA + email only, no approval gate) ────────────────
+
+class ExecutorQueueIn(BaseModel):
+    channel: str                     # 'whatsapp' or 'email'
+    lead_id: Optional[str] = None
+    body: str
+    subject: Optional[str] = None   # email only
+
+
+@router.post("/executor/queue")
+async def executor_queue_message(body: ExecutorQueueIn):
+    """Executor queues a WA or email message — no approval needed for these two channels.
+    WA is capped at MAX_WHATSAPP_PER_DAY and deduplicated per lead.
+    Instagram / Stripe / anything else must still go through /approvals."""
+    if body.channel not in ("whatsapp", "email"):
+        raise HTTPException(400, "channel must be 'whatsapp' or 'email' — use /approvals for other channels")
+
+    db = get_db()
+    today = date.today().isoformat()
+
+    if body.channel == "whatsapp":
+        sent_or_queued_today = (
+            db.table("outreach_messages").select("id", count="exact")
+            .eq("channel", "whatsapp").eq("direction", "outbound")
+            .in_("status", ["queued", "sent"])
+            .gte("created_at", f"{today}T00:00:00")
+            .execute().count or 0
+        )
+        if sent_or_queued_today >= MAX_WHATSAPP_PER_DAY:
+            return {"ok": False, "capped": True, "queued": 0,
+                    "reason": f"WA daily cap reached ({sent_or_queued_today}/{MAX_WHATSAPP_PER_DAY})"}
+
+        if body.lead_id:
+            existing = (
+                db.table("outreach_messages").select("id")
+                .eq("lead_id", body.lead_id).eq("channel", "whatsapp")
+                .in_("status", ["queued", "sent"]).execute().data or []
+            )
+            if existing:
+                return {"ok": False, "capped": False, "queued": 0,
+                        "reason": "lead already has a queued or sent WA message"}
+
+    row = db.table("outreach_messages").insert({
+        "lead_id": body.lead_id,
+        "channel": body.channel,
+        "direction": "outbound",
+        "body": body.body,
+        "subject": body.subject,
+        "status": "queued",
+        "approved_by_founder": True,
+    }).execute().data
+    created = row[0] if isinstance(row, list) and row else row
+    return {"ok": True, "capped": False, "queued": 1, "message_id": (created or {}).get("id")}
+
+
+# ── Chief: health snapshot + fix trigger ──────────────────────────────────────
+
+@router.get("/chief/health")
+async def chief_health():
+    """Chief's hourly health check — what's broken, what's fixable, what to tell Dylan."""
+    from datetime import timedelta
+    db = get_db()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+    today_str = datetime.now(timezone.utc).date().isoformat()
+
+    logs = (db.table("agent_logs").select("agent_name, status, created_at")
+            .gte("created_at", cutoff).order("created_at", desc=True)
+            .limit(300).execute().data or [])
+
+    latest: dict = {}
+    for log in logs:
+        latest.setdefault(log["agent_name"], log["status"])
+
+    errors = [a for a, s in latest.items() if s == "error" and a != "ceo_agent"]
+
+    wa_queued = (db.table("outreach_messages").select("id", count="exact")
+                 .eq("channel", "whatsapp").eq("status", "queued")
+                 .execute().count or 0)
+
+    wa_sent_today = (db.table("outreach_messages").select("id", count="exact")
+                     .eq("channel", "whatsapp").eq("status", "sent")
+                     .gte("created_at", f"{today_str}T00:00:00")
+                     .execute().count or 0)
+
+    stuck = (db.table("agent_tasks").select("id", count="exact")
+             .in_("status", ["failed", "blocked"]).execute().count or 0)
+
+    pipeline = {s: (db.table("leads").select("id", count="exact").eq("status", s).execute().count or 0)
+                for s in ["new", "preview_ready", "outreach_sent", "replied", "interested", "converted"]}
+
+    problems = []
+    if errors:
+        problems.append(f"agents with errors: {', '.join(errors)}")
+    if stuck > 0:
+        problems.append(f"{stuck} stuck team task(s)")
+    if wa_queued == 0 and pipeline.get("preview_ready", 0) > 0:
+        problems.append("WA queue empty but preview_ready leads exist — Executor should queue messages")
+
+    return {
+        "ok": not problems,
+        "problems": problems,
+        "fixable": bool(errors or stuck),
+        "errors": errors,
+        "stuck_tasks": stuck,
+        "wa_queued": wa_queued,
+        "wa_sent_today": wa_sent_today,
+        "pipeline": pipeline,
+        "agent_statuses": latest,
+    }
+
+
+@router.post("/chief/fix")
+async def chief_fix():
+    """Chief triggers a full self-heal pass: retry errored agents + re-queue stuck tasks.
+    If nothing is fixable, queues a WA alert to Dylan."""
+    from datetime import timedelta
+    from agents.ceo_agent import _retry_failed, _coordinate, _alert_dylan
+    db = get_db()
+
+    two_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+
+    retry_actions = _retry_failed(db, two_hours_ago)
+
+    stuck = (db.table("agent_tasks").select("id")
+             .in_("status", ["failed", "blocked"]).limit(100).execute().data or [])
+    for t in stuck:
+        db.table("agent_tasks").update({"status": "queued"}).eq("id", t["id"]).execute()
+
+    pipeline = {s: (db.table("leads").select("id", count="exact").eq("status", s).execute().count or 0)
+                for s in ["new", "preview_ready", "outreach_sent"]}
+    coord_actions = _coordinate(db, {"pipeline": pipeline}, pipeline=pipeline)
+
+    task_fix = [f"re-queued {len(stuck)} stuck task(s)"] if stuck else []
+    all_actions = retry_actions + coord_actions + task_fix
+
+    if not all_actions:
+        _alert_dylan(db, ["Chief ran fix pass but found nothing auto-fixable — needs manual check"])
+
+    db.table("agent_logs").insert({
+        "agent_name": "chief",
+        "action": f"self-heal: {len(all_actions)} fix(es)",
+        "status": "success",
+        "details": {"actions": all_actions},
+    }).execute()
+
+    return {"ok": True, "actions": all_actions, "fixed": len(all_actions)}
