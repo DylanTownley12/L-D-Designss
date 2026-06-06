@@ -190,6 +190,10 @@ def process_queue(max_send: int = 10) -> dict:
     Picks up status 'queued' OR 'approved'. WhatsApp is handled by Baz via OpenClaw.
     Called by the scheduler every 30 mins.
     """
+    try:
+        get_db().table("agent_logs").insert({"agent_name": "outreach_sender", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     db = get_db()
     sent = 0
     failed = 0

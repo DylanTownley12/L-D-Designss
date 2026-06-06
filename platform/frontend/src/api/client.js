@@ -75,6 +75,8 @@ export const agents = {
   run: (agent, lead_id, params) => api.post('/agents/run', { agent, lead_id, params }),
   runPipeline: (lead_id) => api.post(`/agents/full-pipeline/${lead_id}`),
   logs: (agent, limit) => api.get('/agents/logs', { params: { agent, limit } }),
+  status: () => api.get('/agents/status'),
+  heartbeat: (agent) => api.post('/agents/heartbeat', { agent }),
   orchestrate: (task = 'auto') => api.post('/agents/orchestrate', null, { params: { task } }),
   sessions: () => api.get('/agents/orchestrate/sessions'),
   ceoStatus: () => api.get('/agents/ceo/status'),

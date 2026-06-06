@@ -56,6 +56,10 @@ def run() -> dict:
     Check all active follow-up sequences and queue any messages that are due.
     Returns a summary of what was queued.
     """
+    try:
+        get_db().table("agent_logs").insert({"agent_name": "followup_agent", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     start = datetime.now()
     db = get_db()
     queued = 0

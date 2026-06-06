@@ -162,6 +162,11 @@ def run(cities: list[str] | None = None, pages_per_city: int = 3) -> dict:
     Main entry point for the Lead Finder agent.
     Uses Google Places API to find barbers with no website across UK cities.
     """
+    try:
+        from db.client import get_db as _gdb
+        _gdb().table("agent_logs").insert({"agent_name": "lead_finder", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     if not settings.GOOGLE_PLACES_API_KEY:
         logger.error("GOOGLE_PLACES_API_KEY not set — cannot run lead finder")
         return {"error": "GOOGLE_PLACES_API_KEY not configured"}

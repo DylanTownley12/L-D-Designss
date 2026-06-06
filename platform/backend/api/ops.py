@@ -10,6 +10,8 @@ from fastapi import APIRouter
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+from utils.revenue import revenue_score as _revenue_score
+
 
 def _now():
     return datetime.now(timezone.utc)
@@ -55,9 +57,16 @@ def get_action_queue(limit: int = 50):
         if lead["status"] == "replied":
             reasons.append("Lead replied — follow up immediately")
 
+        last_contact_at = last_msg["sent_at"] if last_msg else lead["updated_at"]
+        hours_since = (
+            (_now() - datetime.fromisoformat((last_contact_at or "").replace("Z", "+00:00"))).total_seconds() / 3600
+            if last_contact_at else 999
+        )
+
         items.append({
             "type": "hot_lead",
             "priority": 1 if lead["status"] == "interested" else 2,
+            "revenue_score": _revenue_score(lead["status"], hours_since, bool(lead.get("phone")), bool(lead.get("instagram_url"))),
             "lead_id": lead["id"],
             "lead_name": lead["business_name"],
             "city": lead["city"],
@@ -66,7 +75,7 @@ def get_action_queue(limit: int = 50):
             "preview_url": preview_url,
             "instagram_url": lead.get("instagram_url"),
             "phone": phone or lead.get("phone"),
-            "last_contact_at": last_msg["sent_at"] if last_msg else lead["updated_at"],
+            "last_contact_at": last_contact_at,
             "followup_due_at": None,
             "payment_status": payment_status,
             "reasons": reasons,
@@ -86,9 +95,15 @@ def get_action_queue(limit: int = 50):
         if lead["status"] in ["replied", "interested", "converted", "not_interested", "do_not_contact"]:
             continue
         prev = db.table("previews").select("preview_url").eq("lead_id", lead["id"]).order("created_at", desc=True).limit(1).execute().data
+        followup_at = f["next_followup_at"]
+        hours_overdue = (
+            (_now() - datetime.fromisoformat((followup_at or "").replace("Z", "+00:00"))).total_seconds() / 3600
+            if followup_at else 0
+        )
         items.append({
             "type": "followup_due",
             "priority": 3,
+            "revenue_score": _revenue_score(lead["status"], hours_overdue, bool(lead.get("phone")), bool(lead.get("instagram_url"))),
             "lead_id": lead["id"],
             "lead_name": lead["business_name"],
             "city": lead["city"],
@@ -98,7 +113,7 @@ def get_action_queue(limit: int = 50):
             "instagram_url": lead.get("instagram_url"),
             "phone": lead.get("phone"),
             "last_contact_at": None,
-            "followup_due_at": f["next_followup_at"],
+            "followup_due_at": followup_at,
             "payment_status": None,
             "reasons": [f"Follow-up day {f['current_step']} overdue"],
         })
@@ -165,10 +180,10 @@ def get_action_queue(limit: int = 50):
             "message_id": msg["id"],
         })
 
-    # Sort by priority then deduplicate by lead_id (keep highest priority per lead)
+    # Sort by revenue_score desc, then priority asc, then deduplicate by lead_id
     seen = set()
     deduped = []
-    for item in sorted(items, key=lambda x: x["priority"]):
+    for item in sorted(items, key=lambda x: (-x.get("revenue_score", 0), x["priority"])):
         if item["lead_id"] not in seen:
             seen.add(item["lead_id"])
             deduped.append(item)

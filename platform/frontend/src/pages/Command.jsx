@@ -36,12 +36,8 @@ function BlockerCard({ blocker, onFixed }) {
   const runFix = async () => {
     setLoading(true)
     try {
-      const btn = blocker.fix_button
-      const res = await fetch(`https://l-d-designss-production.up.railway.app${btn.path}`, {
-        method: btn.method, headers: { 'Content-Type': 'application/json' },
-        body: btn.body ? JSON.stringify(btn.body) : undefined,
-      })
-      if (res.ok) onFixed?.()
+      await ops.runFix(blocker.fix_button)
+      onFixed?.()
     } catch (e) { } finally { setLoading(false) }
   }
 
@@ -99,7 +95,14 @@ function ActionItem({ item, onAction, showToast }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{item.lead_name}</span>
             <span style={{ fontSize: 11, color: C.dim }}>{item.city}</span>
-            <span style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 7px', borderRadius: 99, background: `${pc.color}20`, color: pc.color, fontWeight: 700, fontFamily: C.mono }}>{pc.label}</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {item.revenue_score != null && (
+                <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 99, background: 'rgba(212,168,67,0.15)', color: C.gold, fontWeight: 700, fontFamily: C.mono }} title="Revenue priority score">
+                  ★{item.revenue_score}
+                </span>
+              )}
+              <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 99, background: `${pc.color}20`, color: pc.color, fontWeight: 700, fontFamily: C.mono }}>{pc.label}</span>
+            </div>
           </div>
           {item.reasons?.length > 0 && <div style={{ fontSize: 11, color: pc.color }}>{item.reasons[0]}</div>}
         </div>

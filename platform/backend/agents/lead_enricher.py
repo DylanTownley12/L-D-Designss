@@ -181,6 +181,10 @@ def run(limit: int = 100) -> dict:
     First pass: extract Instagram from the website field (free, instant).
     Second pass: Google Places Details + website scraping.
     """
+    try:
+        get_db().table("agent_logs").insert({"agent_name": "lead_enricher", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     db = get_db()
 
     result = (

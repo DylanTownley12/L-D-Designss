@@ -1,21 +1,16 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { dashboard as dashApi, agents as agentsApi, team as teamApi } from '../api/client'
-import {
-  Radio, Users, Database, Crosshair, Globe, MessageSquare, Map, Settings, Zap, Network,
-} from 'lucide-react'
+import { agents as agentsApi, team as teamApi } from '../api/client'
+import { Zap, Network, Users, Database, Crosshair, Globe, Settings } from 'lucide-react'
 
 const nav = [
-  { to: '/command',     Icon: Zap,           label: 'DO NEXT', highlight: true },
-  { to: '/hub',         Icon: Network,       label: 'WAR ROOM' },
-  { to: '/dashboard',   Icon: Radio,         label: 'JARVIS' },
-  { to: '/agents',      Icon: Users,         label: 'WORKFORCE' },
-  { to: '/leads',       Icon: Database,      label: 'INTELLIGENCE' },
-  { to: '/outreach',    Icon: Crosshair,     label: 'OPERATIONS' },
-  { to: '/previews',    Icon: Globe,         label: 'ASSETS' },
-  { to: '/missed-call', Icon: MessageSquare, label: 'COMMS' },
-  { to: '/plan',        Icon: Map,           label: 'STRATEGY' },
-  { to: '/settings',    Icon: Settings,      label: 'CONFIG' },
+  { to: '/command',  Icon: Zap,       label: 'DO NEXT',  highlight: true,  badge: 'action' },
+  { to: '/hub',      Icon: Network,   label: 'WAR ROOM',                   badge: 'approvals' },
+  { to: '/agents',   Icon: Users,     label: 'AGENTS',                     badge: 'stale' },
+  { to: '/leads',    Icon: Database,  label: 'LEADS' },
+  { to: '/outreach', Icon: Crosshair, label: 'OUTREACH' },
+  { to: '/previews', Icon: Globe,     label: 'PREVIEWS' },
+  { to: '/settings', Icon: Settings,  label: 'CONFIG' },
 ]
 
 const CYAN = '#00D4FF'
@@ -37,8 +32,9 @@ function LogoMark() {
   )
 }
 
-function NavItem({ to, Icon, label, badge, highlight }) {
+function NavItem({ to, Icon, label, badge, highlight, badges }) {
   const [hovered, setHovered] = useState(false)
+  const count = badges?.[badge] || 0
 
   return (
     <NavLink
@@ -67,7 +63,13 @@ function NavItem({ to, Icon, label, badge, highlight }) {
           : highlight
           ? 'rgba(212,168,67,0.04)'
           : 'transparent',
-        color: isActive ? 'rgba(255,255,255,0.9)' : hovered ? 'rgba(255,255,255,0.6)' : highlight ? 'rgba(212,168,67,0.7)' : 'rgba(255,255,255,0.25)',
+        color: isActive
+          ? 'rgba(255,255,255,0.9)'
+          : hovered
+          ? 'rgba(255,255,255,0.6)'
+          : highlight
+          ? 'rgba(212,168,67,0.7)'
+          : 'rgba(255,255,255,0.25)',
         boxShadow: isActive ? `inset 0 0 20px ${highlight ? 'rgba(212,168,67,0.06)' : 'rgba(0,212,255,0.04)'}` : 'none',
       })}
     >
@@ -83,13 +85,21 @@ function NavItem({ to, Icon, label, badge, highlight }) {
             }}
           />
           <span style={{ flex: 1 }}>{label}</span>
-          {badge > 0 && (
+          {count > 0 && (
             <span style={{
-              background: CYAN, color: '#000', fontSize: 9,
-              fontWeight: 800, minWidth: 16, height: 16, borderRadius: 999,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+              background: badge === 'stale' ? '#fbbf24' : CYAN,
+              color: '#000',
+              fontSize: 9,
+              fontWeight: 800,
+              minWidth: 16,
+              height: 16,
+              borderRadius: 999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
             }}>
-              {badge}
+              {count}
             </span>
           )}
         </>
@@ -99,49 +109,37 @@ function NavItem({ to, Icon, label, badge, highlight }) {
 }
 
 export default function Sidebar() {
-  const [unread, setUnread] = useState(0)
-  const [activeAgents, setActiveAgents] = useState(0)
-  const [pendingApprovals, setPendingApprovals] = useState(0)
+  const [badges, setBadges] = useState({ approvals: 0, stale: 0, action: 0 })
+  const [systemOk, setSystemOk] = useState(true)
 
   useEffect(() => {
-    const fetchUnread = () => {
-      dashApi.notifications({ unread_only: true })
-        .then(d => setUnread(d.notifications?.length || 0))
-        .catch(() => {})
-    }
-    fetchUnread()
-    const t = setInterval(fetchUnread, 30000)
-    return () => clearInterval(t)
-  }, [])
+    let cancelled = false
 
-  useEffect(() => {
-    const fetchActive = async () => {
+    const poll = async () => {
       try {
-        const data = await agentsApi.logs(null, 20)
-        const logs = data.logs || []
-        const now = Date.now()
-        const active = new Set(
-          logs
-            .filter(l => now - new Date(l.created_at).getTime() < 5 * 60 * 1000)
-            .map(l => l.agent_name)
-        )
-        setActiveAgents(active.size)
+        const [statusData, summaryData] = await Promise.allSettled([
+          agentsApi.status(),
+          teamApi.summary(),
+        ])
+
+        if (cancelled) return
+
+        const status = statusData.status === 'fulfilled' ? statusData.value : null
+        const summary = summaryData.status === 'fulfilled' ? summaryData.value : null
+
+        const stale = status
+          ? (status.counts?.stale || 0) + (status.counts?.error || 0)
+          : 0
+        const approvals = summary?.pending_approvals || 0
+
+        setSystemOk(!stale && !approvals)
+        setBadges(prev => ({ ...prev, stale, approvals }))
       } catch {}
     }
-    fetchActive()
-    const t = setInterval(fetchActive, 10000)
-    return () => clearInterval(t)
-  }, [])
 
-  useEffect(() => {
-    const fetchApprovals = () => {
-      teamApi.summary()
-        .then(d => setPendingApprovals(d.pending_approvals || 0))
-        .catch(() => {})
-    }
-    fetchApprovals()
-    const t = setInterval(fetchApprovals, 30000)
-    return () => clearInterval(t)
+    poll()
+    const t = setInterval(poll, 30000)
+    return () => { cancelled = true; clearInterval(t) }
   }, [])
 
   return (
@@ -155,7 +153,7 @@ export default function Sidebar() {
       borderRight: '1px solid rgba(0,212,255,0.08)',
       position: 'relative',
     }}>
-      {/* Atmospheric glow — cyan top */}
+      {/* Atmospheric glow */}
       <div style={{
         position: 'absolute', top: 0, left: 0,
         width: '100%', height: 130,
@@ -191,7 +189,7 @@ export default function Sidebar() {
             color: `${CYAN}50`, marginTop: 2, textTransform: 'uppercase',
             fontFamily: '"JetBrains Mono", monospace',
           }}>
-            AI OS
+            AGENT OS
           </div>
         </div>
       </div>
@@ -208,13 +206,14 @@ export default function Sidebar() {
             to={item.to}
             Icon={item.Icon}
             label={item.label}
-            badge={item.label === 'JARVIS' ? unread : item.label === 'WAR ROOM' ? pendingApprovals : 0}
+            badge={item.badge}
             highlight={item.highlight}
+            badges={badges}
           />
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Footer — system health dot */}
       <div style={{
         padding: '12px 16px',
         borderTop: '1px solid rgba(255,255,255,0.05)',
@@ -225,15 +224,15 @@ export default function Sidebar() {
           <div style={{ position: 'relative', width: 7, height: 7 }}>
             <div style={{
               position: 'absolute', inset: 0, borderRadius: '50%',
-              background: activeAgents > 0 ? CYAN : '#10b981',
+              background: systemOk ? '#10b981' : '#fbbf24',
               opacity: 0.3,
               animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite',
               transform: 'scale(1.6)',
             }} />
             <div style={{
               position: 'relative', width: 7, height: 7, borderRadius: '50%',
-              background: activeAgents > 0 ? CYAN : '#10b981',
-              boxShadow: `0 0 7px ${activeAgents > 0 ? CYAN : '#10b981'}90`,
+              background: systemOk ? '#10b981' : '#fbbf24',
+              boxShadow: `0 0 7px ${systemOk ? '#10b981' : '#fbbf24'}90`,
             }} />
           </div>
           <span style={{
@@ -241,17 +240,9 @@ export default function Sidebar() {
             letterSpacing: '0.12em', textTransform: 'uppercase',
             fontFamily: '"JetBrains Mono", monospace',
           }}>
-            {activeAgents > 0 ? `${activeAgents} ACTIVE` : 'STANDBY'}
+            {systemOk ? 'NOMINAL' : 'NEEDS ATTENTION'}
           </span>
         </div>
-        <a
-          href="https://dylantownley12.github.io/L-D-Designss"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.1)', textDecoration: 'none' }}
-        >
-          ↗
-        </a>
       </div>
     </aside>
   )

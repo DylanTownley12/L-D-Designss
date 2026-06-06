@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime, timedelta, timezone
 from models.schemas import AgentRunRequest, AgentRunResult
 from agents import (
     lead_finder,
@@ -20,6 +21,8 @@ from agents import (
     analyst_agent,
     chat_agent,
 )
+
+from utils.revenue import AGENT_SCHEDULE
 
 
 class ChatRequest(BaseModel):
@@ -558,3 +561,161 @@ async def backfill_followup_sequences():
         started += 1
 
     return {"started": started, "skipped": skipped, "total_leads": len(leads.data or [])}
+
+
+# ── Agent heartbeat ──────────────────────────────────────────────────────────
+
+class HeartbeatRequest(BaseModel):
+    agent: str
+
+
+@router.post("/heartbeat")
+async def agent_heartbeat(req: HeartbeatRequest):
+    """Agents call this at the start of each run so the status endpoint shows RUNNING."""
+    from db.client import get_db
+    try:
+        get_db().table("agent_logs").insert({
+            "agent_name": req.agent,
+            "action": "heartbeat",
+            "status": "running",
+        }).execute()
+    except Exception:
+        pass
+    return {"ok": True, "agent": req.agent}
+
+
+# ── Unified agent status (all 21 agents) ────────────────────────────────────
+
+@router.get("/status")
+async def all_agent_status():
+    """
+    Returns status for all 21 agents (12 backend Python + 9 OpenClaw).
+    Status: running | active | error | stale | idle
+      running — heartbeat in last 5m
+      active  — last log < 1h ago, status=success
+      error   — last log status=error
+      stale   — expected to have run but hasn't (based on AGENT_SCHEDULE)
+      idle    — no schedule expectation or not yet run today
+    """
+    from db.client import get_db
+    db = get_db()
+    now = datetime.now(timezone.utc)
+
+    # Fetch recent logs for all backend agents (last 48h)
+    cutoff = (now - timedelta(hours=48)).isoformat()
+    logs = (
+        db.table("agent_logs")
+        .select("agent_name, action, status, created_at, details")
+        .gte("created_at", cutoff)
+        .order("created_at", desc=True)
+        .limit(1000)
+        .execute().data or []
+    )
+
+    # Most recent log per agent
+    latest: dict = {}
+    for log in logs:
+        latest.setdefault(log["agent_name"], log)
+
+    def _compute_status(name: str, log: dict | None) -> str:
+        if log is None:
+            return "idle"
+        age_h = (now - datetime.fromisoformat(log["created_at"].replace("Z", "+00:00"))).total_seconds() / 3600
+        if log.get("action") == "heartbeat" and age_h < 0.083:  # <5min
+            return "running"
+        if log.get("status") == "error":
+            return "error"
+        sched = AGENT_SCHEDULE.get(name)
+        if sched and age_h > sched["window_h"]:
+            return "stale"
+        if age_h < 1:
+            return "active"
+        return "idle"
+
+    # Build backend Python agent list
+    backend_agents = []
+    for name, sched in AGENT_SCHEDULE.items():
+        log = latest.get(name)
+        s = _compute_status(name, log)
+        backend_agents.append({
+            "name": name,
+            "group": "backend",
+            "status": s,
+            "last_seen": log["created_at"] if log else None,
+            "last_action": log["action"] if log else None,
+            "last_log_status": log["status"] if log else None,
+            "schedule_label": sched["label"],
+            "interval_h": sched["interval_h"],
+        })
+
+    # OpenClaw team agents — pull from agent_tasks + agent_messages
+    TEAM_AGENTS = ["scout", "gap", "judge", "maker", "reach", "executor", "closer", "profit", "chief"]
+    tasks = (
+        db.table("agent_tasks").select("assigned_to, type, status, completed_at, created_at")
+        .order("created_at", desc=True).limit(300).execute().data or []
+    )
+    msgs = (
+        db.table("agent_messages").select("from_agent, message, created_at")
+        .order("created_at", desc=True).limit(100).execute().data or []
+    )
+    today = now.date().isoformat()
+
+    team_agents = []
+    for name in TEAM_AGENTS:
+        a_tasks = [t for t in tasks if t.get("assigned_to") == name]
+        a_msgs = [m for m in msgs if m.get("from_agent") == name]
+
+        last_at, last_action = None, None
+        if a_tasks:
+            last_at = a_tasks[0].get("completed_at") or a_tasks[0].get("created_at")
+            last_action = a_tasks[0].get("type")
+        if a_msgs:
+            msg_at = a_msgs[0].get("created_at")
+            if not last_at or (msg_at and msg_at > last_at):
+                last_at = msg_at
+                last_action = a_msgs[0].get("message", "")[:80]
+
+        stuck = any(t.get("status") in ("failed", "blocked") for t in a_tasks)
+        working = any(t.get("status") == "in_progress" for t in a_tasks)
+        done_today = last_at and last_at[:10] == today
+
+        if working:
+            s = "running"
+        elif stuck:
+            s = "error"
+        elif done_today:
+            s = "active"
+        else:
+            s = "idle"
+
+        team_agents.append({
+            "name": name,
+            "group": "openclaw",
+            "status": s,
+            "last_seen": last_at,
+            "last_action": last_action,
+            "last_log_status": None,
+            "schedule_label": "Via openclaw cron",
+            "interval_h": None,
+        })
+
+    all_agents = backend_agents + team_agents
+
+    # Summary counts
+    counts = {"running": 0, "active": 0, "error": 0, "stale": 0, "idle": 0}
+    for a in all_agents:
+        counts[a["status"]] = counts.get(a["status"], 0) + 1
+
+    health = "ok"
+    if counts["error"] > 0 or counts["stale"] > 0:
+        health = "warning"
+    if counts["error"] >= 3:
+        health = "critical"
+
+    return {
+        "agents": all_agents,
+        "counts": counts,
+        "health": health,
+        "total": len(all_agents),
+        "checked_at": now.isoformat(),
+    }

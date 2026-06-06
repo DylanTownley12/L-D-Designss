@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def run(limit: int = 20) -> dict:
+    try:
+        get_db().table("agent_logs").insert({"agent_name": "preview_refresher", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     db = get_db()
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
 

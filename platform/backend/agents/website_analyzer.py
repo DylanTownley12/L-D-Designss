@@ -167,6 +167,10 @@ def run(lead_id: str | None = None, batch_size: int = 100) -> dict:
     If lead_id is given, analyze just that lead.
     Otherwise, process a batch of unanalyzed leads.
     """
+    try:
+        get_db().table("agent_logs").insert({"agent_name": "website_analyzer", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     start = datetime.now()
     db = get_db()
     analyzed = 0

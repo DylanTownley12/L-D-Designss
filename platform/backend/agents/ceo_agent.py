@@ -18,6 +18,10 @@ FOUNDER_PHONE = "07301181878"
 def run() -> dict:
     from db.client import get_db
     db = get_db()
+    try:
+        db.table("agent_logs").insert({"agent_name": "ceo_agent", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
 
     now = datetime.now(timezone.utc)
     two_hours_ago = (now - timedelta(hours=2)).isoformat()
@@ -521,7 +525,13 @@ def send_daily_briefing() -> bool:
         converted = pipeline.get("converted", 0)
         interested = pipeline.get("interested", 0)
         replied = pipeline.get("replied", 0)
-        recurring = converted * 15
+
+        clients = db.table("clients").select("monthly_hosting").eq("status", "active").execute().data or []
+        mrr = round(sum(float(c.get("monthly_hosting") or 15) for c in clients), 2)
+
+        month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        rev_rows = db.table("revenue_logs").select("amount").gte("recorded_at", month_start).execute().data or []
+        revenue_this_month = round(sum(float(r.get("amount") or 0) for r in rev_rows), 2)
 
         actions_section = ""
         if actions_overnight:
@@ -548,7 +558,8 @@ LAST 24 HOURS
   WA queue:         {wa_queued} messages ready to send
 
 MONEY
-  Recurring:        {converted} clients × £15 = £{recurring}/mo
+  MRR:              £{mrr}/mo ({len(clients)} active clients)
+  Revenue this month: £{revenue_this_month}
   Hot leads:        {interested} interested — chase these today
 
 Dashboard → https://l-d-designss.vercel.app

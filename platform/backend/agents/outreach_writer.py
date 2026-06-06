@@ -274,6 +274,10 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     from db.client import get_db
     from datetime import date
     db = get_db()
+    try:
+        db.table("agent_logs").insert({"agent_name": "outreach_writer", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
 
     # Count only truly queued messages against cap — drafts are not sent by Baz so don't block new generation
     already_queued = (

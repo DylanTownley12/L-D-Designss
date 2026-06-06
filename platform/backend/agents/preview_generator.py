@@ -183,6 +183,10 @@ def run(lead_id: str, force: bool = False) -> dict:
     """Generate a preview website for a lead and save it.
     force=True overwrites existing html_content even if it looks complete.
     """
+    try:
+        get_db().table("agent_logs").insert({"agent_name": "preview_generator", "action": "heartbeat", "status": "running"}).execute()
+    except Exception:
+        pass
     start = datetime.now()
     db = get_db()
 
