@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     MAX_SMS_PER_DAY: int = 20
     REQUIRE_APPROVAL: bool = True
 
+    # Safety guardrails (see safety.py — all overridable via Railway vars)
+    SAFETY_ENABLED: bool = True              # master switch; set False to disable all guards
+    DAILY_SPEND_CAP_GBP: float = 2.00        # autonomous jobs halt for the day past this est. spend
+    SAFETY_KILL_SWITCH_DAYS: int = 30        # no revenue for this many days → kill-switch
+    SAFETY_KILL_SWITCH_MODE: str = "alert"   # "alert" (warn only) or "pause" (block autonomous sends)
+    MAX_WHATSAPP_PER_DAY: int = 10           # ban protection — keep low after the volume ban
+    MAX_INSTAGRAM_PER_DAY: int = 20
+
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"

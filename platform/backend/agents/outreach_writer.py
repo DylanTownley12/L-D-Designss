@@ -125,6 +125,13 @@ Task: {instruction}
             temperature=0.85,
         )
 
+        try:
+            import safety
+            safety.record_spend("outreach_writer", "gpt-4o-mini",
+                                response.usage.prompt_tokens, response.usage.completion_tokens)
+        except Exception:
+            pass
+
         raw = response.choices[0].message.content.strip()
 
         # Parse subject line
@@ -178,6 +185,12 @@ def _write_sms(lead: dict, preview_url: str | None = None, sequence_day: int = 1
             max_tokens=100,
             temperature=0.85,
         )
+        try:
+            import safety
+            safety.record_spend("outreach_writer", "gpt-4o-mini",
+                                response.usage.prompt_tokens, response.usage.completion_tokens)
+        except Exception:
+            pass
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"OpenAI SMS write failed: {e}")

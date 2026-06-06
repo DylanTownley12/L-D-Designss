@@ -199,3 +199,120 @@ DO $$ BEGIN
         BEFORE UPDATE ON deployed_websites
         FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── SPEND LOG ─────────────────────────────────────────────────────────
+--  Estimated cost of every LLM/API call, so safety.py can enforce a daily cap.
+CREATE TABLE IF NOT EXISTS spend_log (
+    id            UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    agent         TEXT,
+    model         TEXT,
+    tokens_in     INTEGER DEFAULT 0,
+    tokens_out    INTEGER DEFAULT 0,
+    est_cost_gbp  NUMERIC(10,5) DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_spend_log_created ON spend_log(created_at DESC);
+
+-- ══════════════════════════════════════════════
+--  9-AGENT TEAM — coordination + revenue layer
+--  Additive: references the existing leads table, safe to run on a live DB.
+-- ══════════════════════════════════════════════
+
+-- Task queue — the main handoff between agents (Scout→Gap→Judge→Maker→…)
+CREATE TABLE IF NOT EXISTS agent_tasks (
+    id             UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    lead_id        UUID REFERENCES leads(id) ON DELETE CASCADE,
+    assigned_to    TEXT NOT NULL,          -- scout|gap|judge|maker|reach|executor|closer|profit|chief
+    type           TEXT NOT NULL,          -- e.g. rank_lead, build_preview, draft_reply
+    payload        JSONB DEFAULT '{}',
+    status         TEXT DEFAULT 'queued'
+                   CHECK (status IN ('queued','in_progress','done','failed','blocked')),
+    priority       INTEGER DEFAULT 5,
+    needs_approval BOOLEAN DEFAULT FALSE,
+    result         JSONB DEFAULT '{}',
+    created_at     TIMESTAMPTZ DEFAULT NOW(),
+    completed_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_inbox ON agent_tasks(assigned_to, status, priority DESC);
+
+-- Message board — cross-agent notes/flags that aren't full tasks
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    from_agent  TEXT NOT NULL,
+    to_agent    TEXT,                       -- null = broadcast
+    lead_id     UUID REFERENCES leads(id) ON DELETE SET NULL,
+    task_id     UUID REFERENCES agent_tasks(id) ON DELETE SET NULL,
+    message     TEXT NOT NULL,
+    read        BOOLEAN DEFAULT FALSE,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_unread ON agent_messages(to_agent, read, created_at DESC);
+
+-- Approvals — nothing sends/spends/publishes without the founder tapping ✅
+CREATE TABLE IF NOT EXISTS agent_approvals (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    task_id     UUID REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    lead_id     UUID REFERENCES leads(id) ON DELETE SET NULL,
+    agent       TEXT,
+    action      TEXT NOT NULL,              -- what happens on approve
+    reason      TEXT,
+    amount      NUMERIC(10,2) DEFAULT 0,
+    preview     TEXT,                       -- exact content that goes live/out
+    status      TEXT DEFAULT 'pending'
+                CHECK (status IN ('pending','approved','rejected')),
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    decided_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_pending ON agent_approvals(status, created_at DESC);
+
+-- Lead scores — Gap + Judge write their rankings here
+CREATE TABLE IF NOT EXISTS lead_scores (
+    id           UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    lead_id      UUID REFERENCES leads(id) ON DELETE CASCADE,
+    agent        TEXT NOT NULL,             -- gap | judge
+    scores       JSONB DEFAULT '{}',
+    total_score  NUMERIC(5,2),
+    verdict      TEXT,                       -- GO | HOLD | REJECT (judge)
+    evidence     JSONB DEFAULT '{}',
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_lead_scores_lead ON lead_scores(lead_id, created_at DESC);
+
+-- Clients — converted, paying (the recurring £15/mo is the prize)
+CREATE TABLE IF NOT EXISTS clients (
+    id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    lead_id         UUID REFERENCES leads(id) ON DELETE SET NULL,
+    business_name   TEXT,
+    setup_paid      NUMERIC(10,2) DEFAULT 0,
+    monthly_hosting NUMERIC(10,2) DEFAULT 15,
+    start_date      DATE DEFAULT CURRENT_DATE,
+    status          TEXT DEFAULT 'active'
+                    CHECK (status IN ('active','paused','churned')),
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
+
+-- Revenue ledger — every payment, so Chief can track MRR vs the phase targets
+CREATE TABLE IF NOT EXISTS revenue_logs (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id   UUID REFERENCES clients(id) ON DELETE SET NULL,
+    lead_id     UUID REFERENCES leads(id) ON DELETE SET NULL,
+    type        TEXT NOT NULL,              -- setup | hosting | upsell
+    amount      NUMERIC(10,2) NOT NULL,
+    note        TEXT,
+    recorded_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_revenue_logs_time ON revenue_logs(recorded_at DESC);
+
+-- Knowledge base — lessons agents learn (which angle converts, etc.)
+-- embedding kept as JSONB so this needs no pgvector extension; switch to
+-- vector(1536) later if you want true semantic search.
+CREATE TABLE IF NOT EXISTS knowledge_base (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    topic       TEXT,
+    content     TEXT NOT NULL,
+    embedding   JSONB,
+    source      TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_topic ON knowledge_base(topic);

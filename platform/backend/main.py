@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 
-from api import leads, outreach, previews, dashboard, agents, webhooks, textback, payments, strategy, ops, n8n
+from api import leads, outreach, previews, dashboard, agents, webhooks, textback, payments, strategy, ops, n8n, team
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -61,6 +61,7 @@ app.include_router(payments.router,  prefix="/api")
 app.include_router(strategy.router,  prefix="/api")
 app.include_router(ops.router,       prefix="/api")
 app.include_router(n8n.router,       prefix="/api")
+app.include_router(team.router,      prefix="/api")
 
 
 @app.get("/previews/serve/{preview_id}", response_class=HTMLResponse, include_in_schema=False)

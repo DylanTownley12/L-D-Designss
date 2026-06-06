@@ -252,9 +252,24 @@ async def get_wa_queue(limit: int = 10):
     """
     Returns pending WhatsApp outreach messages for Baz to send.
     Called by Baz at 9am to get that day's batch.
+
+    Ban protection: hard-capped at MAX_WHATSAPP_PER_DAY/day — never serves more
+    than the daily allowance minus what has already gone out today.
     """
     from db.client import get_db
+    from config import settings
+    import safety
     db = get_db()
+
+    # Only serve up to the remaining daily WhatsApp allowance.
+    sent_today = safety.outreach_count_today("whatsapp")
+    remaining = max(0, settings.MAX_WHATSAPP_PER_DAY - sent_today)
+    effective_limit = max(0, min(limit, remaining))
+    if effective_limit == 0:
+        return {
+            "messages": [], "count": 0, "capped": True,
+            "reason": f"daily WhatsApp cap reached ({sent_today}/{settings.MAX_WHATSAPP_PER_DAY})",
+        }
 
     result = (
         db.table("outreach_messages")
@@ -263,7 +278,7 @@ async def get_wa_queue(limit: int = 10):
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
         .order("created_at")
-        .limit(limit)
+        .limit(effective_limit)
         .execute()
     )
 

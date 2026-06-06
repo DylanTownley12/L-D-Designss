@@ -8,6 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+import safety
+
 logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone='Europe/London')
 
@@ -251,11 +253,14 @@ async def _cleanup_old_logs():
 # ── Scheduler setup ──────────────────────────────────────────────────────────
 
 def start_scheduler():
-    def job(fn, **kwargs):
-        return dict(func=fn, replace_existing=True, misfire_grace_time=600, **kwargs)
+    def job(fn, guard=True, **kwargs):
+        # Cost/send jobs run through the safety guard (spend cap + kill-switch).
+        # Free/critical jobs (health, watchdog, briefing, cleanup) pass guard=False.
+        wrapped = safety.guarded(kwargs.get("id", getattr(fn, "__name__", "job")))(fn) if guard else fn
+        return dict(func=wrapped, replace_existing=True, misfire_grace_time=600, **kwargs)
 
     # 5:55am — morning health check
-    scheduler.add_job(**job(_morning_health_check, id="health_check",
+    scheduler.add_job(**job(_morning_health_check, guard=False, id="health_check",
         trigger=CronTrigger(hour=5, minute=55, timezone=TZ)))
 
     # 6:00am — find new leads
@@ -295,11 +300,11 @@ def start_scheduler():
         trigger=IntervalTrigger(hours=2)))
 
     # Every 2 hours — CEO system health check + auto-fix
-    scheduler.add_job(**job(_ceo_check, id="ceo_check",
+    scheduler.add_job(**job(_ceo_check, guard=False, id="ceo_check",
         trigger=IntervalTrigger(hours=2, start_date=None)))
 
     # 8:00am — CEO daily briefing email to founder
-    scheduler.add_job(**job(_ceo_daily_briefing, id="ceo_briefing",
+    scheduler.add_job(**job(_ceo_daily_briefing, guard=False, id="ceo_briefing",
         trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
 
     # FROZEN — not running until revenue path is proven:
@@ -315,7 +320,7 @@ def start_scheduler():
         trigger=CronTrigger(hour=6, minute=5, timezone=TZ)))
 
     # 3:30am — Delete agent_logs older than 30 days
-    scheduler.add_job(**job(_cleanup_old_logs, id="log_cleanup",
+    scheduler.add_job(**job(_cleanup_old_logs, guard=False, id="log_cleanup",
         trigger=CronTrigger(hour=3, minute=30, timezone=TZ)))
 
     scheduler.start()
