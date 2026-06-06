@@ -141,6 +141,23 @@ async def list_previews(limit: int = 50, offset: int = 0):
     return {"previews": previews, "total": total, "limit": limit, "offset": offset}
 
 
+@router.post("/fix-urls")
+async def fix_preview_urls():
+    """Repoint any preview whose URL still points at localhost to the live serve
+    path. Safe self-heal: a string rebuild only — never regenerates or sends."""
+    from config import settings
+    db = get_db()
+    base = (settings.PREVIEW_BASE_URL or "").rstrip("/")
+    broken = (db.table("previews").select("id, preview_url")
+              .ilike("preview_url", "%localhost%").limit(500).execute().data or [])
+    fixed = 0
+    for p in broken:
+        new_url = f"{base}/serve/{p['id']}"
+        db.table("previews").update({"preview_url": new_url}).eq("id", p["id"]).execute()
+        fixed += 1
+    return {"ok": True, "fixed": fixed, "base": base}
+
+
 @router.get("/serve/{preview_id}", response_class=HTMLResponse)
 async def serve_preview(preview_id: str):
     """Serve a preview from DB and inject view beacon script."""

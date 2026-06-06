@@ -2,11 +2,12 @@ import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { dashboard as dashApi, agents as agentsApi } from '../api/client'
 import {
-  Radio, Users, Database, Crosshair, Globe, MessageSquare, Map, Settings, Zap,
+  Radio, Users, Database, Crosshair, Globe, MessageSquare, Map, Settings, Zap, Network,
 } from 'lucide-react'
 
 const nav = [
   { to: '/command',     Icon: Zap,           label: 'DO NEXT', highlight: true },
+  { to: '/hub',         Icon: Network,       label: 'WAR ROOM' },
   { to: '/dashboard',   Icon: Radio,         label: 'JARVIS' },
   { to: '/agents',      Icon: Users,         label: 'WORKFORCE' },
   { to: '/leads',       Icon: Database,      label: 'INTELLIGENCE' },

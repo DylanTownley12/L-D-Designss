@@ -238,6 +238,78 @@ async def _enrich_leads():
         logger.error(f"[lead_enricher] Failed: {e}", exc_info=True)
 
 
+async def _auto_retry_safe_failures():
+    """Self-healing safety net (every 30 min).
+
+    SAFE only — re-queues stuck agent handoffs and re-runs idempotent backend
+    agents that errored recently. It NEVER sends messages, deletes leads, or
+    touches Stripe/pricing; the only agent here that costs anything (refill_queues)
+    is gated by the spend cap via safety.preflight(). Anything that sends or spends
+    stays behind the founder approval queue.
+    """
+    try:
+        from db.client import get_db
+        from datetime import datetime, timedelta, timezone as _tz
+        db = get_db()
+        actions = []
+
+        # 1. Re-queue stuck team handoffs (free + safe) so the next cron run retries them.
+        try:
+            stuck = (db.table("agent_tasks").select("id")
+                     .in_("status", ["failed", "blocked"]).limit(100).execute().data or [])
+            for t in stuck:
+                db.table("agent_tasks").update({"status": "queued"}).eq("id", t["id"]).execute()
+            if stuck:
+                actions.append(f"re-queued {len(stuck)} stuck handoff(s)")
+        except Exception as e:
+            logger.warning(f"[auto_retry] task re-queue failed: {e}")
+
+        # 2. Retry SAFE backend agents whose most-recent run errored in the last 90 min.
+        #    All are idempotent (only touch un-done work). refill_queues is spend-guarded.
+        SAFE_RETRY = {
+            "lead_enricher":     lambda: __import__("agents.lead_enricher",   fromlist=["run"]).run(limit=100),
+            "preview_generator": lambda: __import__("agents.preview_generator", fromlist=["run_batch"]).run_batch(limit=30),
+            "website_analyzer":  lambda: __import__("agents.website_analyzer", fromlist=["run"]).run(batch_size=100),
+            "refill_queues":     lambda: __import__("agents.outreach_writer", fromlist=["refill_queues"]).refill_queues(),
+        }
+        try:
+            cutoff = (datetime.now(_tz.utc) - timedelta(minutes=90)).isoformat()
+            recent = (db.table("agent_logs").select("agent_name,status,created_at")
+                      .gte("created_at", cutoff).order("created_at", desc=True)
+                      .limit(300).execute().data or [])
+            latest = {}
+            for log in recent:                       # desc order → first seen is newest
+                latest.setdefault(log["agent_name"], log["status"])
+            for agent, status in latest.items():
+                if status != "error" or agent not in SAFE_RETRY:
+                    continue
+                g = safety.preflight(f"self_heal_{agent}")
+                if not g.allowed:
+                    actions.append(f"skipped retry of {agent} ({g.reason})")
+                    continue
+                try:
+                    SAFE_RETRY[agent]()
+                    actions.append(f"retried {agent} after error")
+                except Exception as e:
+                    logger.warning(f"[auto_retry] retry of {agent} failed: {e}")
+        except Exception as e:
+            logger.warning(f"[auto_retry] error scan failed: {e}")
+
+        # Only log when we actually did something (no 30-min heartbeat spam).
+        if actions:
+            try:
+                db.table("agent_logs").insert({
+                    "agent_name": "self_heal",
+                    "action": "; ".join(actions),
+                    "status": "success",
+                }).execute()
+            except Exception:
+                pass
+            logger.info(f"[auto_retry] {'; '.join(actions)}")
+    except Exception as e:
+        logger.error(f"[auto_retry] Failed: {e}", exc_info=True)
+
+
 async def _cleanup_old_logs():
     try:
         from db.client import get_db
@@ -318,6 +390,12 @@ def start_scheduler():
     # 6:05am — Enrich preview_ready leads (find emails + Instagram handles)
     scheduler.add_job(**job(_enrich_leads, id="lead_enricher",
         trigger=CronTrigger(hour=6, minute=5, timezone=TZ)))
+
+    # Every 30 mins — self-healing: retry SAFE failures (stuck handoffs, errored
+    # idempotent agents). guard=False so re-queues always run; paid sub-actions
+    # are individually spend-checked inside the job.
+    scheduler.add_job(**job(_auto_retry_safe_failures, guard=False, id="auto_retry",
+        trigger=IntervalTrigger(minutes=30)))
 
     # 3:30am — Delete agent_logs older than 30 days
     scheduler.add_job(**job(_cleanup_old_logs, guard=False, id="log_cleanup",

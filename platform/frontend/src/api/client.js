@@ -104,6 +104,24 @@ export const publicStats = {
 export const ops = {
   actionQueue: (limit = 50) => api.get('/ops/action-queue', { params: { limit } }),
   blockers: () => api.get('/ops/blockers'),
+  // Run a blocker's declared one-click fix (path/method/body come from the backend)
+  runFix: (fixButton) => {
+    const path = (fixButton?.path || '').replace(/^\/api/, '')
+    const method = (fixButton?.method || 'POST').toLowerCase()
+    return api[method](path, fixButton?.body || undefined)
+  },
+}
+
+// The 9 OpenClaw agents (scout → chief) — coordination + control room
+export const team = {
+  controlRoom: () => api.get('/team/control-room'),
+  summary: () => api.get('/team/summary'),
+  approvals: (status = 'pending') => api.get('/team/approvals', { params: { status } }),
+  decide: (id, decision) => api.post(`/team/approvals/${id}/decide`, { decision }),
+  messages: (limit = 30) => api.get('/team/messages', { params: { unread: false, limit } }),
+  postMessage: (body) => api.post('/team/messages', body),
+  retryTask: (id) => api.post(`/team/tasks/${id}/retry`),
+  retryStuck: () => api.post('/team/retry-stuck'),
 }
 
 export const strategy = {

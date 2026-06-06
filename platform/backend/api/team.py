@@ -31,6 +31,28 @@ router = APIRouter(prefix="/team", tags=["team"])
 VALID_AGENTS = {"scout", "gap", "judge", "maker", "reach",
                 "executor", "closer", "profit", "chief"}
 
+# Ordered for the control-room roster (matches the daily handoff chain).
+TEAM_AGENTS = ["scout", "gap", "judge", "maker", "reach",
+               "executor", "closer", "profit", "chief"]
+
+AGENT_ROLES = {
+    "scout":    "Triage new leads + find the angle",
+    "gap":      "Rank opportunity 0–10",
+    "judge":    "Sceptical GO / HOLD / REJECT",
+    "maker":    "Plan the preview site",
+    "reach":    "Write outreach + marketing",
+    "executor": "Assemble + stage for approval",
+    "closer":   "Draft replies — never sends",
+    "profit":   "Analytics + one A/B test",
+    "chief":    "Coordinate + founder summary",
+}
+
+AGENT_SCHEDULE = {
+    "scout": "06:00", "gap": "06:20", "judge": "06:40", "maker": "07:00",
+    "reach": "07:20", "executor": "07:40", "closer": "hourly 9–8",
+    "profit": "20:00", "chief": "07:00 & 20:00",
+}
+
 # The existing leads.status CHECK constraint — agents may only set these.
 ALLOWED_LEAD_STATUS = {"new", "analyzing", "preview_ready", "outreach_queued",
                        "outreach_sent", "replied", "interested", "converted",
@@ -331,3 +353,98 @@ async def summary():
         "pending_approvals": pending_approvals,
         "phase_targets": {"phase_1": 500, "phase_2": 2000, "phase_3": 5000},
     }
+
+
+# ── Control room (powers the Agent Hub page in one call) ──────────────────────
+
+@router.get("/control-room")
+async def control_room():
+    """Everything the War Room needs: the 9 agents + their last move, the
+    cross-agent feed, pending approvals, and what's stuck (safe to retry)."""
+    db = get_db()
+
+    tasks = (db.table("agent_tasks").select("*")
+             .order("created_at", desc=True).limit(300).execute().data or [])
+    msgs = (db.table("agent_messages").select("*")
+            .order("created_at", desc=True).limit(40).execute().data or [])
+    approvals = (db.table("agent_approvals").select("*")
+                 .eq("status", "pending").order("created_at", desc=True)
+                 .limit(50).execute().data or [])
+
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    agents = []
+    for name in TEAM_AGENTS:
+        a_tasks = [t for t in tasks if t.get("assigned_to") == name]
+        a_msgs = [m for m in msgs if m.get("from_agent") == name]
+        open_tasks = [t for t in a_tasks if t.get("status") in ("queued", "in_progress")]
+        stuck = [t for t in a_tasks if t.get("status") in ("failed", "blocked")]
+
+        last_action, last_at = None, None
+        if a_tasks:
+            last = a_tasks[0]
+            last_action = last.get("type")
+            last_at = last.get("completed_at") or last.get("created_at")
+        if a_msgs and (not last_at or (a_msgs[0].get("created_at") or "") > (last_at or "")):
+            last_action = a_msgs[0].get("message")
+            last_at = a_msgs[0].get("created_at")
+
+        if any(t.get("status") == "in_progress" for t in a_tasks):
+            status = "working"
+        elif stuck:
+            status = "stuck"
+        elif last_at and last_at[:10] == today:
+            status = "done"
+        else:
+            status = "idle"
+
+        agents.append({
+            "name": name,
+            "role": AGENT_ROLES.get(name, ""),
+            "schedule": AGENT_SCHEDULE.get(name, ""),
+            "status": status,
+            "last_action": last_action,
+            "last_at": last_at,
+            "open_tasks": len(open_tasks),
+            "stuck": len(stuck),
+        })
+
+    stuck_tasks = [t for t in tasks if t.get("status") in ("failed", "blocked")][:25]
+    done_today = len([t for t in tasks
+                      if t.get("status") == "done"
+                      and (t.get("completed_at") or "")[:10] == today])
+
+    return {
+        "agents": agents,
+        "messages": msgs,
+        "approvals": approvals,
+        "stuck_tasks": stuck_tasks,
+        "counts": {
+            "pending_approvals": len(approvals),
+            "stuck": len(stuck_tasks),
+            "queued": len([t for t in tasks if t.get("status") == "queued"]),
+            "done_today": done_today,
+        },
+    }
+
+
+# ── Safe retry (one-click fix for stuck handoffs) ─────────────────────────────
+
+@router.post("/tasks/{task_id}/retry")
+async def retry_task(task_id: str):
+    """Re-queue a failed/blocked task so its agent picks it up next run.
+    Safe: only moves a task back to 'queued', never sends or spends."""
+    db = get_db()
+    db.table("agent_tasks").update({"status": "queued", "result": {}}).eq("id", task_id).execute()
+    return {"ok": True, "task_id": task_id}
+
+
+@router.post("/retry-stuck")
+async def retry_stuck():
+    """Bulk re-queue every failed/blocked task. Safe — no send/spend."""
+    db = get_db()
+    rows = (db.table("agent_tasks").select("id")
+            .in_("status", ["failed", "blocked"]).limit(100).execute().data or [])
+    for r in rows:
+        db.table("agent_tasks").update({"status": "queued"}).eq("id", r["id"]).execute()
+    return {"ok": True, "retried": len(rows)}
