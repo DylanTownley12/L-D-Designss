@@ -238,6 +238,24 @@ async def _enrich_leads():
         logger.error(f"[lead_enricher] Failed: {e}", exc_info=True)
 
 
+async def _seed_team_backlog():
+    """Daily: feed the 9-agent team work from the preview_ready backlog so they
+    never sit idle. Capped + idempotent + safe (creates tasks only)."""
+    try:
+        from api.team import seed_backlog
+        result = seed_backlog(limit=8)
+        if result.get("seeded"):
+            from db.client import get_db
+            get_db().table("agent_logs").insert({
+                "agent_name": "team_seeder",
+                "action": f"seeded {result['seeded']} backlog lead(s) into gap's inbox",
+                "status": "success",
+            }).execute()
+        logger.info(f"[team_seeder] {result}")
+    except Exception as e:
+        logger.error(f"[team_seeder] Failed: {e}", exc_info=True)
+
+
 async def _auto_retry_safe_failures():
     """Self-healing safety net (every 30 min).
 
@@ -390,6 +408,10 @@ def start_scheduler():
     # 6:05am — Enrich preview_ready leads (find emails + Instagram handles)
     scheduler.add_job(**job(_enrich_leads, id="lead_enricher",
         trigger=CronTrigger(hour=6, minute=5, timezone=TZ)))
+
+    # 5:50am — seed the 9-agent team with a capped backlog batch (before gap @ 6:20)
+    scheduler.add_job(**job(_seed_team_backlog, guard=False, id="team_seeder",
+        trigger=CronTrigger(hour=5, minute=50, timezone=TZ)))
 
     # Every 30 mins — self-healing: retry SAFE failures (stuck handoffs, errored
     # idempotent agents). guard=False so re-queues always run; paid sub-actions

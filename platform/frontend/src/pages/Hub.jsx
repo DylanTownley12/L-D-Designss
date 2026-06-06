@@ -374,6 +374,7 @@ export default function Hub() {
   const [openAgent, setOpenAgent] = useState(null)
   const [toast, setToast] = useState(null)
   const [healing, setHealing] = useState(false)
+  const [seeding, setSeeding] = useState(false)
 
   const showToast = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3000) }, [])
 
@@ -393,6 +394,12 @@ export default function Hub() {
   const retry = async (id) => { await teamApi.retryTask(id); showToast('Task re-queued'); fetchAll() }
   const retryAll = async () => { const { retried } = await teamApi.retryStuck(); showToast(`Re-queued ${retried || 0} task(s)`); fetchAll() }
   const sendDirective = async (agent, message) => { await teamApi.postMessage({ from_agent: 'founder', to_agent: agent, message }); fetchAll() }
+  const seedWork = async () => {
+    setSeeding(true)
+    try { const r = await teamApi.seedBacklog(8); showToast(r.seeded ? `Queued ${r.seeded} lead(s) — gap ranks them next run` : 'No new backlog leads to queue'); await fetchAll() }
+    catch (e) { showToast(`Seed failed: ${e.message}`) }
+    setSeeding(false)
+  }
   const selfHeal = async () => {
     setHealing(true)
     try {
@@ -434,6 +441,9 @@ export default function Hub() {
             <Chip label="STUCK" value={counts.stuck ?? 0} color={counts.stuck ? C.red : C.cyan} />
             <Chip label="DONE TODAY" value={counts.done_today ?? 0} color={C.green} />
             <Chip label="MRR" value={`£${summary?.mrr_gbp ?? 0}`} color={C.gold} />
+            <button onClick={seedWork} disabled={seeding} title="Queue your best preview-ready leads for the team to rank + draft" style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: seeding ? 'not-allowed' : 'pointer', background: seeding ? 'rgba(255,255,255,0.06)' : `${C.gold}16`, border: `1px solid ${C.gold}40`, color: seeding ? C.textDim : C.gold, fontFamily: 'Inter, sans-serif' }}>
+              {seeding ? <><div style={{ width: 13, height: 13, border: `2px solid ${C.gold}50`, borderTopColor: C.gold, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Queuing...</> : <><Zap size={13} /> Give them work</>}
+            </button>
             <button onClick={selfHeal} disabled={healing} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 9, fontSize: 12, fontWeight: 700, border: 'none', cursor: healing ? 'not-allowed' : 'pointer', background: healing ? 'rgba(255,255,255,0.06)' : `linear-gradient(135deg, ${C.cyan}, #0088cc)`, color: healing ? C.textDim : '#001018', fontFamily: 'Inter, sans-serif' }}>
               {healing ? <><div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Healing...</> : <><RefreshCcw size={13} /> Self-heal now</>}
             </button>

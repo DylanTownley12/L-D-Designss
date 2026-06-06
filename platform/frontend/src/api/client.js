@@ -122,6 +122,7 @@ export const team = {
   postMessage: (body) => api.post('/team/messages', body),
   retryTask: (id) => api.post(`/team/tasks/${id}/retry`),
   retryStuck: () => api.post('/team/retry-stuck'),
+  seedBacklog: (limit = 8) => api.post('/team/seed-backlog', null, { params: { limit } }),
 }
 
 export const strategy = {

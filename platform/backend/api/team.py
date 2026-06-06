@@ -448,3 +448,53 @@ async def retry_stuck():
     for r in rows:
         db.table("agent_tasks").update({"status": "queued"}).eq("id", r["id"]).execute()
     return {"ok": True, "retried": len(rows)}
+
+
+# ── Backlog seeder (feeds the team work from existing preview_ready leads) ─────
+
+def seed_backlog(limit: int = 8) -> dict:
+    """Give the team work from the existing backlog.
+
+    Drops a capped batch of 'rank_lead' tasks into Gap's inbox for the best
+    preview_ready leads the team hasn't touched yet. Gap then ranks → Judge →
+    Maker → Reach → Executor stages outreach for approval. Safe: only creates
+    tasks — never sends, posts, or spends. Idempotent: skips any lead that
+    already has a team task, so re-running won't duplicate work.
+    """
+    db = get_db()
+    limit = max(1, min(limit, 25))
+
+    existing = db.table("agent_tasks").select("lead_id").limit(2000).execute().data or []
+    seen = {r["lead_id"] for r in existing if r.get("lead_id")}
+
+    fetch = min(200, limit + len(seen) + 20)
+    candidates = (db.table("leads")
+                  .select("id, business_name, quality_score")
+                  .eq("status", "preview_ready")
+                  .order("quality_score", desc=True)
+                  .limit(fetch).execute().data or [])
+
+    seeded = []
+    for lead in candidates:
+        if lead["id"] in seen:
+            continue
+        qs = lead.get("quality_score") or 50
+        priority = max(1, min(10, round(qs / 10)))
+        db.table("agent_tasks").insert({
+            "lead_id": lead["id"],
+            "assigned_to": "gap",
+            "type": "rank_lead",
+            "priority": priority,
+            "payload": {"source": "backlog_seed", "business_name": lead.get("business_name")},
+        }).execute()
+        seeded.append(lead["id"])
+        if len(seeded) >= limit:
+            break
+
+    return {"seeded": len(seeded), "lead_ids": seeded}
+
+
+@router.post("/seed-backlog")
+async def seed_backlog_endpoint(limit: int = 8):
+    """Manually top up the team's work queue from the backlog (also runs daily)."""
+    return {"ok": True, **seed_backlog(limit)}

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { dashboard as dashApi, agents as agentsApi } from '../api/client'
+import { dashboard as dashApi, agents as agentsApi, team as teamApi } from '../api/client'
 import {
   Radio, Users, Database, Crosshair, Globe, MessageSquare, Map, Settings, Zap, Network,
 } from 'lucide-react'
@@ -101,6 +101,7 @@ function NavItem({ to, Icon, label, badge, highlight }) {
 export default function Sidebar() {
   const [unread, setUnread] = useState(0)
   const [activeAgents, setActiveAgents] = useState(0)
+  const [pendingApprovals, setPendingApprovals] = useState(0)
 
   useEffect(() => {
     const fetchUnread = () => {
@@ -129,6 +130,17 @@ export default function Sidebar() {
     }
     fetchActive()
     const t = setInterval(fetchActive, 10000)
+    return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    const fetchApprovals = () => {
+      teamApi.summary()
+        .then(d => setPendingApprovals(d.pending_approvals || 0))
+        .catch(() => {})
+    }
+    fetchApprovals()
+    const t = setInterval(fetchApprovals, 30000)
     return () => clearInterval(t)
   }, [])
 
@@ -196,7 +208,7 @@ export default function Sidebar() {
             to={item.to}
             Icon={item.Icon}
             label={item.label}
-            badge={item.label === 'JARVIS' ? unread : 0}
+            badge={item.label === 'JARVIS' ? unread : item.label === 'WAR ROOM' ? pendingApprovals : 0}
             highlight={item.highlight}
           />
         ))}
