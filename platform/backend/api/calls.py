@@ -71,22 +71,34 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
         .execute()
     )
 
+    leads_all = result.data or []
+    lead_ids = [l["id"] for l in leads_all]
+
+    # Batch-fetch previews for ALL leads in chunks (one query per ~100 leads, not one
+    # per lead) — N+1 over hundreds of leads timed out Railway's gateway and made the
+    # page unusable. Keep the latest preview per lead (rows come back created_at desc).
+    preview_map = {}
+    for i in range(0, len(lead_ids), 100):
+        chunk = lead_ids[i:i + 100]
+        try:
+            prs = (db.table("previews").select("lead_id, preview_url, template_version, created_at")
+                   .in_("lead_id", chunk).order("created_at", desc=True).limit(1000).execute().data or [])
+            for p in prs:
+                lid = p.get("lead_id")
+                if lid and lid not in preview_map:
+                    preview_map[lid] = p
+        except Exception:
+            pass
+
     ready, excluded = [], []
-    for lead in (result.data or []):
+    for lead in leads_all:
         phone = lead.get("phone") or ""
         ad = lead.get("analysis_data") or {}
         image_source = ad.get("image_source") or "unsplash"
 
-        # Latest preview
-        preview_url, template_version = None, "v1"
-        try:
-            pr = (db.table("previews").select("preview_url, template_version")
-                  .eq("lead_id", lead["id"]).order("created_at", desc=True).limit(1).execute())
-            if pr.data:
-                preview_url = pr.data[0].get("preview_url")
-                template_version = pr.data[0].get("template_version") or "v1"
-        except Exception:
-            pass
+        p = preview_map.get(lead["id"]) or {}
+        preview_url = p.get("preview_url")
+        template_version = p.get("template_version") or "v1"
 
         preview_working = bool(preview_url and "/previews/serve/" in preview_url)
         quality = _preview_quality(lead, preview_url or "", template_version, image_source)

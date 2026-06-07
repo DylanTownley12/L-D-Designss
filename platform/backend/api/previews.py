@@ -57,13 +57,24 @@ async def backfill_photos(limit: int = 25, force: bool = False):
     total_remaining_before = len(todo)
     todo = todo[:limit]
 
+    # Fetch photos for several leads concurrently (the slow part is Google I/O).
+    # DB writes stay sequential afterwards.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _fetch(lead):
+        return lead, places_photos.fetch_photos_for_lead(
+            lead["business_name"], lead.get("city") or "", want=6, max_w=1280
+        )
+
     checked = with_photos = no_photos = no_match = errors = 0
-    for lead in todo:
+    results = []
+    if todo:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            results = list(ex.map(_fetch, todo))
+
+    for lead, res in results:
         ad = lead.get("analysis_data") or {}
         try:
-            res = places_photos.fetch_photos_for_lead(
-                lead["business_name"], lead.get("city") or "", want=6, max_w=1280
-            )
             ad["place_photos"] = res["photo_urls"]
             ad["google_place_id"] = res["place_id"]
             ad["place_match_name"] = res["matched_name"]
