@@ -111,10 +111,12 @@ def _pick_n(pool: list, seed: str, n: int) -> list:
 
 def _build_context(lead: dict) -> dict:
     """Build the Jinja2 template context from lead data."""
-    name = lead.get("business_name", "Your Barbers")
-    city = lead.get("city", "Your Town")
-    phone = lead.get("phone", "")
-    address = lead.get("address", city)
+    # NB: lead.get(k, default) returns None when the column exists but is null,
+    # so use `or` to coerce null → sensible value (prevents "None" rendering).
+    name = lead.get("business_name") or "Your Barbers"
+    city = lead.get("city") or "Your Town"
+    phone = lead.get("phone") or ""
+    address = lead.get("address") or city
     seed = name + city
 
     whatsapp_number = (phone or "").replace(" ", "").replace("+", "").replace("-", "")
@@ -150,12 +152,12 @@ def _build_context(lead: dict) -> dict:
         "city": city,
         "phone": phone or "Call us",
         "address": address,
-        "postcode": lead.get("postcode", ""),
-        "email": lead.get("email", ""),
+        "postcode": lead.get("postcode") or "",
+        "email": lead.get("email") or "",
         "google_rating": lead.get("google_rating"),
         "google_reviews": lead.get("google_reviews") or 0,
-        "instagram_url": lead.get("instagram_url", ""),
-        "facebook_url": lead.get("facebook_url", ""),
+        "instagram_url": lead.get("instagram_url") or "",
+        "facebook_url": lead.get("facebook_url") or "",
         "meta_description": f"Book your haircut at {name} in {city}. Professional barbers, walk-ins welcome.",
         "tagline": _pick(taglines, seed),
         "hero_image_url": _pick(HERO_IMAGE_POOL, seed),
@@ -186,10 +188,10 @@ def _build_context(lead: dict) -> dict:
         "opening_hours": DEFAULT_HOURS,
         "google_maps_embed": "",
         "social_links": {
-            "instagram": lead.get("instagram_url", ""),
-            "facebook": lead.get("facebook_url", ""),
+            "instagram": lead.get("instagram_url") or "",
+            "facebook": lead.get("facebook_url") or "",
         },
-        "google_place_id": lead.get("google_place_id", ""),
+        "google_place_id": lead.get("google_place_id") or "",
         "agency_name": settings.BUSINESS_NAME,
         "agency_url": settings.BUSINESS_WEBSITE,
         "is_preview": True,
@@ -259,7 +261,7 @@ def run(lead_id: str, force: bool = False) -> dict:
                 "preview_url": preview_url,
                 "html_content": html,
                 "personalization_data": personalization,
-                "template_version": "v2",
+                "template_version": "v3",
             }).eq("id", existing_id).execute()
         else:
             # Insert new row — let Supabase generate the UUID, then update the URL
@@ -267,7 +269,7 @@ def run(lead_id: str, force: bool = False) -> dict:
                 "lead_id": lead_id,
                 "html_content": html,
                 "personalization_data": personalization,
-                "template_version": "v2",
+                "template_version": "v3",
             }).execute()
             new_id = insert_result.data[0]["id"]
             preview_url = f"{base}/previews/serve/{new_id}"

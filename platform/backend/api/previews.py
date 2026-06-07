@@ -182,7 +182,7 @@ async def fix_preview_urls(limit: int = 1000):
     return {"ok": True, "fixed": fixed, "scanned": scanned, "base": base}
 
 
-CURRENT_TEMPLATE_VERSION = "v2"
+CURRENT_TEMPLATE_VERSION = "v3"
 
 
 @router.post("/regenerate")
