@@ -96,6 +96,18 @@ async def serve_preview_direct(preview_id: str):
         if len(html) < 1000:
             return HTMLResponse(content=_holding_page("This preview is being regenerated. Refresh in a moment or WhatsApp Dylan."), status_code=200)
 
+    # Inject the view beacon so Dylan gets the "barber opened their preview" signal
+    # (this route — not just the /api one — is what's stored in preview_url).
+    beacon = (
+        '<script>(function(){try{'
+        f'fetch("/api/previews/view/{preview_id}",{{method:"POST",keepalive:true}}).catch(function(){{}});'
+        '}catch(e){}})();</script>'
+    )
+    if "</body>" in html:
+        html = html.replace("</body>", beacon + "</body>", 1)
+    else:
+        html = html + beacon
+
     return HTMLResponse(content=html)
 
 
