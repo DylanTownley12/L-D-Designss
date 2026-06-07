@@ -17,6 +17,7 @@ regeneration is free and the HTML carries no API key.
 """
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from config import settings
@@ -124,12 +125,14 @@ def fetch_photos_for_lead(name: str, city: str, want: int = 6, max_w: int = 1200
     if not photos:
         return {"place_id": place_id, "photo_urls": [], "matched_name": matched_name, "status": "no_photos"}
 
+    # Resolve photo media urls in parallel (each is its own HTTP round-trip to Google)
+    names = [ph.get("name") for ph in photos[:want] if ph.get("name")]
     photo_urls = []
-    for ph in photos[:want]:
-        nm = ph.get("name")
-        uri = resolve_photo_uri(nm, max_w=max_w)
-        if uri:
-            photo_urls.append(uri)
+    if names:
+        with ThreadPoolExecutor(max_workers=min(6, len(names))) as ex:
+            for uri in ex.map(lambda n: resolve_photo_uri(n, max_w=max_w), names):
+                if uri:
+                    photo_urls.append(uri)
 
     status = "ok" if photo_urls else "no_photos"
     return {
