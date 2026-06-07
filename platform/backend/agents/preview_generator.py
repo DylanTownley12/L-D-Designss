@@ -22,49 +22,9 @@ logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
-
-# ── Google Places photo fetching ──────────────────────────────────────────────
-
-def _fetch_places_photos(place_id: str, max_width: int = 1200, count: int = 6) -> list[dict]:
-    """
-    Fetch real photos for this barber via Google Places Photos API.
-    Returns a list of {"url": ..., "alt": ..., "source": "google_places"}.
-    Returns empty list if API key not set, place_id missing, or request fails.
-    """
-    if not settings.GOOGLE_PLACES_API_KEY or not place_id:
-        return []
-    if not _httpx:
-        return []
-    try:
-        # Step 1: fetch place details to get photo_references
-        details_url = "https://maps.googleapis.com/maps/api/place/details/json"
-        resp = _httpx.get(details_url, params={
-            "place_id": place_id,
-            "fields": "photos,name",
-            "key": settings.GOOGLE_PLACES_API_KEY,
-        }, timeout=8)
-        resp.raise_for_status()
-        data = resp.json()
-        photos = (data.get("result") or {}).get("photos") or []
-        if not photos:
-            return []
-
-        # Step 2: build photo URLs using the photo reference
-        result = []
-        for p in photos[:count]:
-            ref = p.get("photo_reference")
-            if not ref:
-                continue
-            url = (
-                f"https://maps.googleapis.com/maps/api/place/photo"
-                f"?maxwidth={max_width}&photoreference={ref}&key={settings.GOOGLE_PLACES_API_KEY}"
-            )
-            result.append({"url": url, "alt": "Barber shop photo", "source": "google_places"})
-        logger.info(f"Fetched {len(result)} Google Places photos for place_id={place_id}")
-        return result
-    except Exception as e:
-        logger.warning(f"Google Places photo fetch failed for {place_id}: {e}")
-        return []
+# Real Places photos are fetched by the standalone backfill (agents/places_photos.py)
+# and stored on the lead as analysis_data.place_photos (resolved CDN urls). The
+# generator just reads them — see _build_context — so regeneration stays free.
 
 jinja_env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -196,20 +156,26 @@ def _build_context(lead: dict) -> dict:
          f"That's why {city} keeps coming back to us week after week."),
     ]
 
-    # Attempt to fetch real barber photos from Google Places if key + place_id available
-    place_id = lead.get("google_place_id") or ""
-    places_photos = _fetch_places_photos(place_id) if place_id else []
+    # Real barber photos from Google Places (resolved CDN urls stored on the lead by
+    # the photo backfill). Their OWN shop converts far better than stock.
+    analysis = lead.get("analysis_data") or {}
+    real_photos = [u for u in (analysis.get("place_photos") or []) if u]
+    place_id = analysis.get("google_place_id") or lead.get("google_place_id") or ""
 
-    if places_photos:
-        hero_image_url = places_photos[0]["url"]
-        barber_image_url = places_photos[1]["url"] if len(places_photos) > 1 else _pick(BARBER_IMAGE_POOL, seed, offset=1)
-        gallery_images = places_photos[2:8] if len(places_photos) > 2 else _pick_n(GALLERY_POOL, seed, 6)
+    if real_photos:
         image_source = "google_places"
+        hero_image_url = real_photos[0]
+        barber_image_url = real_photos[1] if len(real_photos) > 1 else _pick(BARBER_IMAGE_POOL, seed, offset=1)
+        # Gallery: remaining real photos first, then fill with varied fallback up to 6
+        real_gallery = [{"url": u, "alt": f"Inside {name}"} for u in real_photos[2:8]]
+        if len(real_gallery) < 6:
+            real_gallery += _pick_n(GALLERY_POOL, seed, 6 - len(real_gallery))
+        gallery_images = real_gallery[:6]
     else:
+        image_source = "unsplash"
         hero_image_url = _pick(HERO_IMAGE_POOL, seed)
         barber_image_url = _pick(BARBER_IMAGE_POOL, seed, offset=1)
         gallery_images = _pick_n(GALLERY_POOL, seed, 6)
-        image_source = "unsplash"
 
     return {
         "business_name": name,

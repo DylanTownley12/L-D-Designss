@@ -17,6 +17,112 @@ BEACON_SCRIPT = """<script>
 }})();
 </script>"""
 
+# Statuses that appear on the founder call board (used by the photo backfill so we
+# only spend Places API budget on leads that will actually be shown tomorrow).
+_CALL_STATUSES = ["interested", "replied", "follow_up_required", "called",
+                  "outreach_sent", "preview_ready", "outreach_queued"]
+
+
+@router.post("/backfill-photos")
+async def backfill_photos(limit: int = 25, force: bool = False):
+    """
+    Fetch REAL Google Places photos for call-board leads and store the resolved
+    CDN urls on the lead (analysis_data.place_photos). Idempotent: skips leads
+    already processed unless force=True, so it can be called in safe batches.
+
+    Costs Google Places budget (~1 Text Search + a few Photo media calls per lead),
+    so it only runs on demand — never on the scheduler.
+    """
+    from agents import places_photos
+    db = get_db()
+
+    rows = (
+        db.table("leads")
+        .select("id, business_name, city, phone, analysis_data, google_rating")
+        .in_("status", _CALL_STATUSES)
+        .order("quality_score", desc=True)
+        .limit(400)
+        .execute().data or []
+    )
+    # Only leads with a phone (call-ready) and not yet processed
+    todo = []
+    for l in rows:
+        if not l.get("phone"):
+            continue
+        ad = l.get("analysis_data") or {}
+        if not force and ad.get("photos_checked_at"):
+            continue
+        todo.append(l)
+
+    total_remaining_before = len(todo)
+    todo = todo[:limit]
+
+    checked = with_photos = no_photos = no_match = errors = 0
+    for lead in todo:
+        ad = lead.get("analysis_data") or {}
+        try:
+            res = places_photos.fetch_photos_for_lead(
+                lead["business_name"], lead.get("city") or "", want=6, max_w=1280
+            )
+            ad["place_photos"] = res["photo_urls"]
+            ad["google_place_id"] = res["place_id"]
+            ad["place_match_name"] = res["matched_name"]
+            ad["image_source"] = "google_places" if res["photo_urls"] else "fallback"
+            ad["photos_checked_at"] = datetime.now(timezone.utc).isoformat()
+            db.table("leads").update({"analysis_data": ad}).eq("id", lead["id"]).execute()
+
+            checked += 1
+            if res["photo_urls"]:
+                with_photos += 1
+            elif res["status"] == "no_match":
+                no_match += 1
+            else:
+                no_photos += 1
+        except Exception as e:
+            errors += 1
+            logger.warning(f"[backfill-photos] {lead.get('business_name')}: {e}")
+
+    return {
+        "checked": checked,
+        "with_photos": with_photos,
+        "no_photos": no_photos,
+        "no_match": no_match,
+        "errors": errors,
+        "remaining": max(0, total_remaining_before - checked),
+    }
+
+
+@router.get("/photo-coverage")
+async def photo_coverage():
+    """How many call-board leads have real Google photos vs fallback."""
+    db = get_db()
+    rows = (
+        db.table("leads")
+        .select("id, phone, analysis_data")
+        .in_("status", _CALL_STATUSES)
+        .limit(400)
+        .execute().data or []
+    )
+    with_phone = [l for l in rows if l.get("phone")]
+    checked = google = fallback = unchecked = 0
+    for l in with_phone:
+        ad = l.get("analysis_data") or {}
+        if not ad.get("photos_checked_at"):
+            unchecked += 1
+            continue
+        checked += 1
+        if ad.get("place_photos"):
+            google += 1
+        else:
+            fallback += 1
+    return {
+        "call_ready_leads": len(with_phone),
+        "checked": checked,
+        "using_google_photos": google,
+        "using_fallback": fallback,
+        "not_yet_checked": unchecked,
+    }
+
 
 @router.post("/generate/{lead_id}")
 async def generate_preview(lead_id: str, background_tasks: BackgroundTasks):
