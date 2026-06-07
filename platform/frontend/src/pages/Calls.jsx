@@ -101,11 +101,18 @@ function LeadCard({ lead, onUpdate }) {
         onClick={() => setExpanded(e => !e)}
       >
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{lead.business_name}</span>
             <StatusBadge status={lead.status} />
             {lead.google_rating && (
               <span style={{ fontSize: 11, color: C.gold }}>★ {lead.google_rating}</span>
+            )}
+            {lead.has_real_photos && (
+              <span title="Preview uses this barber's real Google photos" style={{
+                fontSize: 10, fontWeight: 700, color: C.green,
+                background: `${C.green}14`, border: `1px solid ${C.green}40`,
+                borderRadius: 5, padding: '1px 6px', letterSpacing: '0.04em',
+              }}>📷 REAL PHOTOS</span>
             )}
           </div>
           <div style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>

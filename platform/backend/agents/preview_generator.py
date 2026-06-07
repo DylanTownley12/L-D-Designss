@@ -13,11 +13,6 @@ from db.client import get_db
 from config import settings
 from utils.helpers import log_agent_action
 
-try:
-    import httpx as _httpx
-except ImportError:
-    _httpx = None
-
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
