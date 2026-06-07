@@ -327,15 +327,19 @@ TEAM_AGENTS = ["scout", "gap", "judge", "maker", "reach", "executor", "closer", 
 
 
 @router.get("/ops/proof")
-def system_proof(include_logs: bool = False):
-    """Prove what the system did today + agent health, all from real DB counts.
+async def system_proof(include_logs: bool = False):
+    """Prove what the system did today + agent health, all from real DB rows.
 
-    agent_logs is currently un-indexed and huge, so any query against it takes ~60s
-    (full-table scan). By default this endpoint AVOIDS agent_logs entirely and proves
-    agent liveness from *effects* (rows they produced today) — which is stronger
-    evidence than a heartbeat anyway. Pass ?include_logs=1 for the raw run-log view
-    (slow until the agent_logs index is added — see /api/ops/db-maintenance-sql)."""
+    Built for SPEED on the current (un-indexed) DB:
+      • Reuses the proven-fast dashboard stats for leads/pipeline/queues/today-sends.
+      • Avoids agent_logs entirely by default (it's un-indexed → ~60s/scan); proves
+        backend-agent liveness from EFFECTS (rows produced today) instead.
+      • Replaces per-status COUNT fan-out with single bounded fetches tallied in
+        Python (one round-trip instead of dozens of count='exact' calls).
+    Pass ?include_logs=1 for the raw agent_logs run-log view (slow until the
+    agent_logs index from /api/ops/db-maintenance-sql is applied)."""
     from db.client import get_db
+    from api.dashboard import get_stats
     db = get_db()
     now = _now()
     today = now.date().isoformat()
@@ -343,8 +347,7 @@ def system_proof(include_logs: bool = False):
     notes: list = []
 
     def cnt(table, gte=None, **filters):
-        """Exact COUNT with filters; returns None (+note) on failure so one bad
-        query never sinks the whole proof call."""
+        """Exact COUNT — used only on SMALL tables (leads, previews)."""
         try:
             q = db.table(table).select("id", count="exact")
             for k, v in filters.items():
@@ -356,57 +359,51 @@ def system_proof(include_logs: bool = False):
             notes.append(f"count {table}({filters}) failed: {str(e)[:120]}")
             return None
 
+    # ── Reuse dashboard stats (one proven-fast call) ──────────────────────────
+    try:
+        stats = await get_stats()
+    except Exception as e:
+        stats = {}
+        notes.append(f"dashboard stats failed: {str(e)[:120]}")
+
+    wa_today = stats.get("whatsapp_today") or 0
+    em_today = stats.get("emails_today") or 0
+
     # ── TODAY: the numbers that prove revenue motion ──────────────────────────
     today_metrics = {
         "new_leads_today":        cnt("leads", gte=("created_at", t0)),
         "new_previews_today":     cnt("previews", gte=("created_at", t0)),
-        "outreach_prepared_today": cnt("outreach_messages", gte=("created_at", t0), direction="outbound"),
-        "outreach_sent_today":    cnt("outreach_messages", gte=("sent_at", t0), status="sent"),
-        "whatsapp_sent_today":    cnt("outreach_messages", gte=("sent_at", t0), status="sent", channel="whatsapp"),
-        "email_sent_today":       cnt("outreach_messages", gte=("sent_at", t0), status="sent", channel="email"),
-        "replies_today":          cnt("outreach_messages", gte=("created_at", t0), direction="inbound"),
+        "whatsapp_sent_today":    wa_today,
+        "email_sent_today":       em_today,
+        "outreach_sent_today":    wa_today + em_today,
         "leads_to_replied_today": cnt("leads", gte=("updated_at", t0), status=["replied", "interested"]),
         "converted_today":        cnt("leads", gte=("updated_at", t0), status="converted"),
-        "payment_links_today":    cnt("agent_approvals", gte=("created_at", t0), action="send_payment_link"),
     }
-    # Real money in today, summed from revenue_logs (setup + hosting + upsell).
+    # Real money — revenue_logs is small, fetch once and sum in Python.
     try:
-        rev_rows = (db.table("revenue_logs").select("amount,recorded_at")
-                    .gte("recorded_at", t0).limit(500).execute().data or [])
-        today_metrics["revenue_today_gbp"] = round(sum(float(r.get("amount") or 0) for r in rev_rows), 2)
-        all_rev = (db.table("revenue_logs").select("amount").limit(5000).execute().data or [])
-        today_metrics["revenue_total_gbp"] = round(sum(float(r.get("amount") or 0) for r in all_rev), 2)
+        rev = db.table("revenue_logs").select("amount,recorded_at").limit(5000).execute().data or []
+        today_metrics["revenue_today_gbp"] = round(sum(float(r.get("amount") or 0) for r in rev if (r.get("recorded_at") or "") >= t0), 2)
+        today_metrics["revenue_total_gbp"] = round(sum(float(r.get("amount") or 0) for r in rev), 2)
     except Exception as e:
         notes.append(f"revenue sum failed: {str(e)[:120]}")
-        today_metrics["revenue_today_gbp"] = None
 
-    # ── PIPELINE: where every lead currently sits ─────────────────────────────
-    stages = ["new", "analyzing", "preview_ready", "outreach_queued",
-              "outreach_sent", "replied", "interested", "converted",
-              "not_interested", "do_not_contact"]
-    pipeline = {s: cnt("leads", status=s) for s in stages}
-    pipeline["TOTAL"] = cnt("leads")
-
-    # ── QUEUES ready to send ──────────────────────────────────────────────────
+    # ── PIPELINE (from stats) + QUEUES (from stats) ───────────────────────────
+    pipeline = {p["label"]: p["count"] for p in (stats.get("pipeline") or [])}
+    pipeline["TOTAL"] = stats.get("total_leads")
     queues = {
-        "whatsapp_queued": cnt("outreach_messages", channel="whatsapp", status=["queued", "draft"], direction="outbound"),
-        "email_queued":    cnt("outreach_messages", channel="email", status=["queued", "approved"], direction="outbound"),
-        "instagram_ready": cnt("outreach_messages", channel="instagram", status=["queued", "draft"], direction="outbound"),
+        "whatsapp_queued": stats.get("whatsapp_queued"),
+        "instagram_ready": stats.get("instagram_ready"),
+        "outreach_queued": stats.get("outreach_queued"),
     }
 
     # ── BACKEND AGENT LIVENESS (by effect, not by log) ────────────────────────
-    # We DON'T read agent_logs here (60s full scan). Instead we infer "did this
-    # agent actually work today?" from the rows it produces — stronger proof than
-    # a heartbeat. include_logs=1 adds the raw run-log view on top (slow).
     agents_health = {
         "lead_finder":       {"worked_today": (today_metrics.get("new_leads_today") or 0) > 0,
                               "evidence": f"{today_metrics.get('new_leads_today')} new leads today"},
         "preview_generator": {"worked_today": (today_metrics.get("new_previews_today") or 0) > 0,
                               "evidence": f"{today_metrics.get('new_previews_today')} new previews today"},
-        "outreach_writer":   {"worked_today": (today_metrics.get("outreach_prepared_today") or 0) > 0,
-                              "evidence": f"{today_metrics.get('outreach_prepared_today')} messages prepared today"},
         "outreach_sender":   {"worked_today": (today_metrics.get("outreach_sent_today") or 0) > 0,
-                              "evidence": f"{today_metrics.get('outreach_sent_today')} sent today"},
+                              "evidence": f"{today_metrics.get('outreach_sent_today')} sent today (WA {wa_today} + email {em_today})"},
     }
     if include_logs:
         # Raw run-log view — spam-proof (exclude high-volume preview_generator from
@@ -433,29 +430,27 @@ def system_proof(include_logs: bool = False):
             agents_health[name]["last_status"] = (r or {}).get("status")
             agents_health[name]["ran_today"] = ((r or {}).get("created_at") or "")[:10] == today if r else False
 
-    # ── OPENCLAW TEAM: task tracking + handoffs (real rows, not feed text) ─────
-    openclaw = {
-        "tasks_created_today":   cnt("agent_tasks", gte=("created_at", t0)),
-        "tasks_completed_today": cnt("agent_tasks", gte=("completed_at", t0), status="completed"),
-        "tasks_in_progress":     cnt("agent_tasks", status="in_progress"),
-        "tasks_queued":          cnt("agent_tasks", status="queued"),
-        "tasks_stuck":           cnt("agent_tasks", status=["failed", "blocked"]),
-    }
-    # Per-agent task counts today — proves the handoff chain actually advanced.
+    # ── OPENCLAW TEAM: one bounded fetch, tallied in Python ───────────────────
+    openclaw = {}
     try:
-        recent_tasks = (db.table("agent_tasks")
-                        .select("assigned_to,status,created_at,completed_at")
-                        .gte("created_at", t0).limit(500).execute().data or [])
+        from collections import Counter
+        tasks = (db.table("agent_tasks")
+                 .select("assigned_to,status,created_at,completed_at")
+                 .order("created_at", desc=True).limit(1000).execute().data or [])
+        openclaw["tasks_total_recent"] = len(tasks)
+        openclaw["by_status"] = dict(Counter(t.get("status") for t in tasks))
+        openclaw["created_today"] = sum(1 for t in tasks if (t.get("created_at") or "") >= t0)
+        openclaw["completed_today"] = sum(1 for t in tasks if t.get("status") == "completed" and (t.get("completed_at") or "") >= t0)
         chain = {a: {"created": 0, "completed": 0} for a in TEAM_AGENTS}
-        for t in recent_tasks:
+        for t in tasks:
             a = t.get("assigned_to")
-            if a in chain:
+            if a in chain and (t.get("created_at") or "") >= t0:
                 chain[a]["created"] += 1
                 if t.get("status") == "completed":
                     chain[a]["completed"] += 1
         openclaw["handoff_chain_today"] = chain
     except Exception as e:
-        notes.append(f"handoff chain failed: {str(e)[:120]}")
+        notes.append(f"openclaw tasks failed: {str(e)[:120]}")
 
     # ── FAILURES TODAY (only with include_logs — agent_logs scan is slow) ──────
     failures = []
@@ -477,10 +472,17 @@ def system_proof(include_logs: bool = False):
             notes.append(f"failures query failed (add agent_logs index): {str(e)[:120]}")
             failures_available = False
 
-    # ── AWAITING FOUNDER ──────────────────────────────────────────────────────
-    awaiting = {
-        "approvals_pending": cnt("agent_approvals", status="pending"),
-    }
+    # ── AWAITING FOUNDER + payment links (one fetch on small approvals table) ──
+    awaiting = {}
+    try:
+        appr = (db.table("agent_approvals").select("status,action,created_at")
+                .order("created_at", desc=True).limit(500).execute().data or [])
+        awaiting["approvals_pending"] = sum(1 for a in appr if a.get("status") == "pending")
+        today_metrics["payment_links_today"] = sum(
+            1 for a in appr if a.get("action") == "send_payment_link" and (a.get("created_at") or "") >= t0)
+    except Exception as e:
+        notes.append(f"approvals fetch failed: {str(e)[:120]}")
+        awaiting["approvals_pending"] = None
 
     # ── VERDICT: quick machine-readable "do I need to act?" ───────────────────
     sent = today_metrics.get("outreach_sent_today") or 0
@@ -495,7 +497,7 @@ def system_proof(include_logs: bool = False):
 
     return {
         "generated_at": now.isoformat(),
-        "build": "audit-proof-v2",
+        "build": "audit-proof-v3",
         "verdict": verdict,
         "today": today_metrics,
         "pipeline": pipeline,
