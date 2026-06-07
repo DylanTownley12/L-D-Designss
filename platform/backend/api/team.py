@@ -316,23 +316,32 @@ async def decide_approval(approval_id: str, body: DecisionIn):
 
 @router.get("/knowledge")
 async def recall_knowledge(topic: Optional[str] = None, limit: int = 5):
-    db = get_db()
-    q = db.table("knowledge_base").select("topic, content, source, created_at")
-    if topic:
-        q = q.ilike("topic", f"%{topic}%")
-    rows = q.order("created_at", desc=True).limit(min(limit, 25)).execute().data or []
-    return {"lessons": rows, "count": len(rows)}
+    try:
+        db = get_db()
+        q = db.table("knowledge_base").select("topic, content, source, created_at")
+        if topic:
+            q = q.ilike("topic", f"%{topic}%")
+        rows = q.order("created_at", desc=True).limit(min(limit, 25)).execute().data or []
+        return {"lessons": rows, "count": len(rows)}
+    except Exception as e:
+        # knowledge_base table may not exist yet — return empty rather than 500
+        logger.warning(f"knowledge_base recall failed (table may not exist): {e}")
+        return {"lessons": [], "count": 0, "note": "knowledge_base table not yet created"}
 
 
 @router.post("/knowledge")
 async def save_knowledge(body: KnowledgeIn):
-    db = get_db()
-    db.table("knowledge_base").insert({
-        "topic": body.topic,
-        "content": body.content,
-        "source": body.source,
-    }).execute()
-    return {"ok": True}
+    try:
+        db = get_db()
+        db.table("knowledge_base").insert({
+            "topic": body.topic,
+            "content": body.content,
+            "source": body.source,
+        }).execute()
+        return {"ok": True}
+    except Exception as e:
+        logger.warning(f"knowledge_base save failed (table may not exist): {e}")
+        return {"ok": False, "error": str(e)}
 
 
 # ── Overview (for Chief's morning pass) ───────────────────────────────────────
@@ -602,7 +611,8 @@ async def chief_health():
 
     wa_sent_today = (db.table("outreach_messages").select("id", count="exact")
                      .eq("channel", "whatsapp").eq("status", "sent")
-                     .gte("created_at", f"{today_str}T00:00:00")
+                     .not_.is_("sent_at", "null")
+                     .gte("sent_at", f"{today_str}T00:00:00")
                      .execute().count or 0)
 
     stuck = (db.table("agent_tasks").select("id", count="exact")

@@ -83,12 +83,14 @@ def today_spend_gbp() -> float:
 # ── 2. Outreach volume helpers (consumed by the send layer — increment 2) ─────
 
 def outreach_count_today(channel: str) -> int:
-    """How many outbound messages were sent on this channel today."""
+    """How many outbound messages were sent on this channel today.
+    Filters by sent_at (not created_at) — messages can be queued one day and sent the next."""
     try:
         rows = (_db().table("outreach_messages").select("id")
                 .eq("channel", channel).eq("direction", "outbound")
                 .in_("status", ["sent", "delivered"])
-                .gte("created_at", _utc_day_start()).execute().data or [])
+                .not_.is_("sent_at", "null")
+                .gte("sent_at", _utc_day_start()).execute().data or [])
         return len(rows)
     except Exception as e:
         logger.warning(f"[safety] outreach_count_today failed (assuming 0): {e}")

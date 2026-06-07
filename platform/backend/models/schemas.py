@@ -20,7 +20,10 @@ class LeadStatus(str, Enum):
     outreach_sent = "outreach_sent"
     replied = "replied"
     interested = "interested"
-    converted = "converted"
+    called = "called"                     # Dylan called them
+    follow_up_required = "follow_up_required"  # needs a follow-up call
+    payment_link_sent = "payment_link_sent"    # Stripe link sent
+    converted = "converted"              # paid / customer
     not_interested = "not_interested"
     do_not_contact = "do_not_contact"
 

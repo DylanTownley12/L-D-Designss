@@ -13,9 +13,58 @@ from db.client import get_db
 from config import settings
 from utils.helpers import log_agent_action
 
+try:
+    import httpx as _httpx
+except ImportError:
+    _httpx = None
+
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+
+
+# ── Google Places photo fetching ──────────────────────────────────────────────
+
+def _fetch_places_photos(place_id: str, max_width: int = 1200, count: int = 6) -> list[dict]:
+    """
+    Fetch real photos for this barber via Google Places Photos API.
+    Returns a list of {"url": ..., "alt": ..., "source": "google_places"}.
+    Returns empty list if API key not set, place_id missing, or request fails.
+    """
+    if not settings.GOOGLE_PLACES_API_KEY or not place_id:
+        return []
+    if not _httpx:
+        return []
+    try:
+        # Step 1: fetch place details to get photo_references
+        details_url = "https://maps.googleapis.com/maps/api/place/details/json"
+        resp = _httpx.get(details_url, params={
+            "place_id": place_id,
+            "fields": "photos,name",
+            "key": settings.GOOGLE_PLACES_API_KEY,
+        }, timeout=8)
+        resp.raise_for_status()
+        data = resp.json()
+        photos = (data.get("result") or {}).get("photos") or []
+        if not photos:
+            return []
+
+        # Step 2: build photo URLs using the photo reference
+        result = []
+        for p in photos[:count]:
+            ref = p.get("photo_reference")
+            if not ref:
+                continue
+            url = (
+                f"https://maps.googleapis.com/maps/api/place/photo"
+                f"?maxwidth={max_width}&photoreference={ref}&key={settings.GOOGLE_PLACES_API_KEY}"
+            )
+            result.append({"url": url, "alt": "Barber shop photo", "source": "google_places"})
+        logger.info(f"Fetched {len(result)} Google Places photos for place_id={place_id}")
+        return result
+    except Exception as e:
+        logger.warning(f"Google Places photo fetch failed for {place_id}: {e}")
+        return []
 
 jinja_env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -147,6 +196,21 @@ def _build_context(lead: dict) -> dict:
          f"That's why {city} keeps coming back to us week after week."),
     ]
 
+    # Attempt to fetch real barber photos from Google Places if key + place_id available
+    place_id = lead.get("google_place_id") or ""
+    places_photos = _fetch_places_photos(place_id) if place_id else []
+
+    if places_photos:
+        hero_image_url = places_photos[0]["url"]
+        barber_image_url = places_photos[1]["url"] if len(places_photos) > 1 else _pick(BARBER_IMAGE_POOL, seed, offset=1)
+        gallery_images = places_photos[2:8] if len(places_photos) > 2 else _pick_n(GALLERY_POOL, seed, 6)
+        image_source = "google_places"
+    else:
+        hero_image_url = _pick(HERO_IMAGE_POOL, seed)
+        barber_image_url = _pick(BARBER_IMAGE_POOL, seed, offset=1)
+        gallery_images = _pick_n(GALLERY_POOL, seed, 6)
+        image_source = "unsplash"
+
     return {
         "business_name": name,
         "city": city,
@@ -160,8 +224,9 @@ def _build_context(lead: dict) -> dict:
         "facebook_url": lead.get("facebook_url") or "",
         "meta_description": f"Book your haircut at {name} in {city}. Professional barbers, walk-ins welcome.",
         "tagline": _pick(taglines, seed),
-        "hero_image_url": _pick(HERO_IMAGE_POOL, seed),
-        "barber_image_url": _pick(BARBER_IMAGE_POOL, seed, offset=1),
+        "hero_image_url": hero_image_url,
+        "barber_image_url": barber_image_url,
+        "image_source": image_source,
         "booking_url": f"https://wa.me/{whatsapp_number}?text=Hi%2C%20I%27d%20like%20to%20book%20an%20appointment",
         "whatsapp_url": f"https://wa.me/{whatsapp_number}",
         "whatsapp_number": whatsapp_number,
@@ -183,7 +248,7 @@ def _build_context(lead: dict) -> dict:
         "years_experience": str(_pick([5, 6, 7, 8, 10], seed, offset=3)),
         "happy_clients": str(_pick([400, 500, 600, 750, 1000], seed, offset=4)),
         "services": DEFAULT_SERVICES,
-        "gallery_images": _pick_n(GALLERY_POOL, seed, 6),
+        "gallery_images": gallery_images,
         "testimonials": _pick_n(TESTIMONIAL_POOL, seed, 3),
         "opening_hours": DEFAULT_HOURS,
         "google_maps_embed": "",
@@ -191,7 +256,7 @@ def _build_context(lead: dict) -> dict:
             "instagram": lead.get("instagram_url") or "",
             "facebook": lead.get("facebook_url") or "",
         },
-        "google_place_id": lead.get("google_place_id") or "",
+        "google_place_id": place_id,
         "agency_name": settings.BUSINESS_NAME,
         "agency_url": settings.BUSINESS_WEBSITE,
         "is_preview": True,

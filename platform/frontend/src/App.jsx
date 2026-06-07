@@ -7,6 +7,7 @@ import Settings from './pages/Settings'
 import Agents from './pages/Agents'
 import Command from './pages/Command'
 import Hub from './pages/Hub'
+import Calls from './pages/Calls'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
                 <Route path="/hub" element={<Hub />} />
                 <Route path="/agents" element={<Agents />} />
                 <Route path="/leads" element={<Leads />} />
+                <Route path="/calls" element={<Calls />} />
                 <Route path="/outreach" element={<Outreach />} />
                 <Route path="/previews" element={<Previews />} />
                 <Route path="/settings" element={<Settings />} />

@@ -279,18 +279,19 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     except Exception:
         pass
 
-    # Count only truly queued messages against cap — drafts are not sent by Baz so don't block new generation
+    # Count only real lead messages against the cap — exclude system/CEO alerts (null lead_id)
     already_queued = (
         db.table("outreach_messages")
         .select("id", count="exact")
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
         .eq("status", "queued")
+        .not_.is_("lead_id", "null")
         .execute().count or 0
     )
     slots_left = MAX_WA_PER_DAY - already_queued
     if slots_left <= 0:
-        logger.info(f"WA pipeline full ({already_queued} pending) — skipping generation")
+        logger.info(f"WA pipeline full ({already_queued} real pending) — skipping generation")
         return {"generated": 0, "skipped": 0, "capped": True, "pending": already_queued}
 
     effective_limit = min(limit, slots_left)
