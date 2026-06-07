@@ -135,7 +135,7 @@ async def root():
     return {
         "name": "L&D Designs Platform",
         "status": "running",
-        "build": "audit-proof-v1",  # deploy marker — bump to confirm a deploy landed
+        "build": "audit-proof-v2",  # deploy marker — bump to confirm a deploy landed
         "docs": "/docs",
     }
 

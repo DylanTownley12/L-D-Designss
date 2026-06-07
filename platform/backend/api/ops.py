@@ -327,8 +327,14 @@ TEAM_AGENTS = ["scout", "gap", "judge", "maker", "reach", "executor", "closer", 
 
 
 @router.get("/ops/proof")
-def system_proof():
-    """Prove what the system did today + agent health, all from real DB counts."""
+def system_proof(include_logs: bool = False):
+    """Prove what the system did today + agent health, all from real DB counts.
+
+    agent_logs is currently un-indexed and huge, so any query against it takes ~60s
+    (full-table scan). By default this endpoint AVOIDS agent_logs entirely and proves
+    agent liveness from *effects* (rows they produced today) — which is stronger
+    evidence than a heartbeat anyway. Pass ?include_logs=1 for the raw run-log view
+    (slow until the agent_logs index is added — see /api/ops/db-maintenance-sql)."""
     from db.client import get_db
     db = get_db()
     now = _now()
@@ -388,37 +394,44 @@ def system_proof():
         "instagram_ready": cnt("outreach_messages", channel="instagram", status=["queued", "draft"], direction="outbound"),
     }
 
-    # ── BACKEND AGENT HEALTH: latest run per agent (spam-proof, 2 queries) ─────
-    # Exclude high-volume preview_generator from the bulk fetch (its per-preview
-    # logging would otherwise bury every other agent), then look it up once.
-    latest_log: dict = {}
-    try:
-        bulk = (db.table("agent_logs")
-                .select("agent_name,created_at,status,action")
-                .neq("agent_name", "preview_generator")
-                .order("created_at", desc=True).limit(500).execute().data or [])
-        for l in bulk:
-            latest_log.setdefault(l["agent_name"], l)
-        pg = (db.table("agent_logs").select("agent_name,created_at,status,action")
-              .eq("agent_name", "preview_generator")
-              .order("created_at", desc=True).limit(1).execute().data or [])
-        if pg:
-            latest_log["preview_generator"] = pg[0]
-    except Exception as e:
-        notes.append(f"agent health fetch failed: {str(e)[:120]}")
-
-    agents_health = {}
-    for name in BACKEND_AGENTS:
-        r = latest_log.get(name)
-        if r:
-            agents_health[name] = {
-                "last_run": r.get("created_at"),
-                "last_status": r.get("status"),
-                "last_action": (r.get("action") or "")[:60],
-                "ran_today": (r.get("created_at") or "")[:10] == today,
-            }
-        else:
-            agents_health[name] = {"last_run": None, "last_status": None, "last_action": None, "ran_today": False}
+    # ── BACKEND AGENT LIVENESS (by effect, not by log) ────────────────────────
+    # We DON'T read agent_logs here (60s full scan). Instead we infer "did this
+    # agent actually work today?" from the rows it produces — stronger proof than
+    # a heartbeat. include_logs=1 adds the raw run-log view on top (slow).
+    agents_health = {
+        "lead_finder":       {"worked_today": (today_metrics.get("new_leads_today") or 0) > 0,
+                              "evidence": f"{today_metrics.get('new_leads_today')} new leads today"},
+        "preview_generator": {"worked_today": (today_metrics.get("new_previews_today") or 0) > 0,
+                              "evidence": f"{today_metrics.get('new_previews_today')} new previews today"},
+        "outreach_writer":   {"worked_today": (today_metrics.get("outreach_prepared_today") or 0) > 0,
+                              "evidence": f"{today_metrics.get('outreach_prepared_today')} messages prepared today"},
+        "outreach_sender":   {"worked_today": (today_metrics.get("outreach_sent_today") or 0) > 0,
+                              "evidence": f"{today_metrics.get('outreach_sent_today')} sent today"},
+    }
+    if include_logs:
+        # Raw run-log view — spam-proof (exclude high-volume preview_generator from
+        # the bulk fetch, look it up once). SLOW until agent_logs is indexed.
+        latest_log: dict = {}
+        try:
+            bulk = (db.table("agent_logs")
+                    .select("agent_name,created_at,status,action")
+                    .neq("agent_name", "preview_generator")
+                    .order("created_at", desc=True).limit(500).execute().data or [])
+            for l in bulk:
+                latest_log.setdefault(l["agent_name"], l)
+            pg = (db.table("agent_logs").select("agent_name,created_at,status,action")
+                  .eq("agent_name", "preview_generator")
+                  .order("created_at", desc=True).limit(1).execute().data or [])
+            if pg:
+                latest_log["preview_generator"] = pg[0]
+        except Exception as e:
+            notes.append(f"agent log fetch failed (add agent_logs index): {str(e)[:120]}")
+        for name in BACKEND_AGENTS:
+            r = latest_log.get(name)
+            agents_health.setdefault(name, {})
+            agents_health[name]["last_run"] = (r or {}).get("created_at")
+            agents_health[name]["last_status"] = (r or {}).get("status")
+            agents_health[name]["ran_today"] = ((r or {}).get("created_at") or "")[:10] == today if r else False
 
     # ── OPENCLAW TEAM: task tracking + handoffs (real rows, not feed text) ─────
     openclaw = {
@@ -444,22 +457,25 @@ def system_proof():
     except Exception as e:
         notes.append(f"handoff chain failed: {str(e)[:120]}")
 
-    # ── FAILURES TODAY: anything that errored (so nothing fails silently) ──────
+    # ── FAILURES TODAY (only with include_logs — agent_logs scan is slow) ──────
     failures = []
-    try:
-        errs = (db.table("agent_logs")
-                .select("agent_name,action,status,error_message,created_at")
-                .eq("status", "error").gte("created_at", t0)
-                .order("created_at", desc=True).limit(25).execute().data or [])
-        for e in errs:
-            failures.append({
-                "agent": e.get("agent_name"),
-                "action": (e.get("action") or "")[:60],
-                "error": (e.get("error_message") or "")[:140],
-                "at": e.get("created_at"),
-            })
-    except Exception as e:
-        notes.append(f"failures query failed: {str(e)[:120]}")
+    failures_available = include_logs
+    if include_logs:
+        try:
+            errs = (db.table("agent_logs")
+                    .select("agent_name,action,status,error_message,created_at")
+                    .eq("status", "error").gte("created_at", t0)
+                    .order("created_at", desc=True).limit(25).execute().data or [])
+            for e in errs:
+                failures.append({
+                    "agent": e.get("agent_name"),
+                    "action": (e.get("action") or "")[:60],
+                    "error": (e.get("error_message") or "")[:140],
+                    "at": e.get("created_at"),
+                })
+        except Exception as e:
+            notes.append(f"failures query failed (add agent_logs index): {str(e)[:120]}")
+            failures_available = False
 
     # ── AWAITING FOUNDER ──────────────────────────────────────────────────────
     awaiting = {
@@ -471,21 +487,56 @@ def system_proof():
     wa_sent = today_metrics.get("whatsapp_sent_today") or 0
     verdict = {
         "outreach_moving_today": (sent + wa_sent) > 0,
-        "any_failures_today": len(failures) > 0,
+        "failures_today": len(failures) if failures_available else "unknown (pass ?include_logs=1)",
         "leads_in_pipeline": (pipeline.get("preview_ready") or 0) + (pipeline.get("outreach_queued") or 0),
         "hot_leads_waiting": (pipeline.get("replied") or 0) + (pipeline.get("interested") or 0),
+        "needs_founder": (awaiting.get("approvals_pending") or 0) > 0,
     }
 
     return {
         "generated_at": now.isoformat(),
-        "build": "audit-proof-v1",
+        "build": "audit-proof-v2",
         "verdict": verdict,
         "today": today_metrics,
         "pipeline": pipeline,
         "queues": queues,
         "backend_agents": agents_health,
         "openclaw_team": openclaw,
-        "failures_today": failures,
+        "failures_today": failures if failures_available else "pass ?include_logs=1 (slow until agent_logs indexed)",
         "awaiting_founder": awaiting,
         "notes": notes,
+    }
+
+
+# The one-time DB fix that makes agent_logs (and every endpoint that reads it)
+# fast again. Surfaced as an endpoint so Dylan can copy-paste it into the Supabase
+# SQL editor without hunting through the codebase.
+AGENT_LOGS_INDEX_SQL = """-- 1) Index so "latest log per agent" stops full-scanning the table:
+CREATE INDEX IF NOT EXISTS idx_agent_logs_name_created
+  ON agent_logs (agent_name, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_logs_created
+  ON agent_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_logs_status_created
+  ON agent_logs (status, created_at DESC);
+
+-- 2) One-time prune of the backlog (keep 14 days). Safe: agent_logs is telemetry.
+DELETE FROM agent_logs WHERE created_at < (NOW() - INTERVAL '14 days');
+
+-- 3) Helpful indexes for the proof/action-queue counts too:
+CREATE INDEX IF NOT EXISTS idx_outreach_sent_at ON outreach_messages (sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_outreach_channel_status ON outreach_messages (channel, status);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);
+"""
+
+
+@router.get("/ops/db-maintenance-sql")
+def db_maintenance_sql():
+    """Returns the index+prune SQL to paste into Supabase → SQL Editor → Run.
+    Fixes the ~60s agent_logs full-scans that make status/proof time out."""
+    return {
+        "why": "agent_logs has no index on created_at, so even SELECT ... LIMIT 1 "
+               "full-scans the whole table (~60s). This makes /status and /proof "
+               "time out and the 30-min self-heal job stall. Run this once.",
+        "where": "Supabase dashboard → SQL Editor → paste → Run",
+        "sql": AGENT_LOGS_INDEX_SQL,
     }
