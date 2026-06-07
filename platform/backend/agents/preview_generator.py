@@ -86,6 +86,17 @@ TESTIMONIAL_POOL = [
 ]
 
 
+# Premium accent palette — one picked per lead so previews feel bespoke, never samey.
+# (hex, "r,g,b") — the rgb string powers translucent rgba() layers in the template.
+ACCENT_PALETTE = [
+    ("#C9A227", "201,162,39"),   # gold        — default, reads "premium"
+    ("#C0392B", "192,57,43"),    # crimson     — classic barber red
+    ("#B87333", "184,115,51"),   # copper      — warm, upscale
+    ("#3E7CB1", "62,124,177"),   # steel blue  — modern, clean
+    ("#1F8A70", "31,138,112"),   # deep teal   — fresh, distinctive
+]
+
+
 def _pick(pool: list, seed: str, offset: int = 0) -> object:
     """Deterministically pick from a pool based on a string seed."""
     idx = (hash(seed + str(offset)) & 0x7FFFFFFF) % len(pool)
@@ -109,6 +120,9 @@ def _build_context(lead: dict) -> dict:
     whatsapp_number = (phone or "").replace(" ", "").replace("+", "").replace("-", "")
     if whatsapp_number.startswith("0"):
         whatsapp_number = "44" + whatsapp_number[1:]
+    has_phone = bool(whatsapp_number and len(whatsapp_number) >= 10)
+
+    accent_hex, accent_rgb = _pick(ACCENT_PALETTE, seed, offset=7)
 
     import urllib.parse
     _preview_msg = urllib.parse.quote(f"Hi Dylan, I just saw the preview site you built for {name} — I'm interested in getting it live.")
@@ -148,7 +162,14 @@ def _build_context(lead: dict) -> dict:
         "barber_image_url": _pick(BARBER_IMAGE_POOL, seed, offset=1),
         "booking_url": f"https://wa.me/{whatsapp_number}?text=Hi%2C%20I%27d%20like%20to%20book%20an%20appointment",
         "whatsapp_url": f"https://wa.me/{whatsapp_number}",
+        "whatsapp_number": whatsapp_number,
+        "has_phone": has_phone,
         "dylan_whatsapp_url": dylan_whatsapp_url,
+        "accent_hex": accent_hex,
+        "accent_rgb": accent_rgb,
+        "price_build": "150",
+        "price_monthly": "15",
+        "price_deposit": "75",
         "about_heading": f"The Barbers {city} Trusts",
         "about_text": _pick(about_texts, seed, offset=2),
         "highlights": [

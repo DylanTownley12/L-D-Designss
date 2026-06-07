@@ -182,6 +182,14 @@ async def fix_preview_urls(limit: int = 1000):
     return {"ok": True, "fixed": fixed, "scanned": scanned, "base": base}
 
 
+@router.post("/regenerate")
+async def regenerate_previews(limit: int = 100, force: bool = True):
+    """Rebuild previews with the CURRENT template. force=True overwrites existing
+    HTML (use after a template upgrade); force=False only fills missing/broken ones."""
+    result = preview_generator.run_batch(limit=limit, force=force)
+    return {"ok": True, **result}
+
+
 @router.get("/serve/{preview_id}", response_class=HTMLResponse)
 async def serve_preview(preview_id: str):
     """Serve a preview from DB and inject view beacon script."""
