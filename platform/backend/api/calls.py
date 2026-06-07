@@ -27,11 +27,32 @@ class CallLog(BaseModel):
     notes: Optional[str] = None
 
 
+def _preview_quality(lead: dict, preview_url: str, template_version: str, image_source: str) -> int:
+    """Score 0-100 of how presentable this preview is for a live call."""
+    score = 0
+    if preview_url and "/previews/serve/" in preview_url:
+        score += 30
+    if image_source == "google_places":
+        score += 35          # their OWN shop — the big conversion lever
+    if lead.get("google_rating"):
+        score += 10
+    if template_version in ("v3", "v4"):
+        score += 10
+    if lead.get("business_name") and lead.get("city"):
+        score += 10
+    phone = (lead.get("phone") or "").replace(" ", "")
+    if phone.startswith("07") or phone.startswith("+447") or phone.startswith("447"):
+        score += 5
+    return min(100, score)
+
+
 @router.get("/board")
-async def call_board(limit: int = 100, status: Optional[str] = None):
+async def call_board(limit: int = 250, status: Optional[str] = None,
+                     include_all: bool = False, min_quality: int = 50):
     """
-    Returns leads ready for calling, with all info needed for the call.
-    Sorted: interested first, then outreach_sent, then preview_ready — highest quality score first.
+    Returns CALL-READY leads only (phone + working preview + acceptable quality),
+    with everything needed for the call. include_all=true also returns the
+    excluded leads (with the reason) so nothing is silently lost.
     """
     db = get_db()
 
@@ -42,50 +63,80 @@ async def call_board(limit: int = 100, status: Optional[str] = None):
 
     result = (
         db.table("leads")
-        .select("id, business_name, phone, city, address, notes, status, quality_score, google_rating, google_reviews, created_at, updated_at")
+        .select("id, business_name, phone, city, address, notes, status, quality_score, "
+                "google_rating, google_reviews, analysis_data, created_at, updated_at")
         .in_("status", statuses)
         .order("quality_score", desc=True)
-        .limit(limit)
+        .limit(600)
         .execute()
     )
 
-    # Filter to leads with a phone number (Python-side — custom client lacks NOT IS NULL)
-    leads = [l for l in (result.data or []) if l.get("phone")]
+    ready, excluded = [], []
+    for lead in (result.data or []):
+        phone = lead.get("phone") or ""
+        ad = lead.get("analysis_data") or {}
+        image_source = ad.get("image_source") or "unsplash"
 
-    # Attach preview URLs
-    lead_ids = [l["id"] for l in leads]
-    enriched = []
-    for lead in leads:
-        preview_url = None
+        # Latest preview
+        preview_url, template_version = None, "v1"
         try:
-            pr = db.table("previews").select("preview_url").eq("lead_id", lead["id"]).order("created_at", desc=True).limit(1).execute()
+            pr = (db.table("previews").select("preview_url, template_version")
+                  .eq("lead_id", lead["id"]).order("created_at", desc=True).limit(1).execute())
             if pr.data:
-                preview_url = pr.data[0]["preview_url"]
+                preview_url = pr.data[0].get("preview_url")
+                template_version = pr.data[0].get("template_version") or "v1"
         except Exception:
             pass
 
-        phone = lead.get("phone") or ""
+        preview_working = bool(preview_url and "/previews/serve/" in preview_url)
+        quality = _preview_quality(lead, preview_url or "", template_version, image_source)
+
         wa_num = phone.replace(" ", "").replace("-", "").replace("+", "")
         if wa_num.startswith("0"):
             wa_num = "44" + wa_num[1:]
 
-        enriched.append({
-            **lead,
+        # Strip heavy analysis_data from the row we return
+        row = {k: v for k, v in lead.items() if k != "analysis_data"}
+        row.update({
             "preview_url": preview_url,
+            "preview_working": preview_working,
+            "preview_quality_score": quality,
+            "image_source": image_source,
+            "template_version": template_version,
+            "has_real_photos": image_source == "google_places",
             "whatsapp_url": f"https://wa.me/{wa_num}" if wa_num else None,
             "call_url": f"tel:{phone}" if phone else None,
             "next_action": _next_action(lead["status"]),
         })
 
-    # Group by status for the board view
+        # Call-ready gate
+        reason = None
+        if not phone:
+            reason = "no phone"
+        elif not preview_working:
+            reason = "no working preview"
+        elif quality < min_quality:
+            reason = f"low quality ({quality})"
+
+        if reason and not include_all:
+            row["excluded_reason"] = reason
+            excluded.append(row)
+        elif reason:
+            row["excluded_reason"] = reason
+            excluded.append(row)
+        else:
+            ready.append(row)
+
+    ready = ready[:limit]
     groups = {}
-    for lead in enriched:
-        s = lead["status"]
-        groups.setdefault(s, []).append(lead)
+    for lead in ready:
+        groups.setdefault(lead["status"], []).append(lead)
 
     return {
-        "leads": enriched,
-        "total": len(enriched),
+        "leads": ready,
+        "total": len(ready),
+        "excluded_count": len(excluded),
+        "excluded": excluded if include_all else excluded[:50],
         "groups": groups,
         "status_order": CALL_STATUSES,
     }
