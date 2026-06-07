@@ -279,16 +279,16 @@ def generate_whatsapp_campaign(limit: int = 50) -> dict:
     except Exception:
         pass
 
-    # Count only real lead messages against the cap — exclude system/CEO alerts (null lead_id)
-    already_queued = (
+    # Count only real lead messages against cap — exclude system/CEO alerts (null lead_id)
+    all_queued_rows = (
         db.table("outreach_messages")
-        .select("id", count="exact")
+        .select("id, lead_id")
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
         .eq("status", "queued")
-        .not_.is_("lead_id", "null")
-        .execute().count or 0
+        .execute().data or []
     )
+    already_queued = sum(1 for m in all_queued_rows if m.get("lead_id"))
     slots_left = MAX_WA_PER_DAY - already_queued
     if slots_left <= 0:
         logger.info(f"WA pipeline full ({already_queued} real pending) — skipping generation")

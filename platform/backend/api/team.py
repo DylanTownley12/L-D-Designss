@@ -614,7 +614,6 @@ async def chief_health():
 
     wa_sent_today = (db.table("outreach_messages").select("id", count="exact")
                      .eq("channel", "whatsapp").eq("status", "sent")
-                     .not_.is_("sent_at", "null")
                      .gte("sent_at", f"{today_str}T00:00:00")
                      .execute().count or 0)
 

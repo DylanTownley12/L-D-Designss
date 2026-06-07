@@ -44,13 +44,13 @@ async def call_board(limit: int = 100, status: Optional[str] = None):
         db.table("leads")
         .select("id, business_name, phone, city, address, notes, status, quality_score, google_rating, google_reviews, created_at, updated_at")
         .in_("status", statuses)
-        .not_.is_("phone", "null")
         .order("quality_score", desc=True)
         .limit(limit)
         .execute()
     )
 
-    leads = result.data or []
+    # Filter to leads with a phone number (Python-side — custom client lacks NOT IS NULL)
+    leads = [l for l in (result.data or []) if l.get("phone")]
 
     # Attach preview URLs
     lead_ids = [l["id"] for l in leads]

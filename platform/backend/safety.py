@@ -84,12 +84,12 @@ def today_spend_gbp() -> float:
 
 def outreach_count_today(channel: str) -> int:
     """How many outbound messages were sent on this channel today.
-    Filters by sent_at (not created_at) — messages can be queued one day and sent the next."""
+    Filters by sent_at (not created_at) — messages can be queued one day and sent the next.
+    Using gte(sent_at) implicitly excludes nulls since NULL is never >= a date."""
     try:
         rows = (_db().table("outreach_messages").select("id")
                 .eq("channel", channel).eq("direction", "outbound")
                 .in_("status", ["sent", "delivered"])
-                .not_.is_("sent_at", "null")
                 .gte("sent_at", _utc_day_start()).execute().data or [])
         return len(rows)
     except Exception as e:
