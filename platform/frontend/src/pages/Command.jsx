@@ -3,8 +3,8 @@
  * Answers: Who to contact, what to send, what's broken.
  */
 import { useState, useEffect } from 'react'
-import { ops, payments as paymentsApi, outreach as outreachApi, agents } from '../api/client'
-import { Zap, AlertTriangle, CheckCircle2, Phone, AtSign, Copy, ExternalLink, CreditCard, MessageSquare, RefreshCcw, X, ChevronRight, AlertCircle } from 'lucide-react'
+import { ops, payments as paymentsApi, outreach as outreachApi, agents, team, dashboard as dashboardApi } from '../api/client'
+import { Zap, AlertTriangle, CheckCircle2, Phone, AtSign, Copy, ExternalLink, CreditCard, MessageSquare, RefreshCcw, X, ChevronRight, AlertCircle, Clock } from 'lucide-react'
 
 const C = {
   bg:      '#02020e',
@@ -145,6 +145,91 @@ function ActionItem({ item, onAction, showToast }) {
   )
 }
 
+/**
+ * StatusBanner — the one-glance answer: "is it handled, or do I need to tap something?"
+ * Green when nothing needs Dylan. Amber/red with a short tap-list when something does.
+ */
+function StatusBanner({ criticalBlockers = [], warningBlockers = [] }) {
+  const [approvals, setApprovals] = useState([])
+  const [stats, setStats] = useState(null)
+
+  const refresh = () => {
+    team.approvals('pending').then(r => setApprovals(r?.approvals || [])).catch(() => {})
+    dashboardApi.stats().then(setStats).catch(() => {})
+  }
+  useEffect(() => { refresh() }, [])
+
+  // Everything that genuinely needs a human tap, most urgent first.
+  const needs = [
+    ...criticalBlockers.map(b => ({ tone: C.red, label: b.title })),
+    ...approvals.map(a => ({ tone: C.gold, label: `Approve: ${a.action || 'staged action'}` })),
+    ...warningBlockers.map(b => ({ tone: '#fbbf24', label: b.title })),
+  ]
+  const clear = needs.length === 0
+
+  // Next scheduled automation (Europe/London) — reassures it's running unattended.
+  const sched = [
+    { h: 6, label: 'Find new leads' }, { h: 7, label: 'Write outreach' },
+    { h: 8, label: 'Morning briefing' }, { h: 9, label: 'Send WhatsApp' },
+    { h: 11, label: 'Follow-ups' }, { h: 12, label: 'Send emails' },
+  ]
+  const hr = new Date().getHours()
+  const next = sched.find(s => s.h > hr) || sched[0]
+  const nextWhen = next.h > hr ? `${next.h > 12 ? next.h - 12 : next.h}${next.h >= 12 ? 'pm' : 'am'}` : `${next.h}am tomorrow`
+
+  const accent = clear ? C.green : (criticalBlockers.length ? C.red : C.gold)
+
+  return (
+    <div style={{
+      ...card(`${accent}40`), padding: '18px 20px', marginBottom: 18,
+      background: `linear-gradient(135deg, ${accent}14, ${C.panel})`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `${accent}1a`, border: `1px solid ${accent}40`,
+        }}>
+          {clear ? <CheckCircle2 size={24} color={accent} /> : <AlertTriangle size={24} color={accent} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: clear ? C.text : accent, letterSpacing: '-0.01em' }}>
+            {clear ? 'System running — nothing needs you' : `${needs.length} thing${needs.length > 1 ? 's' : ''} need${needs.length > 1 ? '' : 's'} your tap`}
+          </div>
+          <div style={{ fontSize: 12, color: C.mid, marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {clear ? (
+              <>
+                <Clock size={11} color={C.dim} />
+                <span>Next: <b style={{ color: C.mid }}>{next.label}</b> at {nextWhen}</span>
+                {stats && <span style={{ color: C.dim }}>·</span>}
+                {stats && <span>{stats.whatsapp_today || 0} WA sent today · {stats.preview_ready || 0} previews ready</span>}
+              </>
+            ) : (
+              <span>Tap each below to clear it. Everything else is handled automatically.</span>
+            )}
+          </div>
+        </div>
+        <button onClick={refresh} title="Refresh" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, flexShrink: 0 }}>
+          <RefreshCcw size={14} />
+        </button>
+      </div>
+
+      {!clear && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
+          {needs.slice(0, 5).map((n, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, color: C.text, padding: '7px 11px', borderRadius: 8, background: 'rgba(0,0,0,0.22)', border: `1px solid ${n.tone}22` }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: n.tone, flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{n.label}</span>
+              <ChevronRight size={13} color={C.dim} />
+            </div>
+          ))}
+          {needs.length > 5 && <div style={{ fontSize: 11, color: C.dim, paddingLeft: 11 }}>+{needs.length - 5} more below</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RevenueStatus() {
   const [stats, setStats] = useState(null)
   useEffect(() => {
@@ -205,6 +290,9 @@ export default function Command() {
   return (
     <div style={{ padding: '24px', maxWidth: 900, margin: '0 auto' }}>
       <Toast toast={toast} />
+
+      {/* One-glance status — handled, or needs you? */}
+      <StatusBanner criticalBlockers={criticalBlockers} warningBlockers={warningBlockers} />
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
