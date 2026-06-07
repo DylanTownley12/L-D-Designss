@@ -19,6 +19,7 @@ Routes (all under /api/team):
   Overview   GET  /summary
 """
 import os
+import logging
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
@@ -26,6 +27,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from db.client import get_db
+
+logger = logging.getLogger(__name__)
 
 MAX_WHATSAPP_PER_DAY = int(os.getenv("MAX_WHATSAPP_PER_DAY", "10"))
 
