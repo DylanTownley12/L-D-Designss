@@ -81,42 +81,61 @@ def get_action_queue(limit: int = 50):
             "reasons": reasons,
         })
 
-    # 2. Follow-ups due
-    now_iso = _now().isoformat()
-    followups = db.table("follow_up_sequences").select(
-        "lead_id,next_followup_at,current_step"
-    ).lte("next_followup_at", now_iso).eq("status", "active").limit(20).execute().data or []
+    # 2. Follow-ups due — uses actual schema: stopped bool + per-day sent timestamps
+    try:
+        sequences = db.table("follow_up_sequences").select(
+            "lead_id,channel,initial_sent_at,day_3_sent_at,day_7_sent_at,day_14_sent_at"
+        ).eq("stopped", False).limit(30).execute().data or []
 
-    for f in followups:
-        lead_row = db.table("leads").select("id,business_name,city,phone,instagram_url,status").eq("id", f["lead_id"]).limit(1).execute().data
-        if not lead_row:
-            continue
-        lead = lead_row[0]
-        if lead["status"] in ["replied", "interested", "converted", "not_interested", "do_not_contact"]:
-            continue
-        prev = db.table("previews").select("preview_url").eq("lead_id", lead["id"]).order("created_at", desc=True).limit(1).execute().data
-        followup_at = f["next_followup_at"]
-        hours_overdue = (
-            (_now() - datetime.fromisoformat((followup_at or "").replace("Z", "+00:00"))).total_seconds() / 3600
-            if followup_at else 0
-        )
-        items.append({
-            "type": "followup_due",
-            "priority": 3,
-            "revenue_score": _revenue_score(lead["status"], hours_overdue, bool(lead.get("phone")), bool(lead.get("instagram_url"))),
-            "lead_id": lead["id"],
-            "lead_name": lead["business_name"],
-            "city": lead["city"],
-            "channel": "whatsapp",
-            "suggested_message": None,
-            "preview_url": prev[0]["preview_url"] if prev else None,
-            "instagram_url": lead.get("instagram_url"),
-            "phone": lead.get("phone"),
-            "last_contact_at": None,
-            "followup_due_at": followup_at,
-            "payment_status": None,
-            "reasons": [f"Follow-up day {f['current_step']} overdue"],
-        })
+        now = _now()
+        for f in sequences:
+            sent_at_raw = f.get("initial_sent_at") or ""
+            if not sent_at_raw:
+                continue
+            try:
+                sent_at = datetime.fromisoformat(sent_at_raw.replace("Z", "+00:00"))
+            except Exception:
+                continue
+
+            days_since = (now - sent_at).total_seconds() / 86400
+
+            # Determine which step is due next
+            if not f.get("day_3_sent_at") and days_since >= 3:
+                step_label, step_days = "Day 3", 3
+            elif not f.get("day_7_sent_at") and days_since >= 7:
+                step_label, step_days = "Day 7", 7
+            elif not f.get("day_14_sent_at") and days_since >= 14:
+                step_label, step_days = "Day 14", 14
+            else:
+                continue  # no step due yet
+
+            lead_row = db.table("leads").select("id,business_name,city,phone,instagram_url,status").eq("id", f["lead_id"]).limit(1).execute().data
+            if not lead_row:
+                continue
+            lead = lead_row[0]
+            if lead["status"] in ["replied", "interested", "converted", "not_interested", "do_not_contact"]:
+                continue
+            prev = db.table("previews").select("preview_url").eq("lead_id", lead["id"]).order("created_at", desc=True).limit(1).execute().data
+            hours_overdue = (days_since - step_days) * 24
+            items.append({
+                "type": "followup_due",
+                "priority": 3,
+                "revenue_score": _revenue_score(lead["status"], hours_overdue, bool(lead.get("phone")), bool(lead.get("instagram_url"))),
+                "lead_id": lead["id"],
+                "lead_name": lead["business_name"],
+                "city": lead["city"],
+                "channel": f.get("channel", "whatsapp"),
+                "suggested_message": None,
+                "preview_url": prev[0]["preview_url"] if prev else None,
+                "instagram_url": lead.get("instagram_url"),
+                "phone": lead.get("phone"),
+                "last_contact_at": None,
+                "followup_due_at": sent_at_raw,
+                "payment_status": None,
+                "reasons": [f"Follow-up {step_label} overdue ({int(hours_overdue)}h)"],
+            })
+    except Exception as e:
+        logger.warning(f"[action-queue] followup query failed: {e}")
 
     # 3. Queued WA messages ready to send (up to daily target)
     wa_queue = db.table("outreach_messages").select(
