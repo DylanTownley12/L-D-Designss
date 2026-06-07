@@ -134,7 +134,7 @@ async def list_leads(status: Optional[str] = None, limit: int = 10):
     """Leads for Scout/Gap/Judge to work through."""
     db = get_db()
     q = db.table("leads").select(
-        "id, business_name, type, city, postcode, website, website_status, "
+        "id, business_name, city, postcode, website, website_status, "
         "quality_score, status, phone, email, instagram_url"
     )
     if status:
@@ -148,7 +148,7 @@ async def get_lead(lead_id: str):
     """Fetch a single lead's full details — for agents that need to read before scoring."""
     db = get_db()
     rows = db.table("leads").select(
-        "id, business_name, type, city, postcode, website, website_status, "
+        "id, business_name, city, postcode, website, website_status, "
         "quality_score, status, phone, email, instagram_url, google_rating, "
         "google_reviews, analysis_data, notes"
     ).eq("id", lead_id).limit(1).execute().data or []
