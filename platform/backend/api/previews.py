@@ -182,41 +182,35 @@ async def fix_preview_urls(limit: int = 1000):
     return {"ok": True, "fixed": fixed, "scanned": scanned, "base": base}
 
 
+CURRENT_TEMPLATE_VERSION = "v2"
+
+
 @router.post("/regenerate")
-async def regenerate_previews(limit: int = 150, marker: str = "Fraunces"):
+async def regenerate_previews(limit: int = 100):
     """Upgrade previews to the CURRENT template, resumably.
 
-    Pages through the previews table and regenerates any whose stored HTML
-    doesn't already contain `marker` (a string only the new template emits).
-    Already-upgraded previews are skipped, so repeated calls march through the
-    backlog without redoing work and without timing out. Returns how many were
-    upgraded this call and how many stale ones remain.
+    Selects only previews not yet on CURRENT_TEMPLATE_VERSION (filtered + counted
+    server-side, so no 50KB-per-row HTML is fetched just to scan). Regenerates up
+    to `limit` of them per call and reports how many stale ones remain, so the
+    caller can loop in small chunks without timing out.
     """
     db = get_db()
-    upgraded, scanned, remaining = 0, 0, 0
-    page, PAGE = 0, 200
-    while True:
-        rows = (db.table("previews").select("id, lead_id, html_content")
-                .order("created_at", desc=True)
-                .range(page * PAGE, page * PAGE + PAGE - 1)
-                .execute().data or [])
-        if not rows:
-            break
-        for r in rows:
-            scanned += 1
-            html = r.get("html_content") or ""
-            if marker in html:
-                continue  # already on the new template
-            if not r.get("lead_id"):
-                continue
-            if upgraded < limit:
-                outcome = preview_generator.run(r["lead_id"], force=True)
-                if outcome.get("status") == "success":
-                    upgraded += 1
-            else:
-                remaining += 1
-        page += 1
-    return {"ok": True, "upgraded": upgraded, "remaining_stale": remaining, "scanned": scanned}
+    remaining = (db.table("previews").select("id", count="exact")
+                 .neq("template_version", CURRENT_TEMPLATE_VERSION)
+                 .execute().count or 0)
+    if limit <= 0:
+        return {"ok": True, "upgraded": 0, "remaining_stale": remaining}
+
+    stale = (db.table("previews").select("id, lead_id")
+             .neq("template_version", CURRENT_TEMPLATE_VERSION)
+             .limit(limit).execute().data or [])
+    upgraded = 0
+    for r in stale:
+        if not r.get("lead_id"):
+            continue
+        if preview_generator.run(r["lead_id"], force=True).get("status") == "success":
+            upgraded += 1
+    return {"ok": True, "upgraded": upgraded, "remaining_stale": max(0, remaining - upgraded)}
 
 
 @router.get("/serve/{preview_id}", response_class=HTMLResponse)

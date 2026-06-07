@@ -259,6 +259,7 @@ def run(lead_id: str, force: bool = False) -> dict:
                 "preview_url": preview_url,
                 "html_content": html,
                 "personalization_data": personalization,
+                "template_version": "v2",
             }).eq("id", existing_id).execute()
         else:
             # Insert new row — let Supabase generate the UUID, then update the URL
@@ -266,6 +267,7 @@ def run(lead_id: str, force: bool = False) -> dict:
                 "lead_id": lead_id,
                 "html_content": html,
                 "personalization_data": personalization,
+                "template_version": "v2",
             }).execute()
             new_id = insert_result.data[0]["id"]
             preview_url = f"{base}/previews/serve/{new_id}"
