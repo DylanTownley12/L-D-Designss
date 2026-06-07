@@ -316,3 +316,18 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_topic ON knowledge_base(topic);
+
+-- ══════════════════════════════════════════════
+-- MIGRATION: Add call pipeline statuses + call log table (2026-06-07)
+-- Run this in Supabase SQL Editor to enable the Calls page
+-- ══════════════════════════════════════════════
+
+-- Drop the old check constraint and replace with one that includes call stages
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_status_check;
+ALTER TABLE leads ADD CONSTRAINT leads_status_check
+    CHECK (status IN (
+        'new','analyzing','preview_ready','outreach_queued',
+        'outreach_sent','replied','interested',
+        'called','follow_up_required','payment_link_sent',
+        'converted','not_interested','do_not_contact'
+    ));
