@@ -103,6 +103,58 @@ async def backfill_photos(limit: int = 25, force: bool = False):
     }
 
 
+@router.post("/regenerate-call-board")
+async def regenerate_call_board(limit: int = 25, force: bool = False):
+    """
+    Re-render previews for call-board leads that have been photo-checked, so the
+    HTML picks up their real Google photos. Idempotent + batched: only regenerates
+    leads whose preview hasn't been refreshed since their photos were fetched.
+    """
+    db = get_db()
+    rows = (
+        db.table("leads")
+        .select("id, business_name, phone, analysis_data")
+        .in_("status", _CALL_STATUSES)
+        .order("quality_score", desc=True)
+        .limit(600)
+        .execute().data or []
+    )
+
+    todo = []
+    for l in rows:
+        if not l.get("phone"):
+            continue
+        ad = l.get("analysis_data") or {}
+        if not ad.get("photos_checked_at"):
+            continue  # nothing fetched yet — backfill first
+        if not force:
+            regen = ad.get("preview_regenerated_at")
+            if regen and regen >= ad["photos_checked_at"]:
+                continue  # already regenerated since photos arrived
+        todo.append(l)
+
+    remaining_before = len(todo)
+    todo = todo[:limit]
+
+    regenerated = errors = 0
+    for lead in todo:
+        try:
+            preview_generator.run(lead["id"], force=True)
+            ad = lead.get("analysis_data") or {}
+            ad["preview_regenerated_at"] = datetime.now(timezone.utc).isoformat()
+            db.table("leads").update({"analysis_data": ad}).eq("id", lead["id"]).execute()
+            regenerated += 1
+        except Exception as e:
+            errors += 1
+            logger.warning(f"[regenerate-call-board] {lead.get('business_name')}: {e}")
+
+    return {
+        "regenerated": regenerated,
+        "errors": errors,
+        "remaining": max(0, remaining_before - regenerated),
+    }
+
+
 @router.get("/photo-coverage")
 async def photo_coverage():
     """How many call-board leads have real Google photos vs fallback."""
