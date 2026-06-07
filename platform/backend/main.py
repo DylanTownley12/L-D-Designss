@@ -135,6 +135,7 @@ async def root():
     return {
         "name": "L&D Designs Platform",
         "status": "running",
+        "build": "audit-proof-v1",  # deploy marker — bump to confirm a deploy landed
         "docs": "/docs",
     }
 
@@ -149,8 +150,16 @@ async def health():
 # ── Global error handler ──────────────────────────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # Dylan has no direct Railway log access — surface the real error in the
+    # response (type + message + the endpoint path) so failures are debuggable
+    # from a browser/curl. This is an internal founder tool, not a public API.
     logger.error(f"Unhandled error on {request.url}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error. Check backend logs."},
+        content={
+            "detail": "Internal server error.",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:400],
+            "path": str(request.url.path),
+        },
     )

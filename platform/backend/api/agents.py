@@ -601,12 +601,17 @@ async def all_agent_status():
     db = get_db()
     now = datetime.now(timezone.utc)
 
-    # Fetch recent logs for all backend agents (last 48h)
+    # Fetch recent logs for all backend agents (last 48h).
+    # preview_generator logs once PER preview, so a batch/regen can write hundreds
+    # of rows and push every other agent out of a flat limit-1000 window — which
+    # made the whole dashboard show agents as "idle" when they'd actually run.
+    # Fix: exclude the high-volume agent from the bulk fetch, then look it up once.
     cutoff = (now - timedelta(hours=48)).isoformat()
     logs = (
         db.table("agent_logs")
         .select("agent_name, action, status, created_at, details")
         .gte("created_at", cutoff)
+        .neq("agent_name", "preview_generator")
         .order("created_at", desc=True)
         .limit(1000)
         .execute().data or []
@@ -616,6 +621,17 @@ async def all_agent_status():
     latest: dict = {}
     for log in logs:
         latest.setdefault(log["agent_name"], log)
+
+    # preview_generator's latest, fetched separately so volume can't blind it.
+    try:
+        pg = (db.table("agent_logs")
+              .select("agent_name, action, status, created_at, details")
+              .eq("agent_name", "preview_generator")
+              .order("created_at", desc=True).limit(1).execute().data or [])
+        if pg:
+            latest["preview_generator"] = pg[0]
+    except Exception:
+        pass
 
     def _compute_status(name: str, log: dict | None) -> str:
         if log is None:
