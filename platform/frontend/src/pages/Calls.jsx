@@ -234,7 +234,7 @@ function LeadCard({ lead, onUpdate }) {
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                 }}
               >
-                <CreditCard size={12} /> Send £75 Payment Link
+                <CreditCard size={12} /> Send £175 Payment Link
               </button>
             )}
           </div>
