@@ -121,14 +121,10 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
             "next_action": _next_action(lead["status"]),
         })
 
-        # Call-ready gate
+        # Call-ready gate — only exclude if no phone number
         reason = None
         if not phone:
             reason = "no phone"
-        elif not preview_working:
-            reason = "no working preview"
-        elif quality < min_quality:
-            reason = f"low quality ({quality})"
 
         if reason and not include_all:
             row["excluded_reason"] = reason

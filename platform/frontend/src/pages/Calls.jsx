@@ -83,9 +83,11 @@ function LeadCard({ lead, onUpdate }) {
 
   const sendPaymentLink = async () => {
     try {
-      const r = await ax.post(`/payments/create-link/${lead.id}`)
-      if (r.data?.payment_url) {
-        window.open(r.data.payment_url, '_blank')
+      const r = await ax.post(`/payments/create-checkout/${lead.id}`)
+      const url = r.data?.checkout_url
+      if (url) {
+        await navigator.clipboard.writeText(url).catch(() => {})
+        window.open(url, '_blank')
       }
       await logCall('payment_link_sent')
     } catch (e) {
@@ -122,15 +124,19 @@ function LeadCard({ lead, onUpdate }) {
         </div>
 
         {/* Quick action buttons */}
-        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-          {lead.call_url && (
-            <a href={lead.call_url} style={{
-              background: `${C.green}18`, border: `1px solid ${C.green}40`, borderRadius: 8,
-              padding: '6px 12px', color: C.green, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              <Phone size={12} /> Call
-            </a>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+          {lead.phone && (
+            <button
+              onClick={() => navigator.clipboard.writeText(lead.phone).catch(() => {})}
+              title="Copy number"
+              style={{
+                background: `${C.green}18`, border: `1px solid ${C.green}40`, borderRadius: 8,
+                padding: '6px 12px', color: C.green, fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+              }}
+            >
+              <Phone size={12} /> {lead.phone}
+            </button>
           )}
           {lead.whatsapp_url && (
             <a href={lead.whatsapp_url} target="_blank" rel="noreferrer" style={{
@@ -141,7 +147,7 @@ function LeadCard({ lead, onUpdate }) {
               <MessageCircle size={12} /> WA
             </a>
           )}
-          {lead.preview_url && (
+          {lead.preview_url ? (
             <a href={lead.preview_url} target="_blank" rel="noreferrer" style={{
               background: `${C.purple}18`, border: `1px solid ${C.purple}40`, borderRadius: 8,
               padding: '6px 12px', color: C.purple, fontSize: 12, fontWeight: 600, textDecoration: 'none',
@@ -149,6 +155,14 @@ function LeadCard({ lead, onUpdate }) {
             }}>
               <ExternalLink size={12} /> Preview
             </a>
+          ) : (
+            <span style={{
+              background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: '6px 12px', color: C.textDim, fontSize: 12, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              No Preview
+            </span>
           )}
         </div>
         <div style={{ color: C.textDim, marginLeft: 8 }}>
@@ -241,7 +255,7 @@ export default function Calls() {
     setLoading(true)
     try {
       const [board, statsResp] = await Promise.all([
-        ax.get('/calls/board?limit=200'),
+        ax.get('/calls/board?limit=500'),
         ax.get('/calls/stats'),
       ])
       setLeads(board.data.leads || [])
