@@ -53,14 +53,14 @@ async def create_checkout(lead_id: str):
         if settings.STRIPE_PRICE_ID:
             session_params["line_items"] = [{"price": settings.STRIPE_PRICE_ID, "quantity": 1}]
         else:
-            # Fallback: ad-hoc £75 deposit
+            # Fallback: ad-hoc £175 deposit
             session_params["line_items"] = [{
                 "price_data": {
                     "currency": "gbp",
-                    "unit_amount": 7500,
+                    "unit_amount": 17500,
                     "product_data": {
                         "name": "Website Deposit — L&D Designs",
-                        "description": f"£75 deposit for {lead.get('business_name', 'your barber website')} — full build starts immediately",
+                        "description": f"£175 deposit for {lead.get('business_name', 'your barber website')} — full build starts immediately",
                     },
                 },
                 "quantity": 1,
