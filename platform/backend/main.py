@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 
 from api import leads, outreach, previews, dashboard, agents, webhooks, textback, payments, strategy, ops, n8n, team, calls
+# Trades lead-capture product + JARVIS operator
+from api import capture, portal, sales, jarvis, cron
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -63,6 +65,12 @@ app.include_router(ops.router,       prefix="/api")
 app.include_router(n8n.router,       prefix="/api")
 app.include_router(team.router,      prefix="/api")
 app.include_router(calls.router,     prefix="/api")
+# ── Trades lead-capture product + JARVIS ──────────────────────────────────────
+app.include_router(capture.router,   prefix="/api")   # public capture form
+app.include_router(portal.router,    prefix="/api")   # client dashboard (token-gated)
+app.include_router(sales.router,     prefix="/api")   # ops board + 5 sales agents (founder key)
+app.include_router(jarvis.router,    prefix="/api")   # POST /api/telegram + JARVIS
+app.include_router(cron.router,      prefix="/api")   # /api/cron/morning + /evening
 
 
 @app.get("/previews/serve/{preview_id}", response_class=HTMLResponse, include_in_schema=False)

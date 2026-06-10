@@ -13,6 +13,21 @@ class Settings(BaseSettings):
 
     # Anthropic (agent chat + Claude tasks)
     ANTHROPIC_API_KEY: Optional[str] = None
+    # Model used by JARVIS + the trades sales agents. Swap to "claude-fable-5"
+    # (or any new model id) here or via the Railway env var — no code change.
+    CLAUDE_MODEL: str = "claude-opus-4-8"
+
+    # JARVIS — Telegram operator bot (founders only)
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    FOUNDER_CHAT_IDS: str = ""            # comma-separated Telegram chat IDs allowed to talk to JARVIS
+    FOUNDER_D_CHAT_ID: Optional[str] = None   # Dylan's chat id (gets D's call list at 08:00)
+    FOUNDER_L_CHAT_ID: Optional[str] = None   # L's chat id (gets L's call list at 08:00)
+
+    # Internal ops board gate (founders only). Falls back to SECRET_KEY if unset.
+    OPS_KEY: Optional[str] = None
+
+    # Where the public capture form + client dashboard live (for building links)
+    FRONTEND_BASE_URL: str = "https://l-d-designss.vercel.app"
 
     # Gmail
     GMAIL_ADDRESS: str
@@ -78,6 +93,33 @@ class Settings(BaseSettings):
         if self.TEXTMAGIC_USERNAME and self.TEXTMAGIC_API_KEY:
             return True
         return bool(self.TWILIO_ACCOUNT_SID and self.TWILIO_AUTH_TOKEN and self.TWILIO_FROM_NUMBER)
+
+    # ── JARVIS / founders helpers ──────────────────────────────────────
+    @property
+    def founder_chat_id_list(self) -> list:
+        """All Telegram chat IDs permitted to use JARVIS (founders only)."""
+        ids = [c.strip() for c in (self.FOUNDER_CHAT_IDS or "").split(",") if c.strip()]
+        for extra in (self.FOUNDER_D_CHAT_ID, self.FOUNDER_L_CHAT_ID):
+            if extra and extra.strip() and extra.strip() not in ids:
+                ids.append(extra.strip())
+        return ids
+
+    def is_founder(self, chat_id) -> bool:
+        return str(chat_id) in self.founder_chat_id_list
+
+    def founder_code_for_chat(self, chat_id) -> str:
+        """Map a Telegram chat id to a founder code (D or L). Defaults to D."""
+        if self.FOUNDER_L_CHAT_ID and str(chat_id) == str(self.FOUNDER_L_CHAT_ID).strip():
+            return "L"
+        return "D"
+
+    @property
+    def ops_key_resolved(self) -> str:
+        return (self.OPS_KEY or self.SECRET_KEY or "").strip()
+
+    @property
+    def telegram_enabled(self) -> bool:
+        return bool(self.TELEGRAM_BOT_TOKEN and self.founder_chat_id_list)
 
     @property
     def sms_provider(self) -> str:

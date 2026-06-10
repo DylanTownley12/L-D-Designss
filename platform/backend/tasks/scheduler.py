@@ -340,6 +340,36 @@ async def _cleanup_old_logs():
         logger.error(f"[log_cleanup] Failed: {e}", exc_info=True)
 
 
+# ── Trades / JARVIS jobs ─────────────────────────────────────────────────────
+
+async def _trades_morning():
+    """08:00 Europe/London — Dial Manager posts each founder's ordered call list,
+    and the Revenue Reporter posts yesterday's numbers (weekly version on Monday).
+    Both go to the founders' Telegram only — no outbound to prospects/clients."""
+    try:
+        from datetime import date
+        from agents import trades
+        from utils import telegram
+        dial = trades.dial_today(post_to_telegram=True)
+        telegram.broadcast_founders(trades.revenue_report_text(weekly=(date.today().weekday() == 0)))
+        logger.info(f"[trades_morning] {dial}")
+    except Exception as e:
+        logger.error(f"[trades_morning] Failed: {e}", exc_info=True)
+
+
+async def _trades_followup():
+    """18:00 Europe/London — Follow-up agent DRAFTS chase messages (interested/called
+    prospects with no open action, trial day-7/12 check-ins, captured leads still new
+    after 24h) and posts the batch to Telegram for the founder to copy & send.
+    Drafts only — never sends to anyone."""
+    try:
+        from agents import trades
+        result = trades.followup_run(post_to_telegram=True)
+        logger.info(f"[trades_followup] {result.get('count', 0)} draft(s)")
+    except Exception as e:
+        logger.error(f"[trades_followup] Failed: {e}", exc_info=True)
+
+
 # ── Scheduler setup ──────────────────────────────────────────────────────────
 
 def start_scheduler():
@@ -422,6 +452,15 @@ def start_scheduler():
     # 3:30am — Delete agent_logs older than 30 days
     scheduler.add_job(**job(_cleanup_old_logs, guard=False, id="log_cleanup",
         trigger=CronTrigger(hour=3, minute=30, timezone=TZ)))
+
+    # ── TRADES / JARVIS (Europe/London) ──────────────────────────────────────
+    # 8:00am — Dial Manager call lists + Revenue Reporter → founders' Telegram
+    scheduler.add_job(**job(_trades_morning, guard=False, id="trades_morning",
+        trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
+
+    # 6:00pm — Follow-up agent drafts → founders' Telegram (drafts only)
+    scheduler.add_job(**job(_trades_followup, guard=False, id="trades_followup",
+        trigger=CronTrigger(hour=18, minute=0, timezone=TZ)))
 
     scheduler.start()
     logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst, 3:30am cleanup | morning: 5:55am health, 6am leads, 6:05am enricher, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude, 11:30am preview-refresh | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")

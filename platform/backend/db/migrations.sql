@@ -331,3 +331,102 @@ ALTER TABLE leads ADD CONSTRAINT leads_status_check
         'called','follow_up_required','payment_link_sent',
         'converted','not_interested','do_not_contact'
     ));
+
+-- ══════════════════════════════════════════════
+-- MIGRATION: Trades Lead-Capture Product + JARVIS OS (2026-06-10)
+--   • Missed-call/text-back + capture form for trade CLIENTS
+--   • The trades SALES pipeline (prospects we sell to)
+--   • The JARVIS Telegram operator log (with undo)
+-- Idempotent — safe to re-run. Paste into Supabase SQL Editor → Run.
+-- ══════════════════════════════════════════════
+
+-- ── textback_clients: SaaS trial / plan / portal tokens ───────────────
+-- textback_clients already exists; these add the subscription lifecycle.
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS town             TEXT;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS owner_phone      TEXT;        -- client's own mobile
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS plan_status      TEXT DEFAULT 'trial';
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS trial_start      DATE DEFAULT CURRENT_DATE;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS trial_end        DATE DEFAULT (CURRENT_DATE + 14);
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS converted_at     TIMESTAMPTZ;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS dashboard_token  TEXT;        -- unguessable; client dashboard URL
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS capture_token    TEXT;        -- unguessable; public capture-form URL
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS notify_homeowner BOOLEAN DEFAULT FALSE;  -- opt-in confirmation SMS to caller
+ALTER TABLE textback_clients DROP CONSTRAINT IF EXISTS textback_clients_plan_status_check;
+ALTER TABLE textback_clients ADD CONSTRAINT textback_clients_plan_status_check
+    CHECK (plan_status IN ('trial','paying','churned','cancelled'));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_textback_clients_dashtoken ON textback_clients(dashboard_token) WHERE dashboard_token IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_textback_clients_captoken  ON textback_clients(capture_token)   WHERE capture_token   IS NOT NULL;
+
+-- ── captured_leads: homeowner enquiries we capture FOR a client ───────
+-- The product output the client sees on their dashboard. NOT the barber
+-- `leads` table (that is the barber sales pipeline) — do not confuse them.
+CREATE TABLE IF NOT EXISTS captured_leads (
+    id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id       UUID REFERENCES textback_clients(id) ON DELETE CASCADE,
+    name            TEXT,
+    phone           TEXT NOT NULL,
+    postcode        TEXT,
+    job_description TEXT,
+    source          TEXT DEFAULT 'form'    CHECK (source IN ('form','missed_call','manual')),
+    status          TEXT DEFAULT 'new'     CHECK (status IN ('new','contacted','quoted','won','lost')),
+    value_gbp       NUMERIC(10,2),
+    notified        BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_captured_leads_client ON captured_leads(client_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_captured_leads_status ON captured_leads(status);
+
+-- ── prospects: trade businesses WE are selling the service to ─────────
+CREATE TABLE IF NOT EXISTS prospects (
+    id                  UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    business_name       TEXT NOT NULL,
+    phone               TEXT,
+    phone_norm          TEXT,            -- last-9-digit normalised form, for dedupe
+    town                TEXT,
+    trade               TEXT DEFAULT 'plumber',
+    status              TEXT DEFAULT 'to_call'
+                        CHECK (status IN ('to_call','called','demo_booked','interested','not_interested','won','lost')),
+    assigned_to         TEXT CHECK (assigned_to IN ('D','L')),
+    call_notes          TEXT,
+    has_mobile          BOOLEAN DEFAULT FALSE,
+    is_emergency_trade  BOOLEAN DEFAULT FALSE,
+    proximity_score     INTEGER DEFAULT 0,
+    rank_score          INTEGER DEFAULT 0,
+    source              TEXT DEFAULT 'manual',
+    last_called_at      TIMESTAMPTZ,
+    demo_at             TIMESTAMPTZ,
+    converted_client_id UUID REFERENCES textback_clients(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_prospects_status     ON prospects(status);
+CREATE INDEX IF NOT EXISTS idx_prospects_assigned   ON prospects(assigned_to, status);
+CREATE INDEX IF NOT EXISTS idx_prospects_rank       ON prospects(rank_score DESC);
+CREATE INDEX IF NOT EXISTS idx_prospects_phone_norm ON prospects(phone_norm);
+
+-- ── next_actions: scheduled follow-ups on a prospect ─────────────────
+CREATE TABLE IF NOT EXISTS next_actions (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    prospect_id UUID REFERENCES prospects(id) ON DELETE CASCADE,
+    action      TEXT NOT NULL,
+    due_date    DATE,
+    done        BOOLEAN DEFAULT FALSE,
+    done_at     TIMESTAMPTZ,
+    created_by  TEXT,                    -- 'jarvis' | 'followup_agent' | founder
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_next_actions_prospect ON next_actions(prospect_id);
+CREATE INDEX IF NOT EXISTS idx_next_actions_due      ON next_actions(due_date) WHERE done = FALSE;
+
+-- ── jarvis_log: every Telegram turn (supports "undo") ────────────────
+CREATE TABLE IF NOT EXISTS jarvis_log (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    chat_id     TEXT,
+    direction   TEXT,                    -- 'in' (founder→JARVIS) | 'out' (JARVIS→founder)
+    message     TEXT,
+    tool_calls  JSONB,
+    prev_state  JSONB,                   -- snapshot before a write, for undo
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_jarvis_log_chat ON jarvis_log(chat_id, created_at DESC);

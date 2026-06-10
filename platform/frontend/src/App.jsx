@@ -8,11 +8,18 @@ import Agents from './pages/Agents'
 import Command from './pages/Command'
 import Hub from './pages/Hub'
 import Calls from './pages/Calls'
+import Ops from './pages/Ops'
+import Capture from './pages/Capture'
+import ClientDashboard from './pages/ClientDashboard'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public, token-gated pages — no dashboard chrome */}
+        <Route path="/capture/:token" element={<Capture />} />
+        <Route path="/d/:token" element={<ClientDashboard />} />
+
         {/* Dashboard app */}
         <Route path="*" element={
           <div className="flex h-screen overflow-hidden bg-dark">
@@ -29,6 +36,7 @@ export default function App() {
                 <Route path="/command" element={<Command />} />
                 <Route path="/hub" element={<Hub />} />
                 <Route path="/agents" element={<Agents />} />
+                <Route path="/ops" element={<Ops />} />
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/calls" element={<Calls />} />
                 <Route path="/outreach" element={<Outreach />} />

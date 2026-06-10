@@ -74,6 +74,16 @@ def handle_missed_call(client_id: str, caller_number: str) -> dict:
             "last_textback_at": datetime.now().isoformat(),
         }).eq("id", client_id).execute()
 
+    # Record it as a captured lead too — so the missed call shows on the client's
+    # dashboard, counts toward their trial, and pings the founders on Telegram.
+    # (source != 'form', so this never re-texts the caller — the text-back above is
+    # the only message they get.) Never let this break the text-back itself.
+    try:
+        from agents import lead_capture
+        lead_capture.record_lead(client_id, caller_number, source="missed_call")
+    except Exception as e:
+        logger.warning(f"[textback] captured_lead record failed (non-critical): {e}")
+
     duration_ms = int((datetime.now() - start).total_seconds() * 1000)
     logger.info(
         f"Textback {'sent' if result['success'] else 'FAILED'} for client {client.get('business_name')} "

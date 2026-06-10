@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta, timezone
@@ -735,3 +735,26 @@ async def all_agent_status():
         "total": len(all_agents),
         "checked_at": now.isoformat(),
     }
+
+
+# ── Lead Scout alias (trades sales pipeline) ──────────────────────────
+# The brief names this endpoint explicitly: POST /api/agents/scout.
+# Delegates to the trades Lead Scout (build + rank + dedupe; contacts nobody).
+# Founders only — pass the ops key as body.key or the X-Ops-Key header.
+class ScoutRequest(BaseModel):
+    pasted_text: Optional[str] = None
+    entries: Optional[list] = None
+    town: Optional[str] = None
+    trade: Optional[str] = None
+    key: Optional[str] = None
+
+
+@router.post("/scout")
+def agents_scout(body: ScoutRequest, x_ops_key: Optional[str] = Header(default=None)):
+    from config import settings
+    from agents import trades
+    expected = settings.ops_key_resolved
+    if not expected or (body.key or x_ops_key) != expected:
+        raise HTTPException(status_code=401, detail="Invalid ops key")
+    return trades.scout(entries=body.entries, pasted_text=body.pasted_text,
+                        town=body.town, trade=body.trade, source="agents_scout")

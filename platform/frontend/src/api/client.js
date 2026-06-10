@@ -132,4 +132,39 @@ export const strategy = {
   runBrief: () => api.post('/strategy/brief/run'),
 }
 
+// ── Trades lead-capture product ───────────────────────────────────────
+// Public, token-gated capture form (homeowner-facing).
+export const capture = {
+  info: (token) => api.get(`/capture/${token}`),
+  submit: (token, data) => api.post(`/capture/${token}`, data),
+}
+
+// Public, token-gated client dashboard (trade client sees their leads).
+export const portal = {
+  dashboard: (token) => api.get(`/portal/${token}`),
+  setLeadStatus: (token, leadId, status) =>
+    api.post(`/portal/${token}/leads/${leadId}/status`, { status }),
+}
+
+// Internal Ops Board + the 5 sales agents (founders only — ops key).
+export const salesOps = {
+  board: (key) => api.get('/sales/board', { params: { key } }),
+  prospects: (key, params = {}) => api.get('/sales/prospects', { params: { ...params, key } }),
+  scout: (key, body) => api.post('/sales/scout', body, { params: { key } }),
+  addProspect: (key, body) => api.post('/sales/prospects', body, { params: { key } }),
+  log: (key, id, body) => api.post(`/sales/prospects/${id}/log`, body, { params: { key } }),
+  prep: (key, id) => api.post(`/sales/prospects/${id}/prep`, null, { params: { key } }),
+  convert: (key, id, body = {}) => api.post(`/sales/prospects/${id}/convert`, body, { params: { key } }),
+  createClient: (key, body) => api.post('/sales/clients', body, { params: { key } }),
+  report: (key, weekly = false) => api.get('/sales/report', { params: { key, weekly } }),
+  dialToday: (key) => api.post('/sales/dial-today', null, { params: { key } }),
+  followup: (key) => api.post('/sales/followup', null, { params: { key } }),
+}
+
+// Manual triggers for the 08:00 / 18:00 cron jobs.
+export const cron = {
+  morning: (key) => api.post('/cron/morning', null, { params: { key } }),
+  evening: (key) => api.post('/cron/evening', null, { params: { key } }),
+}
+
 export default api
