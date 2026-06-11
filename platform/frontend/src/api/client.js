@@ -159,6 +159,9 @@ export const salesOps = {
   report: (key, weekly = false) => api.get('/sales/report', { params: { key, weekly } }),
   dialToday: (key) => api.post('/sales/dial-today', null, { params: { key } }),
   followup: (key) => api.post('/sales/followup', null, { params: { key } }),
+  seedDemo: (key) => api.post('/sales/seed-demo', null, { params: { key } }),
+  // Browser-facing JARVIS brain (same answers as the Telegram bot).
+  command: (key, text, founder = 'D') => api.post('/jarvis/command', { text, founder }, { params: { key } }),
 }
 
 // Manual triggers for the 08:00 / 18:00 cron jobs.

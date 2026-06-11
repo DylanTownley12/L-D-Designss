@@ -9,6 +9,7 @@ import Command from './pages/Command'
 import Hub from './pages/Hub'
 import Calls from './pages/Calls'
 import Ops from './pages/Ops'
+import Jarvis from './pages/Jarvis'
 import Capture from './pages/Capture'
 import ClientDashboard from './pages/ClientDashboard'
 
@@ -16,6 +17,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Standalone full-screen JARVIS OS — no dashboard chrome */}
+        <Route path="/jarvis" element={<Jarvis />} />
+
         {/* Public, token-gated pages — no dashboard chrome */}
         <Route path="/capture/:token" element={<Capture />} />
         <Route path="/d/:token" element={<ClientDashboard />} />

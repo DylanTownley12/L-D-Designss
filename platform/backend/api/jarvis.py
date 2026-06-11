@@ -23,6 +23,7 @@ import logging
 
 from fastapi import APIRouter, Request, Header, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 from typing import Optional
 
 from config import settings
@@ -227,9 +228,9 @@ def _raw_dump(text: str, ctx: dict, founder_code: str) -> str:
 
 
 # ── Core message handler ──────────────────────────────────────────────
-def handle_message(chat_id, text: str) -> str:
+def handle_message(chat_id, text: str, founder_override: str = None) -> str:
     db = get_db()
-    founder_code = settings.founder_code_for_chat(chat_id)
+    founder_code = (founder_override or settings.founder_code_for_chat(chat_id))
 
     # Log inbound.
     try:
@@ -380,6 +381,36 @@ async def set_webhook(url: Optional[str] = Query(default=None),
         raise HTTPException(status_code=401, detail="Invalid ops key")
     target = url or "https://l-d-designss-production.up.railway.app/api/telegram"
     return telegram.set_webhook(target)
+
+
+# ── Browser-facing JARVIS (the /jarvis OS page) ───────────────────────
+class CommandBody(BaseModel):
+    text: str
+    founder: Optional[str] = None     # "D" or "L" — who is at the console
+
+
+@router.post("/jarvis/command")
+async def jarvis_command(body: CommandBody,
+                         key: Optional[str] = Query(default=None),
+                         x_ops_key: Optional[str] = Header(default=None)):
+    """Run JARVIS from the browser — same brain as Telegram, no Telegram needed.
+
+    Gated by the ops key (not the Telegram allowlist). The console acts as the
+    chosen founder; undo history is scoped to a per-founder web chat id so it
+    never collides with the Telegram thread."""
+    expected = settings.ops_key_resolved
+    if not expected:
+        raise HTTPException(status_code=503, detail="OPS_KEY/SECRET_KEY not configured on the server")
+    if (key or x_ops_key) != expected:
+        raise HTTPException(status_code=401, detail="Invalid ops key")
+    if not (body.text or "").strip():
+        return {"ok": True, "reply": "Say something.", "founder": "D"}
+
+    founder = (body.founder or "D").upper()
+    if founder not in ("D", "L"):
+        founder = "D"
+    reply = await run_in_threadpool(handle_message, f"web-{founder}", body.text, founder)
+    return {"ok": True, "reply": reply, "founder": founder, "model": settings.CLAUDE_MODEL}
 
 
 @router.get("/jarvis/ping")

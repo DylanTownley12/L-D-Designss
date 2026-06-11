@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { agents as agentsApi, team as teamApi } from '../api/client'
-import { Zap, Network, Users, Database, Crosshair, Globe, Settings, Phone, Briefcase } from 'lucide-react'
+import { Zap, Network, Users, Database, Crosshair, Globe, Settings, Phone, Briefcase, Cpu } from 'lucide-react'
 
 const nav = [
+  { to: '/jarvis',   Icon: Cpu,       label: 'JARVIS',   highlight: true },
   { to: '/command',  Icon: Zap,       label: 'DO NEXT',  highlight: true,  badge: 'action' },
   { to: '/calls',    Icon: Phone,     label: 'CALLS',    highlight: true },
   { to: '/ops',      Icon: Briefcase, label: 'OPS',      highlight: true },

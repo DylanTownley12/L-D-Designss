@@ -179,3 +179,91 @@ async def create_client(body: ClientBody, _=Depends(require_ops_key)):
         "dashboard_url": f"{base}/d/{dash}",
         "missed_call_webhook": f"https://l-d-designss-production.up.railway.app/api/textback/webhook/missed-call/{cid}",
     }
+
+
+# ── One-click demo seed (founders only) ───────────────────────────────
+# Phone numbers use Ofcom's reserved FICTION ranges (07700 900xxx mobiles,
+# 01632 960xxx landlines) so a live demo tap-to-call never rings a real person.
+# Replace with genuine scouted numbers before doing real outreach.
+_DEMO_PROSPECTS = [
+    {"business_name": "Wigan Rapid Plumbing",      "phone": "07700 900118", "town": "Wigan",                "trade": "plumber"},
+    {"business_name": "Standish Heating Solutions","phone": "07700 900245", "town": "Standish",             "trade": "heating engineer"},
+    {"business_name": "Pemberton Gas & Boilers",   "phone": "07700 900372", "town": "Pemberton",            "trade": "gas engineer"},
+    {"business_name": "Orrell Drains & Plumbing",  "phone": "07700 900591", "town": "Orrell",               "trade": "drainage"},
+    {"business_name": "Hindley Emergency Plumbers","phone": "07700 900614", "town": "Hindley",              "trade": "plumber"},
+    {"business_name": "Ashton Boiler Care",        "phone": "07700 900733", "town": "Ashton-in-Makerfield", "trade": "heating engineer"},
+    {"business_name": "Leigh Gas Services",        "phone": "07700 900857", "town": "Leigh",                "trade": "gas engineer"},
+    {"business_name": "Atherton Plumb & Heat",     "phone": "07700 900926", "town": "Atherton",             "trade": "plumber"},
+    {"business_name": "Bolton Boiler Doctor",      "phone": "07700 900164", "town": "Bolton",               "trade": "heating engineer"},
+    {"business_name": "St Helens 24hr Plumbing",   "phone": "07700 900283", "town": "St Helens",            "trade": "plumber"},
+    {"business_name": "Warrington Heating Co",     "phone": "07700 900405", "town": "Warrington",           "trade": "heating engineer"},
+    {"business_name": "Skelmersdale Plumbers",     "phone": "07700 900528", "town": "Skelmersdale",         "trade": "plumber"},
+    {"business_name": "Wigan Electrical NW",       "phone": "07700 900649", "town": "Wigan",                "trade": "electrician"},
+    {"business_name": "Bryn Gas Engineers",        "phone": "07700 900760", "town": "Bryn",                 "trade": "gas engineer"},
+    {"business_name": "Shevington Plumbing",       "phone": "07700 900881", "town": "Shevington",           "trade": "plumber"},
+    {"business_name": "Tyldesley Boiler Repairs",  "phone": "07700 900192", "town": "Tyldesley",            "trade": "heating engineer"},
+    {"business_name": "Golborne Drainage",         "phone": "07700 900317", "town": "Golborne",             "trade": "drainage"},
+    {"business_name": "Ince Plumbing Services",    "phone": "07700 900438", "town": "Ince",                 "trade": "plumber"},
+    {"business_name": "Aspull Heating Ltd",        "phone": "07700 900556", "town": "Aspull",               "trade": "heating engineer"},
+    {"business_name": "Newton Gas Care",           "phone": "07700 900677", "town": "Newton-le-Willows",    "trade": "gas engineer"},
+    {"business_name": "Billinge Plumbers",         "phone": "07700 900798", "town": "Billinge",             "trade": "plumber"},
+    {"business_name": "Up Holland Boiler Services","phone": "07700 900819", "town": "Up Holland",           "trade": "heating engineer"},
+    {"business_name": "Wigan North Electrical",    "phone": "07700 900930", "town": "Wigan",                "trade": "electrician"},
+    {"business_name": "Lowton Plumb Pro",          "phone": "07700 900151", "town": "Lowton",               "trade": "plumber"},
+    {"business_name": "Platt Bridge Gas",          "phone": "07700 900262", "town": "Platt Bridge",         "trade": "gas engineer"},
+    {"business_name": "Marus Bridge Heating",      "phone": "07700 900384", "town": "Marus Bridge",         "trade": "heating engineer"},
+    {"business_name": "Abram Drain Care",          "phone": "07700 900495", "town": "Abram",                "trade": "drainage"},
+    {"business_name": "Worsley Hall Plumbing",     "phone": "01632 960517", "town": "Wigan",                "trade": "plumber"},
+    {"business_name": "Beech Hill Boilers",        "phone": "01632 960638", "town": "Wigan",                "trade": "heating engineer"},
+    {"business_name": "Hawkley Gas & Plumbing",    "phone": "01632 960749", "town": "Wigan",                "trade": "gas engineer"},
+]
+_DEMO_CLIENT_NAME = "Wigan Rapid Plumbing (DEMO)"
+
+
+@router.post("/seed-demo")
+async def seed_demo(_=Depends(require_ops_key)):
+    """Populate the dial list with 30 realistic local prospects (deduped, ranked,
+    split D/L by the real Scout) and provision one demo client with a live capture
+    token — so the board + a sales demo are ready instantly. Safe to run twice:
+    prospects dedupe by phone, the demo client is reused if it already exists."""
+    import secrets
+    from datetime import date, timedelta
+    db = get_db()
+
+    scout_res = trades.scout(entries=[dict(p) for p in _DEMO_PROSPECTS], source="seed_demo")
+
+    # Demo client — reuse if present so repeat seeds don't pile up duplicates.
+    existing = (db.table("textback_clients").select("*")
+                .eq("business_name", _DEMO_CLIENT_NAME).limit(1).execute().data or [])
+    if existing:
+        c = existing[0]
+        cid = c.get("id")
+        cap = c.get("capture_token") or secrets.token_urlsafe(12)
+        dash = c.get("dashboard_token") or secrets.token_urlsafe(12)
+        if not c.get("capture_token") or not c.get("dashboard_token"):
+            db.table("textback_clients").update(
+                {"capture_token": cap, "dashboard_token": dash}).eq("id", cid).execute()
+    else:
+        cap, dash = secrets.token_urlsafe(12), secrets.token_urlsafe(12)
+        rec = {
+            "business_name": _DEMO_CLIENT_NAME, "owner_name": "Demo Owner",
+            "phone": "07700 900000", "owner_phone": "07700 900000",
+            "trade": "plumber", "town": "Wigan", "active": True, "monthly_fee": 49.0,
+            "plan_status": "trial", "trial_start": date.today().isoformat(),
+            "trial_end": (date.today() + timedelta(days=14)).isoformat(),
+            "dashboard_token": dash, "capture_token": cap, "total_textbacks_sent": 0,
+        }
+        res = db.table("textback_clients").insert(rec).execute()
+        cid = res.data[0]["id"] if res.data else None
+
+    base = settings.FRONTEND_BASE_URL.rstrip("/")
+    return {
+        "ok": True,
+        "prospects": scout_res,
+        "demo_client": {
+            "client_id": cid, "business_name": _DEMO_CLIENT_NAME,
+            "capture_url": f"{base}/capture/{cap}",
+            "dashboard_url": f"{base}/d/{dash}",
+            "missed_call_webhook": f"https://l-d-designss-production.up.railway.app/api/textback/webhook/missed-call/{cid}",
+        },
+    }
