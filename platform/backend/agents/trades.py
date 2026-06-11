@@ -660,15 +660,16 @@ def build_call_list(founder: str, limit: int = 50, mode: str = REAL) -> list:
                           "due_date": act.get("due_date"), "priority": 0})
 
     # 2) Queue-ready uncalled prospects, highest OPPORTUNITY score first.
+    # Filter queue_ready in Python (robust to NULL/False/bool-encoding quirks).
     try:
         uncalled = (db.table("prospects").select("*")
                     .eq("assigned_to", founder).eq("status", "to_call")
-                    .eq("data_mode", mode).eq("queue_ready", True)
-                    .limit(500).execute().data or [])
+                    .eq("data_mode", mode).limit(500).execute().data or [])
     except Exception:
         uncalled = (db.table("prospects").select("*")
                     .eq("assigned_to", founder).eq("status", "to_call")
                     .limit(500).execute().data or [])
+    uncalled = [p for p in uncalled if p.get("queue_ready") is True]
     uncalled.sort(key=effective_score, reverse=True)
     for p in uncalled:
         if p["id"] in seen:

@@ -30,12 +30,21 @@ class _QueryBuilder:
         self._count = count
         return self
 
+    @staticmethod
+    def _fmt(value: Any) -> Any:
+        # PostgREST wants lowercase true/false for booleans; Python's str(True) is
+        # "True" which casts but is non-canonical — normalise so boolean filters
+        # are unambiguous everywhere.
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return value
+
     def eq(self, column: str, value: Any):
-        self._filters.append((column, f"eq.{value}"))
+        self._filters.append((column, f"eq.{self._fmt(value)}"))
         return self
 
     def neq(self, column: str, value: Any):
-        self._filters.append((column, f"neq.{value}"))
+        self._filters.append((column, f"neq.{self._fmt(value)}"))
         return self
 
     def ilike(self, column: str, pattern: str):

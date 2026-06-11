@@ -161,10 +161,12 @@ async def ops_board(mode: str = "real", _=Depends(require_ops_key)):
                 nm = name_cache[pid]
             lead["client_name"] = nm
 
-        # NEEDS DATA bucket — qualified-out prospects (never in a queue).
+        # NEEDS DATA bucket — qualified-out prospects (never in a queue). Filter
+        # queue_ready in Python so NULL/False/bool-encoding all count as "not ready".
         needs = [p for p in (db.table("prospects").select("*").eq("data_mode", mode)
-                             .eq("queue_ready", False).limit(300).execute().data or [])
-                 if p.get("status") not in ("won", "lost", "not_interested")][:100]
+                             .limit(500).execute().data or [])
+                 if not p.get("queue_ready")
+                 and p.get("status") not in ("won", "lost", "not_interested")][:100]
 
         funnel = trades.compute_funnel(mode=mode)
         return {
@@ -604,11 +606,15 @@ def seed_demo_data() -> dict:
         scout_res = trades.scout(entries=entries, source="seed_demo", data_mode="demo")
         # Belt-and-braces: flag is_seed too (back-compat) — data_mode='demo' is authoritative.
         db.table("prospects").update({"is_seed": True}).eq("source", "seed_demo").execute()
-        # website_quality isn't a scout column, so set it directly, then requalify.
+        # Set website_status + quality directly on every demo prospect (covers rows that
+        # were dupes on re-seed, so they still qualify), then requalify into the queues.
         for e in entries:
+            upd = {"website_status": e.get("website_status") or "none",
+                   "website_status_source": "seed"}
             if e.get("website_quality"):
-                db.table("prospects").update({"website_quality": e["website_quality"]}) \
-                    .eq("business_name", e["business_name"]).eq("data_mode", "demo").execute()
+                upd["website_quality"] = e["website_quality"]
+            db.table("prospects").update(upd) \
+                .eq("business_name", e["business_name"]).eq("data_mode", "demo").execute()
         trades.requalify_all(mode="demo")
     except Exception as e:
         logger.error(f"[sales/seed-demo] scout failed — migration not run? {e}", exc_info=True)
