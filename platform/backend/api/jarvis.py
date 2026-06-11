@@ -104,9 +104,29 @@ TOOLS = [
         "and provision their capture form + dashboard links.",
      "input_schema": {"type": "object", "properties": {
          "prospect": {"type": "string"}, "monthly_fee": {"type": "number"}}, "required": ["prospect"]}},
-    {"name": "run_agent", "description": "Run one agent now: 'dial_manager' (build call lists), "
-        "'followup' (draft chases), or 'reporter' (revenue report).",
+    {"name": "run_agent", "description": "Run one agent now: 'dial_manager'/Lead Prioritiser (build "
+        "call lists), 'followup'/Follow-Up (draft chases), or 'reporter'/Revenue Analyst (numbers).",
      "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "create_task", "description": "Add a general to-do for a founder.",
+     "input_schema": {"type": "object", "properties": {
+         "title": {"type": "string"}, "owner": {"type": "string", "enum": ["D", "L"]},
+         "due_date": {"type": "string"}}, "required": ["title"]}},
+    {"name": "mark_task_done", "description": "Mark a task done (fuzzy title or id).",
+     "input_schema": {"type": "object", "properties": {"task": {"type": "string"}}, "required": ["task"]}},
+    {"name": "get_hot_prospects", "description": "Hottest prospects (interested / demo_booked).",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "get_overdue_followups", "description": "Follow-ups that are due or overdue.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "summarize_day", "description": "Short summary of today's progress.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "find_risks", "description": "What's blocking revenue (churn, overdue, empty list, £0 MRR).",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "update_lead_status", "description": "Set a captured lead's status.",
+     "input_schema": {"type": "object", "properties": {
+         "lead_id": {"type": "string"}, "status": {"type": "string"}}, "required": ["lead_id", "status"]}},
+    {"name": "wipe_seed", "description": "Delete ALL demo/seed rows. Requires confirm=true. Only when "
+        "explicitly asked to clear demo data before real calling.",
+     "input_schema": {"type": "object", "properties": {"confirm": {"type": "boolean"}}, "required": ["confirm"]}},
 ]
 
 
@@ -250,6 +270,27 @@ def _run_tool(name: str, args: dict, founder_code: str = "D"):
         if name == "run_agent":
             return trades.run_agent(args.get("name"), post_to_telegram=settings.telegram_enabled).get(
                 "message", "Ran."), None
+        if name == "create_task":
+            r = trades.create_task(args.get("title"), args.get("owner"), due_date=args.get("due_date"))
+            return r.get("message", "Task added."), r.get("_undo")
+        if name == "mark_task_done":
+            r = trades.mark_task_done(args.get("task"))
+            return r.get("message", "Done."), r.get("_undo")
+        if name == "get_hot_prospects":
+            return trades.hot_prospects_text(), None
+        if name == "get_overdue_followups":
+            return trades.overdue_followups_text(), None
+        if name == "summarize_day":
+            return trades.summarize_day(), None
+        if name == "find_risks":
+            return trades.find_risks(), None
+        if name == "update_lead_status":
+            r = trades.update_lead_status(args.get("lead_id"), args.get("status"))
+            return r.get("message", "Updated."), r.get("_undo")
+        if name == "wipe_seed":
+            if not args.get("confirm"):
+                return "Refused — wipe_seed needs confirm=true (say 'wipe seed data confirm').", None
+            return trades.wipe_seed().get("message", "Wiped."), None
     except Exception as e:
         logger.error(f"[jarvis] tool {name} failed: {e}", exc_info=True)
         return f"⚠️ {name} failed: {e}", None
@@ -307,13 +348,23 @@ def _raw_dump(text: str, ctx: dict, founder_code: str) -> str:
             r = trades.add_prospect(parts[0], parts[1] if len(parts) > 1 else None,
                                     parts[2] if len(parts) > 2 else None)
             return f"{_TAG}\n{r.get('message')}"
+        if "wipe seed" in low and "confirm" in low:
+            return f"{_TAG}\n{trades.wipe_seed().get('message')}"
         if any(k in low for k in ("status", "report", "revenue", "numbers", "mrr", "how are we")):
             return f"{_TAG}\n{trades.revenue_report_text(weekly=('week' in low))}"
         if any(k in low for k in ("pipeline", "funnel")):
             return f"{_TAG}\n{_fmt_pipeline()}"
+        if any(k in low for k in ("blocking", "blocker", "risk")):
+            return f"{_TAG}\n{trades.find_risks()}"
+        if any(k in low for k in ("hottest", "hot prospect", "hot lead")):
+            return f"{_TAG}\n{trades.hot_prospects_text()}"
+        if any(k in low for k in ("overdue", "follow-ups due", "followups due", "follow ups due")):
+            return f"{_TAG}\n{trades.overdue_followups_text()}"
+        if any(k in low for k in ("summar", "what happened", "progress today", "today's progress")):
+            return f"{_TAG}\n{trades.summarize_day()}"
         if any(k in low for k in ("trial", "churn")):
             return f"{_TAG}\n{trades.trial_check()['message']}"
-        if any(k in low for k in ("who's next", "whos next", "next up", "next call")):
+        if any(k in low for k in ("who's next", "whos next", "next up", "next call", "what should")):
             return f"{_TAG}\n{trades.whos_next(f).get('message')}"
         if any(k in low for k in ("today", "call list", "my calls", "dial", "next")):
             return f"{_TAG}\n{trades.format_call_list(f, trades.build_call_list(f))}"
@@ -349,6 +400,12 @@ def handle_message(chat_id, text: str, founder_override: str = None) -> str:
 
     # 3) ONE Claude call with tools.
     reply, tool_calls, last_undo = _claude_turn(text, ctx, founder_code)
+
+    # 3b) Log recommendation-type questions to the decisions table.
+    if any(k in text.lower() for k in ("what should", "who's next", "whos next", "hottest",
+                                       "hot prospect", "blocking", "improve", "summari",
+                                       "recommend", "what now", "what next")):
+        trades.log_decision(founder_code, text, reply)
 
     # 4) Send + log.
     _log_out(chat_id, reply, tool_calls=tool_calls, prev_state=last_undo)

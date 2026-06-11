@@ -101,6 +101,7 @@ async def ops_board(_=Depends(require_ops_key)):
             "calls": {"D": trades.build_call_list("D"), "L": trades.build_call_list("L")},
             "report": report,
             "recent_leads": recent,
+            "tasks": trades.list_tasks(),
         }
     except Exception as e:
         logger.error(f"[sales/board] data load failed — migration not run? {e}", exc_info=True)
@@ -163,12 +164,43 @@ async def agent_events(limit: int = 40, agent: Optional[str] = None, _=Depends(r
 
 @router.post("/run-agent")
 async def run_agent(agent: str = Query(...), post: bool = True, _=Depends(require_ops_key)):
-    """Fire one no-arg agent on demand (Dial Manager / Follow-up / Reporter)."""
+    """Fire one no-arg agent on demand (Lead Prioritiser / Follow-Up / Revenue Analyst)."""
     try:
         return trades.run_agent(agent, post_to_telegram=post)
     except Exception as e:
         logger.error(f"[sales/run-agent {agent}] {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Couldn't run {agent} — is the migration applied?")
+
+
+# ── Tasks (tick-to-done panel) ────────────────────────────────────────
+@router.get("/tasks")
+async def list_tasks(owner: Optional[str] = None, _=Depends(require_ops_key)):
+    try:
+        return {"tasks": trades.list_tasks(owner=owner)}
+    except Exception:
+        return {"tasks": [], "setup_needed": True}
+
+
+@router.post("/tasks")
+async def add_task(title: str = Query(...), owner: Optional[str] = None,
+                   due_date: Optional[str] = None, _=Depends(require_ops_key)):
+    return trades.create_task(title, owner=owner, due_date=due_date, created_by="founder")
+
+
+@router.post("/tasks/{task_id}/done")
+async def complete_task(task_id: str, _=Depends(require_ops_key)):
+    return trades.mark_task_done(task_id)
+
+
+# ── Wipe seed (pre-call hygiene — deletes ONLY is_seed rows) ───────────
+@router.post("/wipe-seed")
+async def wipe_seed(_=Depends(require_ops_key)):
+    """Delete every demo/seed row so real calling isn't polluted. Real data untouched."""
+    try:
+        return trades.wipe_seed()
+    except Exception as e:
+        logger.error(f"[sales/wipe-seed] {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Couldn't wipe — is the migration applied?")
 
 
 # ── Prospect controls used by the board ───────────────────────────────
@@ -251,7 +283,7 @@ _DEMO_PROSPECTS = [
     {"business_name": "Beech Hill Boilers",        "phone": "01632 960638", "town": "Wigan",                "trade": "heating engineer"},
     {"business_name": "Hawkley Gas & Plumbing",    "phone": "01632 960749", "town": "Wigan",                "trade": "gas engineer"},
 ]
-_DEMO_CLIENT_NAME = "Wigan Rapid Plumbing (DEMO)"
+_DEMO_CLIENT_NAME = "Demo Plumbing Co"
 
 # A few prospects get realistic state so the queues, notes and follow-up agent
 # all have something to chew on. (status, call_notes, due-today next action?)
@@ -270,7 +302,7 @@ def _seed_enrichment(db, demo_client_id) -> dict:
     from datetime import datetime, timezone, timedelta, date
     now = datetime.now(timezone.utc)
     today = date.today().isoformat()
-    out = {"notes": 0, "next_actions": 0, "captured_leads": 0}
+    out = {"notes": 0, "next_actions": 0, "captured_leads": 0, "tasks": 0}
 
     for name, (status, note, due_today) in _DEMO_NOTES.items():
         rows = db.table("prospects").select("*").eq("business_name", name).limit(1).execute().data or []
@@ -300,21 +332,44 @@ def _seed_enrichment(db, demo_client_id) -> dict:
         if have < 3:
             samples = [
                 {"name": "Sarah Whitfield", "phone": "07700 900512", "postcode": "WN1 2AB",
+                 "job_type": "boiler", "urgency": "today",
                  "job_description": "Boiler banging and no hot water since this morning", "source": "missed_call",
-                 "status": "new", "created_at": (now - timedelta(hours=2)).isoformat()},
+                 "status": "new", "created_at": (now - timedelta(hours=2)).isoformat(),
+                 "photo_urls": ["https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=600"]},
                 {"name": "Tom Halliwell", "phone": "07700 900643", "postcode": "WN3 5RT",
-                 "job_description": "Quote to replace a dripping outside tap", "source": "form",
+                 "job_type": "other", "urgency": "just a quote",
+                 "job_description": "Quote to replace a dripping outside tap", "source": "web_form",
                  "status": "contacted", "created_at": (now - timedelta(hours=20)).isoformat()},
                 {"name": "Priya Nair", "phone": "07700 900788", "postcode": "WN5 8LP",
-                 "job_description": "Radiator leaking downstairs, water coming through the ceiling", "source": "form",
+                 "job_type": "leak", "urgency": "today",
+                 "job_description": "Radiator leaking downstairs, water coming through the ceiling", "source": "web_form",
                  "status": "new", "created_at": (now - timedelta(hours=30)).isoformat()},
             ]
             for s in samples:
                 try:
-                    db.table("captured_leads").insert({"client_id": demo_client_id, "notified": True, **s}).execute()
+                    db.table("captured_leads").insert({"client_id": demo_client_id,
+                                                       "notified": True, "is_seed": True, **s}).execute()
                     out["captured_leads"] += 1
                 except Exception as e:
                     logger.warning(f"[seed] captured_lead failed: {e}")
+
+    # General founder tasks (the tick-to-done panel) — seed once.
+    have_tasks = (db.table("tasks").select("id", count="exact").eq("is_seed", True).execute().count or 0)
+    if have_tasks < 1:
+        for t in [
+            {"title": "Ring back Standish Heating Solutions", "owner": "D"},
+            {"title": "Send Leigh Gas Services the demo link", "owner": "L"},
+            {"title": "Follow up Bolton Boiler Doctor on WhatsApp", "owner": "D"},
+            {"title": "Chase St Helens 24hr Plumbing (no answer x2)", "owner": "L"},
+            {"title": "Prep tomorrow's top 10 calls", "owner": "D"},
+            {"title": "Check Demo Plumbing Co trial leads", "owner": "L"},
+        ]:
+            try:
+                db.table("tasks").insert({**t, "due_date": today, "is_seed": True,
+                                          "created_by": "seed", "status": "open"}).execute()
+                out["tasks"] += 1
+            except Exception as e:
+                logger.warning(f"[seed] task failed: {e}")
     return out
 
 
@@ -329,6 +384,9 @@ def seed_demo_data() -> dict:
 
     try:
         scout_res = trades.scout(entries=[dict(p) for p in _DEMO_PROSPECTS], source="seed_demo")
+        # Flag every seeded prospect so /api/sales/wipe-seed can clear them
+        # before real calling (never overloads the lead `source` field).
+        db.table("prospects").update({"is_seed": True}).eq("source", "seed_demo").execute()
     except Exception as e:
         logger.error(f"[sales/seed-demo] scout failed — migration not run? {e}", exc_info=True)
         raise HTTPException(status_code=503,
@@ -354,6 +412,7 @@ def seed_demo_data() -> dict:
             "plan_status": "trial", "trial_start": date.today().isoformat(),
             "trial_end": (date.today() + timedelta(days=14)).isoformat(),
             "dashboard_token": dash, "capture_token": cap, "total_textbacks_sent": 0,
+            "is_seed": True, "avg_job_value": 150,
         }
         res = db.table("textback_clients").insert(rec).execute()
         cid = res.data[0]["id"] if res.data else None

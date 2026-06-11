@@ -343,31 +343,15 @@ async def _cleanup_old_logs():
 # ── Trades / JARVIS jobs ─────────────────────────────────────────────────────
 
 async def _trades_morning():
-    """08:00 Europe/London — Dial Manager posts each founder's ordered call list,
-    and the Revenue Reporter posts yesterday's numbers (weekly version on Monday).
-    Both go to the founders' Telegram only — no outbound to prospects/clients."""
+    """08:00 Europe/London — the ONE daily run. Runs all five agents (Lead
+    Prioritiser, Sales Coach, Follow-Up drafts, Trial Monitor, Revenue Analyst)
+    and posts a single founders' briefing to Telegram. No outbound to anyone else."""
     try:
-        from datetime import date
         from agents import trades
-        from utils import telegram
-        dial = trades.dial_today(post_to_telegram=True)
-        telegram.broadcast_founders(trades.revenue_report_text(weekly=(date.today().weekday() == 0)))
-        logger.info(f"[trades_morning] {dial}")
+        result = trades.daily_briefing(post_to_telegram=True)
+        logger.info(f"[trades_morning] briefing sent (drafts={result.get('followup_drafts')})")
     except Exception as e:
         logger.error(f"[trades_morning] Failed: {e}", exc_info=True)
-
-
-async def _trades_followup():
-    """18:00 Europe/London — Follow-up agent DRAFTS chase messages (interested/called
-    prospects with no open action, trial day-7/12 check-ins, captured leads still new
-    after 24h) and posts the batch to Telegram for the founder to copy & send.
-    Drafts only — never sends to anyone."""
-    try:
-        from agents import trades
-        result = trades.followup_run(post_to_telegram=True)
-        logger.info(f"[trades_followup] {result.get('count', 0)} draft(s)")
-    except Exception as e:
-        logger.error(f"[trades_followup] Failed: {e}", exc_info=True)
 
 
 # ── Scheduler setup ──────────────────────────────────────────────────────────
@@ -454,13 +438,11 @@ def start_scheduler():
         trigger=CronTrigger(hour=3, minute=30, timezone=TZ)))
 
     # ── TRADES / JARVIS (Europe/London) ──────────────────────────────────────
-    # 8:00am — Dial Manager call lists + Revenue Reporter → founders' Telegram
+    # 8:00am — THE single daily run: all five agents + one founders' briefing.
+    # (The old 6pm follow-up job folded into this; Follow-Up still runs here and
+    #  is available on demand via JARVIS / the RUN NOW button.)
     scheduler.add_job(**job(_trades_morning, guard=False, id="trades_morning",
         trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
-
-    # 6:00pm — Follow-up agent drafts → founders' Telegram (drafts only)
-    scheduler.add_job(**job(_trades_followup, guard=False, id="trades_followup",
-        trigger=CronTrigger(hour=18, minute=0, timezone=TZ)))
 
     scheduler.start()
     logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst, 3:30am cleanup | morning: 5:55am health, 6am leads, 6:05am enricher, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude, 11:30am preview-refresh | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")

@@ -892,3 +892,236 @@ def trades_result(agent: str, r: dict) -> dict:
     r = dict(r or {})
     r.setdefault("agent", agent)
     return r
+
+
+def wipe_seed() -> dict:
+    """Delete ONLY demo rows (is_seed=true) so fake prospects never pollute real
+    calling. Deletes nothing real. Returns per-table counts."""
+    db = get_db()
+    out = {}
+    for table in ("tasks", "captured_leads", "prospects", "textback_clients"):
+        try:
+            n = db.table(table).select("id", count="exact").eq("is_seed", True).execute().count or 0
+            if n:
+                db.table(table).delete().eq("is_seed", True).execute()
+            out[table] = n
+        except Exception as e:
+            out[table] = f"err: {e}"
+    log_event("reporter", f"🧹 wiped seed data {out}", "warn", out)
+    return {"ok": True, "deleted": out,
+            "message": (f"Wiped demo data — prospects {out.get('prospects',0)}, "
+                        f"leads {out.get('captured_leads',0)}, tasks {out.get('tasks',0)}, "
+                        f"clients {out.get('textback_clients',0)}. Real data untouched.")}
+
+
+# ── Tasks (general founder to-dos) ────────────────────────────────────
+def list_tasks(owner: str = None, include_done: bool = False) -> list:
+    db = get_db()
+    q = db.table("tasks").select("*")
+    if not include_done:
+        q = q.eq("status", "open")
+    if owner:
+        q = q.eq("owner", owner.upper())
+    return q.order("due_date", desc=False).limit(100).execute().data or []
+
+
+def create_task(title: str, owner: str = None, detail: str = None,
+                due_date: str = None, created_by: str = "jarvis") -> dict:
+    db = get_db()
+    rec = {"title": title.strip()[:200], "owner": (owner or "").upper() or None,
+           "detail": detail, "due_date": due_date or _today().isoformat(),
+           "status": "open", "created_by": created_by}
+    res = db.table("tasks").insert(rec).execute()
+    tid = res.data[0]["id"] if res.data else None
+    log_event("dial_manager", f"task created: {title}", "info", {"owner": rec["owner"]})
+    return {"ok": True, "task_id": tid,
+            "_undo": {"op": "delete", "table": "tasks", "ids": [tid]} if tid else None,
+            "message": f"Task added{(' for ' + rec['owner']) if rec['owner'] else ''}: {title}"}
+
+
+def mark_task_done(task_id_or_title: str) -> dict:
+    db = get_db()
+    s = (task_id_or_title or "").strip()
+    row = None
+    if len(s) >= 32 and "-" in s:
+        try:
+            row = db.table("tasks").select("*").eq("id", s).single().execute().data
+        except Exception:
+            row = None
+    if not row:
+        rows = db.table("tasks").select("*").ilike("title", f"%{s}%").eq("status", "open").limit(1).execute().data or []
+        row = rows[0] if rows else None
+    if not row:
+        return {"ok": False, "message": f"No open task matching '{s}'."}
+    before = {"status": row.get("status"), "done_at": row.get("done_at")}
+    db.table("tasks").update({"status": "done", "done_at": _now_iso()}).eq("id", row["id"]).execute()
+    return {"ok": True, "_undo": {"op": "update", "table": "tasks", "id": row["id"], "before": before},
+            "message": f"Done: {row.get('title')}"}
+
+
+# ── Insight reads (for JARVIS + the WHAT NOW strip) ───────────────────
+def get_hot_prospects(limit: int = 8) -> list:
+    db = get_db()
+    return (db.table("prospects").select("*").in_("status", ["interested", "demo_booked"])
+            .order("rank_score", desc=True).limit(limit).execute().data or [])
+
+
+def hot_prospects_text() -> str:
+    rows = get_hot_prospects()
+    if not rows:
+        return "No hot prospects yet — log calls as interested / demo_booked and they'll surface here."
+    out = ["🔥 Hottest prospects:"]
+    for p in rows:
+        out.append(f"• {p.get('business_name')} [{p.get('status')}, {p.get('assigned_to')}]"
+                   + (f" — {p.get('phone')}" if p.get("phone") else ""))
+    return "\n".join(out)
+
+
+def get_overdue_followups() -> list:
+    db = get_db()
+    return (db.table("next_actions").select("*").eq("done", False)
+            .lte("due_date", _today().isoformat()).order("due_date", desc=False)
+            .limit(50).execute().data or [])
+
+
+def overdue_followups_text() -> str:
+    acts = get_overdue_followups()
+    if not acts:
+        return "✅ No follow-ups due or overdue."
+    db = get_db()
+    pids = [a["prospect_id"] for a in acts if a.get("prospect_id")]
+    names = {}
+    if pids:
+        for p in (db.table("prospects").select("id,business_name,assigned_to")
+                  .in_("id", pids).execute().data or []):
+            names[p["id"]] = p
+    out = [f"⏰ {len(acts)} follow-up(s) due/overdue:"]
+    for a in acts[:20]:
+        p = names.get(a.get("prospect_id"), {})
+        out.append(f"• {p.get('business_name', '?')} [{p.get('assigned_to', '')}] — "
+                   f"{a.get('action')} (due {a.get('due_date')})")
+    return "\n".join(out)
+
+
+def find_risks() -> str:
+    r = revenue_report()
+    out = ["🚩 What's blocking revenue:"]
+    for t in r["trial_details"]:
+        if t["churn_risk"]:
+            out.append(f"• Trial at churn risk: {t['business_name']} "
+                       f"({t['days_remaining']}d left, {t['leads_captured']} leads)")
+    overdue = get_overdue_followups()
+    if overdue:
+        out.append(f"• {len(overdue)} overdue follow-up(s) not yet actioned")
+    if r["to_call_remaining"] == 0:
+        out.append("• Call list is EMPTY — import prospects (scout) or you'll run dry")
+    if r["paying_clients"] == 0:
+        out.append("• £0 MRR — no paying clients yet; convert the warm trials/demos")
+    if len(out) == 1:
+        out.append("Nothing major flagged — keep dialling the ranked list.")
+    return "\n".join(out)
+
+
+def summarize_day() -> str:
+    db = get_db()
+    today = _today().isoformat()
+    evs = (db.table("agent_events").select("*").gte("created_at", today + "T00:00:00")
+           .order("created_at", desc=True).limit(60).execute().data or [])
+    r = revenue_report()
+    logged = [e for e in evs if "logged " in (e.get("message") or "")]
+    out = [f"📅 Today — {today}",
+           f"• Pipeline: {r['to_call_remaining']} to-call · {r['interested']} interested · "
+           f"{r['demos_booked']} demos · {r['won']} won",
+           f"• Trials {r['trials_live']} · Paying {r['paying_clients']} · MRR £{r['mrr']:.0f}",
+           f"• {len(logged)} call(s) logged today"]
+    if evs:
+        out.append("• Latest: " + " · ".join((e.get("message") or "")[:48] for e in evs[:4]))
+    return "\n".join(out)
+
+
+def log_decision(founder: str, question: str, recommendation: str, data: dict = None) -> None:
+    try:
+        get_db().table("decisions").insert({
+            "founder": founder, "question": (question or "")[:500],
+            "recommendation": (recommendation or "")[:2000], "data": data or {},
+        }).execute()
+    except Exception as e:
+        logger.debug(f"[log_decision] skipped: {e}")
+
+
+def update_lead_status(lead_id: str, status: str) -> dict:
+    db = get_db()
+    valid = ("new", "contacted", "quoted", "won", "lost")
+    if status not in valid:
+        return {"ok": False, "message": f"Status must be one of {valid}."}
+    try:
+        before = db.table("captured_leads").select("status").eq("id", lead_id).single().execute().data
+    except Exception:
+        before = None
+    db.table("captured_leads").update({"status": status, "updated_at": _now_iso()}).eq("id", lead_id).execute()
+    return {"ok": True, "message": f"Lead → {status}.",
+            "_undo": {"op": "update", "table": "captured_leads", "id": lead_id,
+                      "before": {"status": (before or {}).get("status", "new")}}}
+
+
+# ════════════════════════════════════════════════════════════════════
+# DAILY BRIEFING — the single 08:00 run: all five agents + one Telegram
+# ════════════════════════════════════════════════════════════════════
+def _top_actions(d_list, l_list, overdue, rep) -> list:
+    acts = []
+    if overdue:
+        acts.append(f"Clear {len(overdue)} overdue follow-up(s)")
+    if d_list:
+        acts.append(f"D: ring {d_list[0].get('business_name')}")
+    if l_list:
+        acts.append(f"L: ring {l_list[0].get('business_name')}")
+    risky = [t for t in rep["trial_details"] if t["churn_risk"]]
+    if risky:
+        acts.append(f"Save trial: {risky[0]['business_name']}")
+    if rep["to_call_remaining"] == 0:
+        acts.append("Import a fresh prospect list (scout) — call list is empty")
+    return acts[:3] or ["Keep dialling the ranked list"]
+
+
+def daily_briefing(post_to_telegram: bool = True) -> dict:
+    """Run all five agents and compose ONE founders' briefing.
+    1 Lead Prioritiser · 2 Sales Coach · 3 Follow-Up · 4 Trial Monitor · 5 Revenue Analyst."""
+    d_list = build_call_list("D")
+    l_list = build_call_list("L")
+    log_event("dial_manager", f"prioritised queues — D:{len(d_list)} / L:{len(l_list)}", "success")
+
+    coached = 0
+    for p in get_hot_prospects(limit=3):
+        if not (p.get("call_notes") or "").strip():
+            try:
+                sales_prep(prospect_id=p["id"])
+                coached += 1
+            except Exception:
+                pass
+
+    fu = followup_run(post_to_telegram=False)
+    rep = revenue_report()
+    overdue = get_overdue_followups()
+    ylo, yhi = _yesterday_window()
+    leads_y = _count("captured_leads", _range=("created_at", ylo, yhi))
+    log_event("reporter", f"trial monitor + revenue — MRR £{rep['mrr']:.0f}, "
+              f"{rep['churn_risk_count']} churn risk", "success")
+
+    lines = [f"☀️ DAILY BRIEFING — {_today().isoformat()}", "",
+             format_call_list("D", d_list), "", format_call_list("L", l_list), "",
+             f"⏰ Follow-ups due: {len(overdue)}   ✍️ {fu.get('count', 0)} draft(s) ready",
+             f"📥 Leads captured yesterday: {leads_y}"]
+    soon = [t for t in rep["trial_details"] if t["days_remaining"] is not None and t["days_remaining"] <= 3]
+    if soon:
+        lines.append("⚠️ Trials ending soon: " + ", ".join(
+            f"{t['business_name']} ({t['days_remaining']}d)" for t in soon))
+    lines.append(f"💷 MRR £{rep['mrr']:.0f}  ·  Trials {rep['trials_live']}  ·  Paying {rep['paying_clients']}")
+    lines += ["", "🎯 TOP 3:"]
+    for i, a in enumerate(_top_actions(d_list, l_list, overdue, rep), 1):
+        lines.append(f"  {i}. {a}")
+    briefing = "\n".join(lines)
+
+    if post_to_telegram:
+        telegram.broadcast_founders(briefing)
+    return {"ok": True, "briefing": briefing, "coached": coached,
+            "followup_drafts": fu.get("count", 0), "telegram": settings.telegram_enabled}

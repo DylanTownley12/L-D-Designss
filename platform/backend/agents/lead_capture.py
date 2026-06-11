@@ -19,11 +19,49 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _ai_triage(client: dict, lead: dict):
+    """One Claude call → (summary, suggested_reply). Deterministic fallback so it
+    never depends on Anthropic. JARVIS/agents never SEND this — it's a draft."""
+    job = lead.get("job_type") or ""
+    urg = lead.get("urgency") or ""
+    desc = lead.get("job_description") or ""
+    pc = lead.get("postcode") or ""
+    first = (lead.get("name") or "").split()[0] if lead.get("name") else ""
+    if settings.ANTHROPIC_API_KEY:
+        try:
+            import json as _json
+            import re as _re
+            from agents.trades import _claude
+            system = ("You triage inbound job enquiries for a UK trade business. Reply ONLY with JSON "
+                      '{"summary": "<one tight sentence>", "reply": "<one friendly UK-tone SMS the trade '
+                      'could send back, confirming receipt and asking the best time to call>"}.')
+            user = (f"Trade: {client.get('trade')}. Job type: {job}. Urgency: {urg}. "
+                    f"Postcode: {pc}. Notes: {desc}. Caller: {lead.get('name') or 'homeowner'}.")
+            raw = _claude(system, user, max_tokens=250, agent="capture_triage")
+            if raw:
+                m = _re.search(r"\{.*\}", raw, _re.S)
+                if m:
+                    d = _json.loads(m.group(0))
+                    if d.get("summary"):
+                        return d.get("summary"), d.get("reply")
+        except Exception as e:
+            logger.warning(f"[lead_capture] AI triage failed, using fallback: {e}")
+    biz = client.get("business_name") or "the team"
+    summary = (f"{(job or 'Job').title()} enquiry"
+               + (f" — {urg}" if urg else "")
+               + (f" ({pc})" if pc else "")
+               + (f": {desc[:120]}" if desc else "")).strip()
+    reply = (f"Hi{(' ' + first) if first else ''}, thanks for contacting {biz}. We've got your "
+             f"{job or 'enquiry'} and will be in touch shortly — what's the best time to reach you?")
+    return summary, reply
+
+
 def record_lead(client_id: str, phone: str, name: str = None, postcode: str = None,
-                job_description: str = None, source: str = "form",
+                job_description: str = None, source: str = "web_form",
+                job_type: str = None, urgency: str = None, photo_urls=None,
                 notify: bool = True) -> dict:
-    """Insert a captured_lead, ping founders on Telegram, and (opt-in) send the
-    homeowner a confirmation SMS. Returns the created lead + notification status."""
+    """Insert a captured_lead (with AI summary + suggested reply), ping founders on
+    Telegram ALWAYS, optionally the client, and (opt-in) confirm to the homeowner."""
     db = get_db()
 
     client = None
@@ -39,11 +77,17 @@ def record_lead(client_id: str, phone: str, name: str = None, postcode: str = No
         "name": (name or "").strip() or None,
         "phone": (phone or "").strip(),
         "postcode": (postcode or "").strip() or None,
+        "job_type": (job_type or "").strip() or None,
+        "urgency": (urgency or "").strip() or None,
         "job_description": (job_description or "").strip() or None,
+        "photo_urls": list(photo_urls or []),
         "source": source,
         "status": "new",
         "notified": False,
     }
+    summary, suggested = _ai_triage(client, lead_row)
+    lead_row["ai_summary"] = summary
+    lead_row["suggested_reply"] = suggested
     res = db.table("captured_leads").insert(lead_row).execute()
     lead = res.data[0] if res.data else lead_row
 
@@ -58,7 +102,8 @@ def record_lead(client_id: str, phone: str, name: str = None, postcode: str = No
 
     notified = False
     if notify:
-        notified = _notify_founders(client, lead, source)
+        notified = _notify_founders(client, lead, source)   # founders ALWAYS
+        _notify_client(client, lead)                        # client if chat id set
         if notified and lead.get("id"):
             try:
                 db.table("captured_leads").update({"notified": True}).eq("id", lead["id"]).execute()
@@ -82,14 +127,38 @@ def _notify_founders(client: dict, lead: dict, source: str) -> bool:
     base = settings.FRONTEND_BASE_URL.rstrip("/")
     dash = client.get("dashboard_token")
     link = f"{base}/d/{dash}" if dash else "(no dashboard link)"
-    src = {"form": "web form", "missed_call": "missed call", "manual": "manual"}.get(source, source)
+    src = {"web_form": "web form", "form": "web form", "missed_call": "missed call",
+           "manual": "manual"}.get(source, source)
+    jt = " · ".join(b for b in [lead.get("job_type"), lead.get("urgency")] if b)
     parts = [
         f"📞 NEW LEAD for {client.get('business_name','client')} ({src})",
         f"{(lead.get('name') or '').strip()} {lead.get('phone','')}".strip(),
     ]
+    if jt:
+        parts.append(f"🔧 {jt}")
     if lead.get("postcode"):
         parts.append(f"📍 {lead['postcode']}")
-    if lead.get("job_description"):
+    if lead.get("ai_summary"):
+        parts.append(f"🧠 {lead['ai_summary']}")
+    elif lead.get("job_description"):
         parts.append(f"“{lead['job_description'][:300]}”")
+    if lead.get("photo_urls"):
+        parts.append(f"📷 {len(lead['photo_urls'])} photo(s) attached")
     parts.append(f"Dashboard: {link}")
     return telegram.broadcast_founders("\n".join(parts)) > 0
+
+
+def _notify_client(client: dict, lead: dict) -> bool:
+    """If the client has a Telegram chat id, ping them too (founders always get it)."""
+    chat = client.get("telegram_chat_id")
+    if not chat:
+        return False
+    jt = " · ".join(b for b in [lead.get("job_type"), lead.get("urgency")] if b)
+    msg = (f"📞 New enquiry — {(lead.get('name') or '').strip()} {lead.get('phone','')}".strip()
+           + (f"\n🔧 {jt}" if jt else "")
+           + (f"\n🧠 {lead.get('ai_summary')}" if lead.get("ai_summary") else "")
+           + (f"\n✍️ Suggested reply: {lead.get('suggested_reply')}" if lead.get("suggested_reply") else ""))
+    try:
+        return telegram.send_message(chat, msg)
+    except Exception:
+        return False

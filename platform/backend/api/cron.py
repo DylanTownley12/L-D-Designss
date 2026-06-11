@@ -31,19 +31,14 @@ def _auth(key: Optional[str], x_ops_key: Optional[str]):
 async def cron_morning(post: bool = True,
                        key: Optional[str] = Query(default=None),
                        x_ops_key: Optional[str] = Header(default=None)):
-    """08:00 job: Dial Manager call lists + Revenue Reporter → Telegram."""
+    """The daily run: all five agents + ONE founders' briefing to Telegram."""
     _auth(key, x_ops_key)
     try:
-        dial = trades.dial_today(post_to_telegram=post)
-        report = trades.revenue_report_text(weekly=(date.today().weekday() == 0))
-        if post:
-            telegram.broadcast_founders(report)
-        return {"ok": True, "dial": dial, "report": report,
-                "telegram": settings.telegram_enabled}
+        return trades.daily_briefing(post_to_telegram=post)
     except Exception as e:
         logger.error(f"[cron/morning] failed — migration not run? {e}", exc_info=True)
         raise HTTPException(status_code=503,
-                            detail="Morning job couldn't run — run db/migrations.sql in Supabase first.")
+                            detail="Daily run couldn't execute — run db/migrations.sql in Supabase first.")
 
 
 @router.post("/evening")

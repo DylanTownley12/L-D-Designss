@@ -5,12 +5,13 @@ shows on the client's dashboard.
 """
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 from db.client import get_db
 from agents import lead_capture
+from utils import storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/capture", tags=["capture"])
@@ -20,7 +21,10 @@ class CaptureSubmit(BaseModel):
     name: Optional[str] = None
     phone: str
     postcode: Optional[str] = None
+    job_type: Optional[str] = None
+    urgency: Optional[str] = None
     job_description: Optional[str] = None
+    photo_urls: Optional[List[str]] = None
 
 
 def _client_by_capture_token(token: str) -> dict:
@@ -46,6 +50,22 @@ async def capture_info(capture_token: str):
     }
 
 
+@router.post("/{capture_token}/photo")
+async def capture_photo(capture_token: str, file: UploadFile = File(...)):
+    """Upload one photo for an in-progress enquiry. Returns its signed URL, which
+    the form then submits in photo_urls. Backend-only upload via the service key."""
+    _client_by_capture_token(capture_token)          # validates the token
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+    url = storage.upload_photo(content, file.filename or "photo.jpg", file.content_type)
+    if not url:
+        raise HTTPException(status_code=502, detail="Photo upload failed")
+    return {"ok": True, "url": url}
+
+
 @router.post("/{capture_token}")
 async def capture_submit(capture_token: str, data: CaptureSubmit):
     c = _client_by_capture_token(capture_token)
@@ -55,7 +75,8 @@ async def capture_submit(capture_token: str, data: CaptureSubmit):
 
     result = lead_capture.record_lead(
         client_id=c["id"], phone=phone, name=data.name, postcode=data.postcode,
-        job_description=data.job_description, source="form",
+        job_type=data.job_type, urgency=data.urgency, job_description=data.job_description,
+        photo_urls=data.photo_urls, source="web_form",
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Could not save enquiry"))

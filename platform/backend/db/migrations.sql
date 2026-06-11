@@ -442,3 +442,62 @@ CREATE TABLE IF NOT EXISTS agent_events (
 );
 CREATE INDEX IF NOT EXISTS idx_agent_events_recent ON agent_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_events_agent  ON agent_events(agent, created_at DESC);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  2026-06-11b — capture richness, seed flagging, tasks/decisions/activity
+-- ══════════════════════════════════════════════════════════════════════
+-- Seed flag so demo rows can be wiped before real calling (never overloads
+-- the lead `source`, which stays web_form/missed_call for the Twilio future).
+ALTER TABLE prospects        ADD COLUMN IF NOT EXISTS is_seed BOOLEAN DEFAULT FALSE;
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS is_seed BOOLEAN DEFAULT FALSE;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS is_seed BOOLEAN DEFAULT FALSE;
+-- Capture form richness + AI summary.
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS job_type        TEXT;
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS urgency         TEXT;
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS photo_urls      JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS ai_summary      TEXT;
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS suggested_reply TEXT;
+-- Client billing / portal extras.
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS avg_job_value       NUMERIC(10,2) DEFAULT 150;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS stripe_payment_link TEXT;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS telegram_chat_id    TEXT;
+
+-- General founder tasks (distinct from prospect-bound next_actions).
+CREATE TABLE IF NOT EXISTS tasks (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    title       TEXT NOT NULL,
+    detail      TEXT,
+    owner       TEXT CHECK (owner IN ('D','L')),
+    prospect_id UUID REFERENCES prospects(id) ON DELETE CASCADE,
+    client_id   UUID REFERENCES textback_clients(id) ON DELETE SET NULL,
+    status      TEXT DEFAULT 'open' CHECK (status IN ('open','done')),
+    due_date    DATE,
+    is_seed     BOOLEAN DEFAULT FALSE,
+    created_by  TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    done_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner, status, due_date);
+
+-- JARVIS recommendation log ("what should D do now?" → stored).
+CREATE TABLE IF NOT EXISTS decisions (
+    id             UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    founder        TEXT,
+    question       TEXT,
+    recommendation TEXT,
+    data           JSONB,
+    created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_decisions_recent ON decisions(created_at DESC);
+
+-- Append-only audit of every meaningful write.
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    actor      TEXT,                    -- jarvis | agent:<name> | founder
+    action     TEXT,
+    entity     TEXT,
+    entity_id  TEXT,
+    detail     JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_recent ON activity_logs(created_at DESC);
