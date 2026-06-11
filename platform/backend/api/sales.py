@@ -188,6 +188,27 @@ def _board_sync(mode: str) -> dict:
         except Exception as e:
             logger.debug(f"[sales/board] kit attach skipped: {e}")
 
+        # v3 chips: latest v3 row per queued prospect (view / promote / live flags).
+        try:
+            pids = [p["id"] for p in calls["D"] + calls["L"]]
+            if pids:
+                v3rows = (db.table("previews").select("id,prospect_id,qa_status,created_at")
+                          .eq("template_version", "v3").in_("prospect_id", pids)
+                          .execute().data or [])
+                lat = {}
+                for r in sorted(v3rows, key=lambda x: x.get("created_at") or ""):
+                    lat[r["prospect_id"]] = r
+                base = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"
+                for lst in calls.values():
+                    for p in lst:
+                        v = lat.get(p["id"])
+                        if v:
+                            p["v3_link"] = base + v["id"]
+                            p["v3_qa"] = v["qa_status"]
+                            p["v3_promoted"] = p.get("preview_id") == v["id"]
+        except Exception as e:
+            logger.debug(f"[sales/board] v3 attach skipped: {e}")
+
         funnel = trades.compute_funnel(mode=mode)
         return {
             "mode": mode,
@@ -436,6 +457,32 @@ async def list_alerts(mode: str = "real", _=Depends(require_ops_key)):
 @router.post("/alerts/{alert_id}/resolve")
 async def resolve_alert(alert_id: str, _=Depends(require_ops_key)):
     return trades.resolve_alert(alert_id=alert_id)
+
+
+# ── v3 preview engine (safe: new rows; live links switch only on PROMOTE) ──
+@router.post("/v3/build")
+async def v3_build(limit: int = 3, force: bool = True, mode: str = "real",
+                   _=Depends(require_ops_key)):
+    """Phase runner — limit=3 for the sample round, 999 for the rest. v2 untouched."""
+    from agents import preview_qa
+    try:
+        return await run_in_threadpool(preview_qa.build_v3_batch,
+                                       "demo" if mode == "demo" else "real", limit, force)
+    except Exception as e:
+        logger.error(f"[sales/v3-build] {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"v3 build failed: {type(e).__name__}: {e}")
+
+
+@router.get("/v3/status")
+async def v3_status_ep(mode: str = "real", _=Depends(require_ops_key)):
+    from agents import preview_qa
+    return await run_in_threadpool(preview_qa.v3_status, "demo" if mode == "demo" else "real")
+
+
+@router.post("/prospects/{prospect_id}/v3/promote")
+async def v3_promote(prospect_id: str, _=Depends(require_ops_key)):
+    from agents import preview_qa
+    return await run_in_threadpool(preview_qa.promote_v3, prospect_id)
 
 
 # ── CEO briefing ──────────────────────────────────────────────────────

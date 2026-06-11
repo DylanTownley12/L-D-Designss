@@ -170,6 +170,7 @@ export default function MissionControl() {
   const buildPreview = (id) => act('Preview', () => salesOps.buildPreview(key, id))
   const approve = (id) => act('Approve', () => salesOps.approvePreview(key, id))
   const resolveAlert = (id) => act('Resolve', () => salesOps.resolveAlert(key, id))
+  const promoteV3 = (id) => act('Promote v3', () => salesOps.v3Promote(key, id))
   const [copied, setCopied] = useState('')
   const copyText = async (id, text) => {
     try { await navigator.clipboard.writeText(text) } catch (e) {
@@ -283,6 +284,7 @@ export default function MissionControl() {
               <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <PreviewChip p={nextCall} onBuild={() => buildPreview(nextCall.id)} onApprove={() => approve(nextCall.id)} busy={busy} />
                 <KitRow p={nextCall} copied={copied} onCopy={copyText} />
+                <V3Chip p={nextCall} busy={busy} onPromote={() => promoteV3(nextCall.id)} />
               </div>
               <OutcomeRow p={nextCall} big picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
             </>
@@ -309,6 +311,7 @@ export default function MissionControl() {
                     <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <PreviewChip p={p} onBuild={() => buildPreview(p.id)} onApprove={() => approve(p.id)} busy={busy} />
                       <KitRow p={p} copied={copied} onCopy={copyText} />
+                      <V3Chip p={p} busy={busy} onPromote={() => promoteV3(p.id)} />
                     </div>
                     <OutcomeRow p={p} picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
                   </div>
@@ -445,6 +448,9 @@ export default function MissionControl() {
           <button style={btn(C.red)} onClick={() => { if (confirm('Delete ALL demo rows (data_mode=demo)? Real data untouched.')) act('Wipe', () => salesOps.wipeSeed(key)) }} disabled={!!busy}>Wipe demo</button>
           <button style={btn(C.green)} onClick={() => act('Requalify', () => salesOps.requalify(key, mode))} disabled={!!busy}>Requalify</button>
           <button style={btn(C.cyan)} onClick={() => act('Build previews', () => salesOps.buildPreviews(key, mode, true))} disabled={!!busy}>{busy === 'Build previews' ? 'Rebuilding…' : '🖥 Rebuild all previews'}</button>
+          <button style={btn(C.amber)} onClick={() => act('v3 samples', () => salesOps.v3Build(key, 3, mode))} disabled={!!busy}>🧪 v3: build 3 samples</button>
+          <button style={btn(C.amber)} onClick={() => act('v3 all', () => salesOps.v3Build(key, 999, mode))} disabled={!!busy}>🚀 v3: build ALL</button>
+          <button style={btn(C.faint)} onClick={() => act('v3 status', () => salesOps.v3Status(key, mode))} disabled={!!busy}>v3 status</button>
           <a href="/leads" style={{ ...btn(C.faint), textDecoration: 'none' }}>Barber dashboard →</a>
           {busy && <span style={{ color: C.dim, fontFamily: mono, fontSize: 12 }}>{busy}…</span>}
         </div>
@@ -473,6 +479,21 @@ const OutcomeRow = ({ p, big, picker, onOutcome, onWhen, onCancel }) => {
           onClick={() => onOutcome(p, o)}>{o[0]}</button>
       ))}
     </div>
+  )
+}
+
+// v3 chip — view the v3 draft, promote it (switches the LIVE link; v2 URL keeps serving).
+const V3Chip = ({ p, onPromote, busy }) => {
+  if (!p.v3_link) return null
+  return (
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <a href={p.v3_link} target="_blank" rel="noreferrer" style={{ color: C.amber, fontFamily: mono, fontSize: 12, fontWeight: 700 }}>v3 ✦ view</a>
+      {p.v3_promoted
+        ? <span style={{ color: C.green, fontFamily: mono, fontSize: 11, fontWeight: 700 }}>✓ v3 LIVE</span>
+        : (p.v3_qa === 'qa_passed' || p.v3_qa === 'ready')
+          ? <button style={btn(C.amber)} disabled={!!busy} onClick={onPromote}>Promote v3</button>
+          : <span style={{ color: C.red, fontFamily: mono, fontSize: 11 }}>⚠ v3 review</span>}
+    </span>
   )
 }
 

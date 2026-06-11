@@ -159,7 +159,7 @@ async def root():
     return {
         "name": "L&D Designs Platform",
         "status": "running",
-        "build": "closer-kit-og",  # deploy marker — bump to confirm a deploy landed
+        "build": "v3-engine",  # deploy marker — bump to confirm a deploy landed
         "docs": "/docs",
     }
 

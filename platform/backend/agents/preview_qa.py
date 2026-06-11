@@ -1123,3 +1123,593 @@ def run_all(mode: str = "real") -> dict:
     trades.log_event("preview_qa", msg, "success" if failed == 0 else "warn",
                      {"checked": checked, "failed": failed, "metric_ok": failed == 0})
     return {"ok": True, "checked": checked, "failed": failed, "message": msg}
+
+
+# ════════════════════════════════════════════════════════════════════
+#  V3 ENGINE — "looks like £1,500, offered at £199".
+#  v3 builds are NEW preview rows (template_version='v3'): every existing v2
+#  link keeps serving untouched. A prospect's live link only changes when the
+#  founder PROMOTES the v3 (prospect.preview_id → v3 row). Nothing auto-sends.
+#  Distinct per business: 3 hero layouts × 3 font personalities × trade palette,
+#  seeded from the prospect id, + per-prospect AI copy (honest fallbacks).
+# ════════════════════════════════════════════════════════════════════
+import hashlib as _hl
+
+_FONT_SETS = [
+    ("Sora", "'Sora','Plus Jakarta Sans',system-ui,sans-serif"),
+    ("Fraunces:opsz,wght@9..144,600;9..144,800", "'Fraunces',Georgia,serif"),
+    ("Space+Grotesk", "'Space Grotesk',system-ui,sans-serif"),
+]
+
+_SERVICES_EXTRA = {
+    "plumber": [("Outside taps & stopcocks", "Fitted fast, no mess left behind."),
+                ("Showers & pumps", "Weak shower sorted, pressure back."),
+                ("Landlord & insurance work", "Reports and repairs, documented properly.")],
+    "heating engineer": [("Smart thermostats", "Heating you control from your phone."),
+                         ("Landlord gas certificates", "Booked and done before the deadline."),
+                         ("System upgrades", "Old system out, efficient one in.")],
+    "gas engineer": [("Hobs & fires", "Installed and certified safely."),
+                     ("Gas pipework", "Run, moved or capped properly."),
+                     ("Emergency callouts", "Smell gas? We treat it as urgent.")],
+    "electrician": [("Extra sockets & USB points", "Where you actually need them."),
+                    ("Garden & security lighting", "Safe outdoor power, done right."),
+                    ("Landlord certificates (EICR)", "Tested, certified, sorted.")],
+    "roofer": [("Chimney repairs & flashing", "Stopped at the source, not patched."),
+               ("Moss removal & roof cleaning", "Years back on your roof's life."),
+               ("Storm damage callouts", "Made safe fast, then fixed properly.")],
+    "drainage": [("Soakaways & gullies", "Standing water gone for good."),
+                 ("Root cutting", "Roots out, pipe protected."),
+                 ("Pre-purchase drain surveys", "Know before you buy.")],
+}
+_PROCESS = [("Tell us the job", "Call, book online or send a photo — 30 seconds."),
+            ("Fixed, fair price", "You know the cost before any work starts."),
+            ("We turn up & sort it", "On time, tidy, done properly first time."),
+            ("Aftercare", "Any snags, one call and we're back.")]
+
+
+def _v3_faqs(trade: str, town: str) -> list:
+    t = (trade or "trade").lower()
+    return [
+        ("Do you give free quotes?", f"Yes — every quote is free and no-obligation. Tell us the job and you'll get a fixed price before any work starts."),
+        ("How fast can you get to me?", f"We're local to {town}, so most jobs get a same-day or next-day visit — emergencies jump the queue."),
+        ("Are you insured?", "Yes, fully insured for every job we take on."),
+        ("Which areas do you cover?", f"{town} and the surrounding towns — if you're nearby, we'll come to you."),
+        ("How do I book?", "Use the Book Online button (30 seconds, no account), send the quick quote form, or just ring — whichever's easiest."),
+    ]
+
+
+def _v3_copy(p: dict, details: dict) -> dict:
+    """Per-prospect copy: ONE Claude call, honest deterministic fallback. No invented
+    certifications, years, or guarantees — generic-honest only."""
+    biz = p.get("business_name") or "this business"
+    trade = (p.get("trade") or "trade").lower()
+    town = p.get("town") or "the area"
+    rating = details.get("rating")
+    fb = {
+        "tag": f"The {trade} {town} actually recommends" if rating and rating >= 4.5 else f"Proper {trade} work, done right",
+        "sub": (f"Straight-talking {trade} work across {town} — fixed prices, tidy finishes, "
+                f"and a phone that gets answered."),
+        "about": (f"{biz} covers {town} and the surrounding area. No call centres, no subcontracting "
+                  f"roulette — the person you book is the person who turns up. Fixed prices agreed "
+                  f"up front, the job done properly, and your place left tidy."),
+        "faqs": _v3_faqs(trade, town),
+    }
+    if not settings.ANTHROPIC_API_KEY:
+        return fb
+    try:
+        raw = trades._claude(
+            "You write website copy for a UK local tradesman's site. Plain trade English, zero "
+            "marketing fluff, UK tone. HONESTY RULES: never invent certifications, years in business, "
+            "guarantees, awards or prices. Output ONLY JSON: "
+            '{"tag":"<6-9 word positioning line>","sub":"<one sentence under the headline>",'
+            '"about":"<2-3 sentence about paragraph>","faqs":[["q","a"]x5]}',
+            f"Business: {biz}, a {trade} in {town}."
+            + (f" Google rating {rating:.1f}★ from {details.get('review_count')} reviews." if rating else "")
+            + f" Sample real review: {details['reviews'][0]['text'][:140]}" if details.get("reviews") else "",
+            max_tokens=600, agent="v3_copy")
+        if raw:
+            m = re.search(r"\{.*\}", raw, re.S)
+            if m:
+                d = json.loads(m.group(0))
+                out = dict(fb)
+                for k in ("tag", "sub", "about"):
+                    if isinstance(d.get(k), str) and 10 < len(d[k]) < 400:
+                        out[k] = d[k]
+                if isinstance(d.get("faqs"), list) and len(d["faqs"]) >= 4:
+                    fa = [(str(q)[:120], str(a)[:300]) for q, a in
+                          (x if isinstance(x, list) else (x.get("q"), x.get("a")) for x in d["faqs"])
+                          if q and a][:5]
+                    if len(fa) >= 4:
+                        out["faqs"] = fa
+                return out
+    except Exception as e:
+        logger.warning(f"[v3] copy fail for {biz}: {e}")
+    return fb
+
+
+def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
+    """The £1,500-feel page. 12 sections, variant-seeded so no two feel templated."""
+    seed = int(_hl.md5(str(p.get("id") or p.get("business_name")).encode()).hexdigest()[:8], 16)
+    hero_v, font_v, shape_v = seed % 3, (seed // 3) % 3, (seed // 9) % 2
+    font_link, font_stack = _FONT_SETS[font_v]
+    rad_btn, rad_card = ("100px", "20px") if shape_v == 0 else ("14px", "14px")
+
+    biz = (p.get("business_name") or "Your Trade").strip()
+    trade = (p.get("trade") or "tradesperson").strip()
+    trade_t, town = trade.title(), (p.get("town") or "your area").strip()
+    phone = (p.get("phone") or "").strip()
+    tel = re.sub(r"[^\d+]", "", phone)
+    api = settings.BACKEND_BASE_URL.rstrip("/")
+    accent, accent_dk = _ACCENTS.get(trade.lower(), _ACCENT_DEFAULT)
+    photos = details.get("photos") or _stock_photos(trade)
+    real = bool(details.get("real_photos"))
+    hero_img, stock_fb = photos[0], _stock_photos(trade)[0]
+    gallery = photos[1:4] if real else []
+    rating, rcount = details.get("rating"), details.get("review_count")
+    reviews = details.get("reviews") or []
+    plural = _trade_plural(trade)
+    headline = (f"{_esc(biz)} — {_esc(town)}&#8217;s {rating:.1f}★ rated {_esc(plural)}" if rating
+                else f"{_esc(biz)} — {_esc(town)}&#8217;s trusted {_esc(plural)}")
+    services = (_SERVICES.get(trade.lower(), _SERVICES_DEFAULT)
+                + _SERVICES_EXTRA.get(trade.lower(), []))[:6]
+    nearby = _NEARBY.get(town.lower(), []) or [town]
+    og_url = f"{api}/og/{p.get('id')}.png" if p.get("id") else hero_img
+    founder_wa = re.sub(r"\D", "", settings.FOUNDER_PHONE or "")
+    if founder_wa.startswith("0"):
+        founder_wa = "44" + founder_wa[1:]
+    wa_text = _urlquote(f"Alright Dylan, it's {biz}. Seen the new website — want it live. What's next?")
+
+    quote_best = ""
+    if reviews:
+        b = sorted(reviews, key=lambda r: (-(r.get("rating") or 0), len(r.get("text", ""))))[0]
+        q = b["text"][:110].rsplit(" ", 1)[0].rstrip(",.;:") + ("…" if len(b["text"]) > 110 else "")
+        quote_best = (f'<div class="hq"><span class="st">{_stars(b["rating"])}</span> '
+                      f'&#8220;{_esc(q)}&#8221; <b>— {_esc(b["author"])}</b></div>')
+
+    badges = []
+    if rating:
+        badges.append(f'<span class="bd bd-star">{_stars(rating)} <b>{rating:.1f}</b> on Google</span>')
+    if rcount:
+        badges.append(f'<span class="bd">{rcount} Google reviews</span>')
+    badges += ['<span class="bd">Fully insured</span>', '<span class="bd">Free quotes</span>',
+               f'<span class="bd">Local to {_esc(town)}</span>']
+    badges_html = "".join(badges)
+
+    svc = "".join(f'<div class="card fx"><span class="sic">{_IC["check"]}</span>'
+                  f'<h3>{_esc(t)}</h3><p>{_esc(d)}</p></div>' for t, d in services)
+    steps = "".join(f'<div class="step fx"><span class="n">{i}</span><h3>{_esc(t)}</h3><p>{_esc(d)}</p></div>'
+                    for i, (t, d) in enumerate(_PROCESS, 1))
+    faqs = "".join(f'<details class="faq fx"><summary>{_esc(q)}</summary><p>{_esc(a)}</p></details>'
+                   for q, a in copy["faqs"])
+    areas = "".join(f'<span class="chip">{_esc(n)}</span>' for n in ([town] + [n for n in nearby if n != town])[:8])
+    gal = ("".join(f'<img class="gi fx" loading="lazy" decoding="async" alt="{_esc(biz)} work" src="{g}">'
+                   for g in gallery))
+    gal_sec = (f'<section class="sec"><div class="wrap"><div class="eb">Our work</div>'
+               f'<h2>Real jobs, real photos</h2><div class="gal">{gal}</div></div></section>') if gallery else ""
+    if reviews:
+        rev_cards = "".join(
+            f'<div class="rev fx"><div class="rtop"><span class="rav">{_esc(_initials(r["author"]))}</span>'
+            f'<div><b>{_esc(r["author"])}</b><div class="rm">{_esc(r.get("when",""))} · <span class="gt">Google</span></div></div></div>'
+            f'<div class="st">{_stars(r["rating"])}</div><p>&#8220;{_esc(r["text"][:260])}&#8221;</p></div>'
+            for r in reviews[:6])
+        rev_sec = (f'<section id="reviews" class="sec alt"><div class="wrap"><div class="eb">Reviews</div>'
+                   f'<h2>What {_esc(town)} says</h2>'
+                   + (f'<p class="lead">Rated <b>{rating:.1f}</b> <span class="st">{_stars(rating)}</span> from {rcount} Google reviews</p>' if rating else '')
+                   + f'<div class="revs">{rev_cards}</div></div></section>')
+    else:
+        rev_sec = ""
+
+    # quick-quote mini form (hero) + full booking section share the same live token.
+    mini = (f'<form class="mini" id="quote" data-token="{token}">'
+            '<input name="name" placeholder="Your name" autocomplete="name">'
+            '<input name="phone" placeholder="Mobile number" inputmode="tel" required>'
+            '<input name="job" placeholder="What needs doing?">'
+            f'<button type="submit">Get my free quote</button>'
+            '<div class="mok">✓ Sent — we&#8217;ll ring you shortly.</div></form>')
+
+    hero_bg = ",".join(['linear-gradient(180deg,rgba(8,14,22,.5),rgba(8,14,22,.88))',
+                        f'url("{hero_img}")'] + ([f'url("{stock_fb}")'] if hero_img != stock_fb else [])
+                       + [f'linear-gradient(160deg,{accent_dk},#0a1422)'])
+    if hero_v == 0:      # full-bleed overlay
+        hero = (f'<section class="hero hv0"><div class="hbg"></div><div class="wrap hin">'
+                f'<span class="eb ebd">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
+                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}'
+                f'<div class="ctas"><a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>'
+                f'<a class="b bb" href="#book">Book online</a></div>{mini}</div></section>')
+    elif hero_v == 1:    # split
+        hero = (f'<section class="hero hv1"><div class="wrap split">'
+                f'<div><span class="eb">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
+                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}'
+                f'<div class="ctas"><a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>'
+                f'<a class="b bb2" href="#book">Book online</a></div></div>'
+                f'<div class="pcol"><img class="pimg" src="{hero_img}" alt="{_esc(biz)}">{mini}</div>'
+                f'</div></section>')
+    else:                # editorial light
+        hero = (f'<section class="hero hv2"><div class="wrap">'
+                f'<span class="eb">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
+                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}'
+                f'<div class="ctas"><a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>'
+                f'<a class="b bb2" href="#book">Book online</a></div></div>'
+                f'<div class="band" style="background-image:url(\'{hero_img}\')"></div>'
+                f'<div class="wrap">{mini}</div></section>')
+
+    css_hero = {
+        0: f'.hv0{{position:relative;color:#fff}}.hv0 .hbg{{position:absolute;inset:0;background-image:{hero_bg};background-size:cover;background-position:center}}.hv0 .hin{{position:relative;padding:92px 22px 70px}}',
+        1: f'.hv1{{background:linear-gradient(170deg,#0d1b2c,{accent_dk} 140%);color:#fff}}.split{{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:74px 22px}}.pimg{{width:100%;height:340px;object-fit:cover;border-radius:{rad_card};box-shadow:0 30px 70px rgba(0,0,0,.45)}}.pcol .mini{{margin-top:18px}}@media(max-width:860px){{.split{{grid-template-columns:1fr;padding:60px 22px}}}}',
+        2: f'.hv2{{background:#f4f1ea;color:#10151c;padding-top:70px}}.hv2 .wrap{{padding-left:22px;padding-right:22px}}.hv2 .sub{{color:#4a5563}}.band{{height:300px;background-size:cover;background-position:center;margin:34px 0 26px}}.hv2 .mini{{margin:0 0 50px}}',
+    }[hero_v]
+
+    page = f"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{_esc(biz)} — {_esc(trade_t)} in {_esc(town)}</title>
+<meta name="description" content="{_esc(copy['sub'])}">
+<meta property="og:title" content="{headline.replace('&#8217;', '’')}">
+<meta property="og:description" content="Book online in 30 seconds or call now.">
+<meta property="og:image" content="{og_url}"><meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{og_url}">
+<link rel="preload" as="image" href="{hero_img}">
+<link rel="preconnect" href="https://lh3.googleusercontent.com"><link rel="preconnect" href="https://images.unsplash.com">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family={font_link}&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{{--a:{accent};--ad:{accent_dk};--ink:#10151c;--mut:#5a6878;--bg:#f6f8fa;--line:#e5eaf0}}
+*{{margin:0;padding:0;box-sizing:border-box}}html{{scroll-behavior:smooth}}
+body{{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}}
+h1,h2,h3,.b{{font-family:{font_stack}}}
+.wrap{{max-width:1100px;margin:0 auto;padding:0 22px}}a{{color:inherit}}img{{max-width:100%;display:block}}
+.fx{{opacity:0;transform:translateY(14px);transition:.5s ease}}.fx.vis{{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){{.fx{{opacity:1;transform:none}}}}
+.nav{{position:sticky;top:0;z-index:40;background:rgba(10,16,24,.9);backdrop-filter:blur(10px);color:#fff}}
+.nav .wrap{{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px}}
+.bm{{display:flex;align-items:center;gap:10px;font-weight:800;min-width:0}}
+.bmk{{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--a),var(--ad));display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}}
+.bnm{{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}}
+.nl{{display:flex;gap:22px;font-size:13.5px;font-weight:600;opacity:.85}}.nl a{{text-decoration:none}}
+.ncall{{display:inline-flex;align-items:center;gap:8px;background:var(--a);color:#fff;font-weight:800;padding:10px 17px;border-radius:{rad_btn};text-decoration:none;font-size:14px;white-space:nowrap}}
+.ncall svg,.b svg,.mc svg{{width:16px;height:16px}}
+.eb{{display:inline-block;text-transform:uppercase;letter-spacing:.16em;font-size:11.5px;font-weight:800;color:var(--ad)}}
+.ebd{{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:7px 13px;border-radius:100px}}
+.hero h1{{font-size:clamp(33px,5.8vw,58px);font-weight:800;line-height:1.06;margin:16px 0 12px;max-width:24ch}}
+.hero .sub{{font-size:clamp(16px,2.2vw,19px);max-width:52ch;opacity:.94;font-weight:500}}
+.hq{{margin-top:14px;font-size:15.5px;font-weight:600;opacity:.95;max-width:54ch}}.hq b{{opacity:.8;font-weight:600}}
+.st{{color:#ffb400;letter-spacing:1.5px}}
+.ctas{{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}}
+.b{{display:inline-flex;align-items:center;gap:9px;font-weight:800;padding:15px 26px;border-radius:{rad_btn};text-decoration:none;font-size:16px;border:0;cursor:pointer;transition:transform .15s}}
+.b:hover{{transform:translateY(-2px)}}
+.ba{{background:var(--a);color:#fff;box-shadow:0 12px 28px {_hex_rgba(accent,.4)}}}
+.bb{{background:rgba(255,255,255,.13);color:#fff;border:1.5px solid rgba(255,255,255,.35)}}
+.bb2{{background:#10151c;color:#fff}}
+.mini{{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:9px;background:#fff;padding:12px;border-radius:{rad_card};box-shadow:0 18px 50px rgba(8,14,22,.25);max-width:860px;margin-top:8px}}
+.mini input{{padding:13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:15px;color:var(--ink);min-width:0}}
+.mini button{{background:var(--a);color:#fff;border:0;border-radius:10px;font-weight:800;font-size:15px;padding:13px 18px;cursor:pointer;font-family:inherit;white-space:nowrap}}
+.mini .mok{{display:none;grid-column:1/-1;color:#0d7a48;font-weight:700;text-align:center;padding:4px}}
+@media(max-width:760px){{.mini{{grid-template-columns:1fr 1fr}}.mini input[name=job]{{grid-column:1/-1}}.mini button{{grid-column:1/-1}}}}
+.badges{{background:#0e1722;color:#fff}}.badges .wrap{{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;padding:15px 22px}}
+.bd{{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:100px;padding:8px 15px;font-size:13.5px;font-weight:700}}
+.bd-star{{background:{_hex_rgba(accent,.25)};border-color:{_hex_rgba(accent,.5)}}}
+.sec{{padding:72px 0}}.sec.alt{{background:#fff}}
+.sec h2{{font-size:clamp(26px,3.4vw,37px);font-weight:800;margin:8px 0 4px}}
+.sec h2:after{{content:"";display:block;width:50px;height:4px;background:var(--a);border-radius:4px;margin-top:13px}}
+.lead{{color:var(--mut);margin-top:12px;font-size:16.5px;max-width:60ch}}
+.g3{{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:18px;margin-top:30px}}
+.card{{background:#fff;border:1px solid var(--line);border-radius:{rad_card};padding:24px;box-shadow:0 8px 28px rgba(13,21,32,.06);transition:transform .2s}}
+.card:hover{{transform:translateY(-3px)}}
+.sec.alt .card{{background:var(--bg)}}
+.sic{{display:inline-flex;width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;align-items:center;justify-content:center;margin-bottom:12px}}
+.sic svg{{width:20px;height:20px}}.card h3{{font-size:17.5px;margin-bottom:5px}}.card p{{color:var(--mut);font-size:14.5px}}
+.gal{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:28px}}
+.gi{{height:225px;width:100%;object-fit:cover;border-radius:{rad_card};border:1px solid var(--line)}}
+.revs{{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:18px;margin-top:28px}}
+.rev{{background:var(--bg);border:1px solid var(--line);border-radius:{rad_card};padding:22px}}
+.rtop{{display:flex;gap:11px;align-items:center;margin-bottom:8px}}
+.rav{{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}}
+.rm{{color:var(--mut);font-size:12.5px}}.gt{{color:#1a73e8;font-weight:700}}.rev p{{font-size:14.5px;margin-top:8px;color:#2a3848}}
+.steps{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:30px;counter-reset:s}}
+.step{{background:#fff;border:1px solid var(--line);border-radius:{rad_card};padding:24px;position:relative}}
+.step .n{{display:inline-flex;width:34px;height:34px;border-radius:50%;background:var(--a);color:#fff;font-weight:800;align-items:center;justify-content:center;margin-bottom:10px}}
+.step h3{{font-size:16.5px}}.step p{{color:var(--mut);font-size:14px}}
+.faq{{background:#fff;border:1px solid var(--line);border-radius:14px;margin-top:12px;overflow:hidden}}
+.faq summary{{padding:17px 20px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between}}
+.faq summary:after{{content:"+";color:var(--a);font-weight:800;font-size:20px}}
+.faq[open] summary:after{{content:"–"}}
+.faq p{{padding:0 20px 17px;color:var(--mut);font-size:15px}}
+.chips{{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}}
+.chip{{background:#fff;border:1px solid var(--line);border-radius:100px;padding:9px 16px;font-size:14px;font-weight:600}}
+.book{{background:linear-gradient(165deg,#0c1826,{accent_dk} 160%);color:#fff}}
+.bcard{{background:#fff;color:var(--ink);border-radius:{rad_card};padding:32px;max-width:640px;margin:30px auto 0;box-shadow:0 34px 80px rgba(0,0,0,.4)}}
+.lbl{{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:18px 0 8px}}
+.pills{{display:flex;flex-wrap:wrap;gap:8px}}
+.pill{{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:10px 15px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}}
+.pill.on{{background:var(--a);color:#fff;border-color:var(--a)}}
+.bcard select,.bcard input{{width:100%;font:inherit;font-size:16px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;margin-top:8px;color:var(--ink)}}
+.bsub{{width:100%;margin-top:22px;background:var(--a);color:#fff;border:0;border-radius:12px;padding:17px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit}}
+.bok{{display:none;text-align:center;padding:18px}}.bok .e{{font-size:44px}}
+.fin{{background:#0e1722;color:#fff;text-align:center}}.fin .wrap{{padding:64px 22px}}
+.fin h2:after{{margin-left:auto;margin-right:auto}}
+.closer{{background:linear-gradient(135deg,var(--ad),var(--a));color:#fff}}
+.cz{{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:42px 22px}}
+.czb{{font-size:clamp(22px,3.2vw,32px);font-weight:800;font-family:{font_stack}}}
+.czs{{opacity:.95;max-width:46ch}}
+.czbtn{{display:inline-flex;align-items:center;gap:9px;background:#fff;color:var(--ad);font-weight:800;padding:15px 24px;border-radius:{rad_btn};text-decoration:none;box-shadow:0 14px 32px rgba(0,0,0,.3);white-space:nowrap}}
+.foot{{background:#0a1118;color:#c6d2de;text-align:center;padding:38px 22px;font-size:14px}}
+.mc{{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;align-items:center;justify-content:center;gap:9px;background:var(--a);color:#fff;padding:15px;font-weight:800;text-decoration:none;font-size:16px}}
+@media(max-width:760px){{.mc{{display:flex}}.nl{{display:none}}body{{padding-bottom:0}}.sec{{padding:56px 0}}}}
+</style></head><body>
+
+<header class="nav"><div class="wrap">
+ <div class="bm"><span class="bmk">{_esc(_initials(biz))}</span><span class="bnm">{_esc(biz)}</span></div>
+ <nav class="nl"><a href="#services">Services</a><a href="#reviews">Reviews</a><a href="#faq">FAQs</a><a href="#book">Book</a></nav>
+ <a class="ncall" href="tel:{tel}">{_IC["phone"]}<span>{_esc(phone)}</span></a>
+</div></header>
+
+{hero}
+
+<div class="badges"><div class="wrap">{badges_html}</div></div>
+
+<section id="services" class="sec"><div class="wrap">
+ <div class="eb">What we do</div><h2>{_esc(trade_t)} services in {_esc(town)}</h2>
+ <p class="lead">{_esc(copy["about"])}</p>
+ <div class="g3">{svc}</div></div></section>
+
+{gal_sec}
+{rev_sec}
+
+<section id="process" class="sec"><div class="wrap">
+ <div class="eb">How it works</div><h2>Simple from start to finish</h2>
+ <div class="steps">{steps}</div></div></section>
+
+<section id="area" class="sec alt"><div class="wrap">
+ <div class="eb">Where we work</div><h2>Covering {_esc(town)} &amp; nearby</h2>
+ <p class="lead">Based in {_esc(town)} — close enough to get to you fast.</p>
+ <div class="chips">{areas}</div></div></section>
+
+<section id="faq" class="sec"><div class="wrap">
+ <div class="eb">Good to know</div><h2>Questions, answered straight</h2>{faqs}</div></section>
+
+<section id="book" class="sec book"><div class="wrap">
+ <div style="text-align:center"><span class="eb" style="color:#ffc89e">Book in 30 seconds</span>
+ <h2 style="margin-top:14px">Book {_esc(biz)}</h2>
+ <p style="color:#c7d4e2">Pick a day and time — we&#8217;ll ring to confirm. No account, no faff.</p></div>
+ <div class="bcard"><form id="bform" data-token="{token}">
+  <label class="lbl">What do you need?</label>
+  <select id="bsvc">{''.join(f'<option>{_esc(t)}</option>' for t,_ in services)}<option>Something else</option></select>
+  <label class="lbl">Preferred day</label><div class="pills" id="bdays"></div>
+  <label class="lbl">Time</label><div class="pills" id="btimes">
+   <button type="button" class="pill" data-v="Morning">Morning</button>
+   <button type="button" class="pill" data-v="Afternoon">Afternoon</button>
+   <button type="button" class="pill" data-v="Evening">Evening</button>
+   <button type="button" class="pill" data-v="ASAP / emergency">ASAP</button></div>
+  <label class="lbl">Your name</label><input name="name" autocomplete="name">
+  <label class="lbl">Mobile number</label><input name="phone" inputmode="tel" required>
+  <button class="bsub" type="submit">Request this booking →</button></form>
+  <div class="bok" id="bok"><div class="e">✅</div><h3>Booking sent!</h3>
+  <p style="color:var(--mut)">{_esc(biz)} will ring you to confirm.</p>
+  <a class="b ba" style="margin-top:16px" href="tel:{tel}">{_IC["phone"]} Or call now</a></div>
+ </div></div></section>
+
+<section class="fin"><div class="wrap">
+ <div class="eb" style="color:{accent}">Ready when you are</div>
+ <h2>Need a {_esc(trade)} in {_esc(town)}?</h2>
+ <div class="ctas" style="justify-content:center;margin-top:22px">
+  <a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>
+  <a class="b bb" href="#book">Book online</a></div></div></section>
+
+<section class="closer"><div class="wrap cz">
+ <div><div class="eb" style="color:#fff;opacity:.85">This site is already built</div>
+ <div class="czb">Built for {_esc(biz)}</div>
+ <div class="czs">Want it live this week? <b>£199</b> to launch, then <b>£29/month</b> — hosting, updates and the booking system, all done for you.</div></div>
+ <a class="czbtn" href="https://wa.me/{founder_wa}?text={wa_text}">{_IC["phone"]} WhatsApp Dylan — make it live</a>
+</div></section>
+
+<footer class="foot"><b>{_esc(biz)}</b><br>{_esc(trade_t)} · {_esc(town)} ·
+ <a href="tel:{tel}" style="color:#fff;font-weight:700">{_esc(phone)}</a>
+ <div style="opacity:.5;margin-top:10px">Website by L&amp;D Designs</div></footer>
+
+<a class="mc" href="tel:{tel}">{_IC["phone"]} Call {_esc(biz)} now</a>
+
+<script>
+(function(){{var API="{api}",T="{token}";
+function send(body,done){{fetch(API+'/api/capture/'+T,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}}).then(function(r){{return r.json()}}).then(done).catch(done);}}
+var mini=document.getElementById('quote');
+if(mini){{mini.addEventListener('submit',function(e){{e.preventDefault();var f=this;
+ if(!f.phone.value){{f.phone.focus();return}}
+ send({{name:f.name.value,phone:f.phone.value,job_description:'💬 Quote request: '+(f.job.value||'general enquiry')}},
+ function(){{f.querySelector('.mok').style.display='block';f.name.value=f.phone.value=f.job.value='';}});}});}}
+var sel={{s:document.getElementById('bsvc').value,d:'',t:''}};
+document.getElementById('bsvc').addEventListener('change',function(){{sel.s=this.value}});
+function grp(id,k){{var b=document.getElementById(id);b.addEventListener('click',function(e){{var p=e.target.closest('.pill');if(!p)return;[].forEach.call(b.querySelectorAll('.pill'),function(x){{x.classList.remove('on')}});p.classList.add('on');sel[k]=p.getAttribute('data-v');}});}}
+var dd=document.getElementById('bdays'),N=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],td=new Date();
+for(var i=0;i<7;i++){{var d=new Date(td);d.setDate(td.getDate()+i);var b=document.createElement('button');b.type='button';b.className='pill';b.textContent=i===0?'Today':(i===1?'Tomorrow':N[d.getDay()]+' '+d.getDate());b.setAttribute('data-v',d.toDateString());dd.appendChild(b);}}
+grp('bdays','d');grp('btimes','t');
+document.getElementById('bform').addEventListener('submit',function(e){{e.preventDefault();var f=this;
+ if(!f.phone.value){{f.phone.focus();return}}
+ send({{name:f.name.value,phone:f.phone.value,job_description:'📅 Booking request: '+sel.s+(sel.d?' — '+sel.d:'')+(sel.t?' ('+sel.t+')':'')}},
+ function(){{f.style.display='none';document.getElementById('bok').style.display='block';}});}});
+if('IntersectionObserver' in window){{var io=new IntersectionObserver(function(es){{es.forEach(function(en){{if(en.isIntersecting){{en.target.classList.add('vis');io.unobserve(en.target)}}}})}},{{threshold:.1}});[].forEach.call(document.querySelectorAll('.fx'),function(el){{io.observe(el)}});}}else{{[].forEach.call(document.querySelectorAll('.fx'),function(el){{el.classList.add('vis')}});}}
+</script>
+"""
+    page += "</body></html>"
+    # hero-variant CSS belongs in <head> with the rest of the styles.
+    page = page.replace("</style></head>", css_hero + "\n</style></head>")
+    return page
+
+
+def qa_v3(html: str, biz: str, token: str) -> tuple:
+    """v3 gate = the base gate + every required section present. A v3 missing a
+    section is needs_review, never READY."""
+    passed, reasons = qa_html(html, biz, token)
+    for sec, label in [('id="quote"', "quote form"), ('id="book"', "booking section"),
+                       ('id="services"', "services"), ('id="process"', "process section"),
+                       ('id="area"', "local area section"), ('id="faq"', "FAQs"),
+                       ('class="badges"', "trust badges"), ('class="mc"', "mobile call bar")]:
+        if sec not in html:
+            passed = False
+            reasons.append(f"missing {label}")
+    return passed, reasons
+
+
+def _find_v3_row(prospect_id: str):
+    try:
+        rows = (get_db().table("previews").select("id,qa_status,qa_reasons,created_at")
+                .eq("prospect_id", prospect_id).eq("template_version", "v3")
+                .order("created_at", desc=True).limit(1).execute().data or [])
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
+def build_v3(name_or_id: str) -> dict:
+    """Build a v3 as a NEW preview row. The prospect's live link (preview_id) is NOT
+    touched — v2 keeps serving until promote_v3. Re-running replaces the v3 draft."""
+    db = get_db()
+    p = trades.find_prospect(name_or_id)
+    if not p:
+        return {"ok": False, "message": f"No prospect found for '{name_or_id}'."}
+    token = p.get("capture_token") or secrets.token_urlsafe(12)
+    if not p.get("capture_token"):
+        db.table("prospects").update({"capture_token": token}).eq("id", p["id"]).execute()
+
+    details = _fetch_place_details(p.get("place_id"), p.get("trade"),
+                                   name=p.get("business_name"), town=p.get("town"),
+                                   prospect_id=p["id"])
+    copy = _v3_copy(p, details)
+    html = _site_html_v3(p, token, details, copy)
+    base_url = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"
+
+    existing = _find_v3_row(p["id"])
+    if existing:
+        pid = existing["id"]
+        db.table("previews").update({"html_content": html, "qa_status": "pending",
+                                     "qa_reasons": []}).eq("id", pid).execute()
+    else:
+        res = db.table("previews").insert({"html_content": html, "prospect_id": p["id"],
+                                           "template_version": "v3",
+                                           "qa_status": "pending"}).execute()
+        pid = res.data[0]["id"] if res.data else None
+        if pid:
+            db.table("previews").update({"preview_url": base_url + pid}).eq("id", pid).execute()
+    if not pid:
+        return {"ok": False, "business_name": p.get("business_name"), "passed": False,
+                "reasons": ["couldn't store row"], "message": "Couldn't store the v3 preview."}
+
+    link = base_url + pid
+    passed, reasons = qa_v3(html, p.get("business_name") or "", token)
+    msgs = _gen_messages(p, link, details.get("rating"), details.get("review_count"))
+    db.table("previews").update({
+        "qa_status": "qa_passed" if passed else "qa_failed",
+        "qa_reasons": reasons, "qa_checked_at": _now_iso(),
+        "personalization_data": {
+            "og": {"biz": p.get("business_name"), "town": p.get("town"),
+                   "trade": p.get("trade"), "rating": details.get("rating"),
+                   "review_count": details.get("review_count")},
+            "msg_first": msgs["first"], "msg_link": msgs["link_msg"],
+            "preview_link": link,
+        }}).eq("id", pid).execute()
+    trades.log_event("preview_qa", f"v3 {'PASS' if passed else 'NEEDS REVIEW'} — "
+                     f"{p.get('business_name')}" + (f" ({'; '.join(reasons)[:70]})" if reasons else ""),
+                     "success" if passed else "warn", {"metric_ok": passed, "v3_id": pid})
+    return {"ok": True, "passed": passed, "reasons": reasons, "v3_id": pid,
+            "v3_link": link, "business_name": p.get("business_name"),
+            "message": f"v3 {'QA PASS' if passed else 'NEEDS REVIEW: ' + '; '.join(reasons)} → {link}"}
+
+
+def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True) -> dict:
+    """Phase runner: limit=3 for the sample round, big limit for the rest. v2 rows
+    untouched; Mission Control + queues unaffected until promotion."""
+    db = get_db()
+    try:
+        pros = (db.table("prospects").select("id,business_name,queue_ready,data_mode")
+                .eq("data_mode", mode).limit(2000).execute().data or [])
+    except Exception as e:
+        return {"ok": False, "message": f"Couldn't read prospects: {e}"}
+    ready = [p for p in pros if p.get("queue_ready")]
+    if not force:
+        ready = [p for p in ready if not _find_v3_row(p["id"])]
+    todo = ready[:limit]
+    if not todo:
+        return {"ok": True, "built": 0,
+                "message": "Nothing to build — every queue-ready prospect already has a v3."}
+
+    def _one(p):
+        try:
+            return build_v3(p["id"])
+        except Exception as e:
+            logger.warning(f"[v3] build failed {p.get('business_name')}: {e}")
+            return {"ok": False, "business_name": p.get("business_name"),
+                    "reasons": [str(e)[:60]], "passed": False, "v3_link": None}
+
+    rows, passed_n = [], 0
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        for r in ex.map(_one, todo):
+            ok = r.get("passed")
+            passed_n += 1 if ok else 0
+            rows.append(f"{'✓ PASS        ' if ok else '⚠ NEEDS REVIEW'}  "
+                        f"{r.get('business_name')}  →  {r.get('v3_link') or 'build failed'}"
+                        + (f"   [{'; '.join(r.get('reasons') or [])[:60]}]" if not ok else ""))
+    msg = (f"v3 built for {len(todo)}: {passed_n} PASS / {len(todo)-passed_n} need review.\n"
+           + "\n".join(rows)
+           + "\n\nv2 links untouched. Open the v3 links, compare, then promote the ones you approve.")
+    trades.log_event("preview_qa", f"v3 batch: {passed_n}/{len(todo)} pass", "success",
+                     {"metric_ok": passed_n == len(todo)})
+    return {"ok": True, "built": len(todo), "passed": passed_n, "table": rows, "message": msg}
+
+
+def promote_v3(name_or_id: str) -> dict:
+    """Founder approval: point the prospect's LIVE link at the v3 row (READY). The
+    old v2 row keeps serving its URL, so already-sent links never break."""
+    db = get_db()
+    p = trades.find_prospect(name_or_id)
+    if not p:
+        return {"ok": False, "message": f"No prospect found for '{name_or_id}'."}
+    v3 = _find_v3_row(p["id"])
+    if not v3:
+        return {"ok": False, "message": "No v3 built for this prospect yet."}
+    if v3.get("qa_status") not in ("qa_passed", "ready"):
+        return {"ok": False, "message": f"v3 is NEEDS REVIEW "
+                f"({'; '.join(v3.get('qa_reasons') or [])[:90]}) — fix before promoting."}
+    db.table("previews").update({"qa_status": "ready"}).eq("id", v3["id"]).execute()
+    db.table("prospects").update({"preview_id": v3["id"], "preview_status": "ready",
+                                  "updated_at": _now_iso()}).eq("id", p["id"]).execute()
+    link = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/{v3['id']}"
+    trades.log_event("preview_qa", f"v3 PROMOTED → live for {p.get('business_name')}",
+                     "success", {"metric_ok": True})
+    return {"ok": True, "v3_link": link,
+            "message": f"{p.get('business_name')} live link is now v3 (READY): {link}. v2 URL still serves."}
+
+
+def v3_status(mode: str = "real") -> dict:
+    """Final-output table: every queue-ready prospect's live link + v3 link + QA
+    verdict + promoted flag."""
+    db = get_db()
+    base = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"
+    try:
+        pros = (db.table("prospects").select("id,business_name,preview_id,queue_ready,data_mode")
+                .eq("data_mode", mode).limit(2000).execute().data or [])
+        v3rows = (db.table("previews").select("id,prospect_id,qa_status,qa_reasons,created_at")
+                  .eq("template_version", "v3").limit(2000).execute().data or [])
+    except Exception as e:
+        return {"ok": False, "message": f"read failed: {e}"}
+    latest = {}
+    for r in sorted(v3rows, key=lambda x: x.get("created_at") or ""):
+        latest[r["prospect_id"]] = r
+    out = []
+    for p in pros:
+        if not p.get("queue_ready"):
+            continue
+        v3 = latest.get(p["id"])
+        out.append({
+            "business_name": p.get("business_name"),
+            "live_link": (base + p["preview_id"]) if p.get("preview_id") else None,
+            "v3_link": (base + v3["id"]) if v3 else None,
+            "v3_qa": (v3 or {}).get("qa_status"),
+            "v3_reasons": (v3 or {}).get("qa_reasons") or [],
+            "promoted": bool(v3 and p.get("preview_id") == v3["id"]),
+        })
+    ready = [o for o in out if o["v3_qa"] in ("qa_passed", "ready")]
+    review = [o for o in out if o["v3_link"] and o["v3_qa"] not in ("qa_passed", "ready")]
+    lines = [(("✅ PROMOTED " if o["promoted"] else "✓ ready    ") if o["v3_qa"] in ("qa_passed", "ready")
+              else ("⚠ review   " if o["v3_link"] else "· no v3    "))
+             + f"{o['business_name']}  →  {o['v3_link'] or '(not built)'}" for o in out]
+    return {"ok": True, "prospects": out, "ready": len(ready), "needs_review": len(review),
+            "message": (f"v3 status — {len(ready)} ready, {len(review)} need review, "
+                        f"{len(out)-len(ready)-len(review)} not built:\n" + "\n".join(lines))}
