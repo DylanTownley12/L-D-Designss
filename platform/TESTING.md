@@ -1,4 +1,4 @@
-# TESTING — JARVIS trades system (production acceptance)
+# TESTING — Tradesman Website Revenue OS (production acceptance)
 
 All against **production**. Set once:
 ```bash
@@ -7,47 +7,45 @@ FE=https://l-d-designss.vercel.app
 KEY=<your OPS_KEY>
 ```
 
-## Pre-req (founder, ~3 min)
-Run `backend/db/PASTE_INTO_SUPABASE.sql` in Supabase SQL Editor. Verification SELECTs at
-the bottom must list 8 tables. Then in `/jarvis` hit **Seed demo**.
+## Pre-req (founder, ~3 min — the one thing that can't be automated)
+Railway has no `DATABASE_URL`, so DDL can't self-apply. Paste **`backend/db/PASTE_INTO_SUPABASE.sql`**
+into Supabase → SQL Editor → Run. The verification SELECTs at the bottom must list **10 tables**
+and `data_mode_cols = 4`. Then in `/mission-control` hit **Seed demo** (demo mode) to rehearse.
 
-## The 12 acceptance tests
-| # | Test | How |
+## The 9 acceptance tests
+| # | Test | How to verify |
 |---|---|---|
-| 1 | Migration applied | SQL verification SELECTs list 8 tables (or it's the founder's pending step) |
-| 2 | Seed visible in /jarvis | open `/jarvis`, enter key → D/L queues, tasks, leads populated |
-| 3 | Capture loads at phone width | open `/capture/<token>` on a phone — one-handed, big targets |
-| 4 | Submit with photo → lead row | submit the form with a photo; row has `photo_urls` (📷 in the panel) |
-| 5 | Founders' Telegram alert | (needs `TELEGRAM_BOT_TOKEN`+`FOUNDER_CHAT_IDS`) alert arrives on submit |
-| 6 | Client dashboard shows lead | open `/d/<token>` → the new lead is listed |
-| 7 | /jarvis on real data | every panel populated, system dot green |
-| 8 | RUN NOW per agent → events | click RUN NOW (Lead Prioritiser/Follow-Up/Revenue Analyst); feed updates |
-| 9 | "what should D and L do now?" | console returns a data-grounded answer; logged to `decisions` |
-| 10 | one-tap outcome updates instantly | tap GATEKEEPER on a card → status flips, feed logs it |
-| 11 | `log called <prospect>, gatekeeper, try after 4` | row updated, change echoed; `undo` reverts |
-| 12 | manual cron → Telegram briefing | `POST $BASE/api/cron/morning?key=$KEY` → briefing (Telegram if configured) |
+| 1 | Migration + integrity; seed rows are demo; "wipe demo" works | SQL SELECTs list 10 tables + `data_mode_cols=4`. Board in DEMO shows seeded rows; footer **Wipe demo** (confirm) clears only `data_mode='demo'`. REAL board untouched. |
+| 2 | Import 5 real prospects → deduped, scored, angled, queued; incomplete → NEEDS DATA | Console `import` (or `POST /api/sales/import`) a 5-line block. Response gives `queue_ready` + `pct_ready`. A row with no website status lands in **NEEDS DATA**, never a queue. |
+| 3 | Every queued prospect shows score + sales angle | Each queue row + the NEXT CALL strip render `score` and `🎯 angle`. |
+| 4 | Logging an outcome without a next action is impossible (UI + console) | UI: tapping a non-terminal outcome opens the 2-tap WHEN picker; can't save without it. API: `POST /prospects/{id}/log` with a non-terminal status and no `next_action`/`next_action_date` → **422**. Console `log …` auto-creates a next action (+1 day) and says so. |
+| 5 | QA fails a broken preview (reasons listed, blocked from READY) + passes a good one; APPROVE→READY | `build preview <name>` → QA runs. A good page → `qa_passed`; APPROVE flips to **ready**. Break it (e.g. unreachable) → `qa_failed` + reasons, can't be approved. |
+| 6 | "brief me" → bottleneck named with real numbers, delivered to OpenClaw | Console `brief me` or `POST /api/sales/brief`. Briefing names the bottleneck stage with counts; `delivery.channel` = `openclaw` when `OPENCLAW_WEBHOOK_URL` is set. |
+| 7 | Capture submit end-to-end → lead row + founder notification via OpenClaw | Submit `/capture/<token>` (client OR a prospect preview token). Row appears in CAPTURED LEADS; founders pinged via `notify_founders` (OpenClaw). |
+| 8 | `/mission-control` cold load: NEXT CALL populated, alerts visible, old routes redirect | `/jarvis`, `/ops`, `/command` → `/mission-control`. NEXT CALL strip shows the single next prospect; RED ALERT banner shows open alerts. |
+| 9 | THE 8AM TEST | Fresh load answers: who to call (NEXT CALL), why (angle), what to show (preview chip), follow-ups due, today's highest-revenue action (CEO briefing). |
 
 ## Curl checks (no browser)
 ```bash
 # Routing + gating (no key → 401, bad token → 404). Proves deploy + auth.
 curl -s -o/dev/null -w '%{http_code}\n' "$BASE/api/sales/board"                 # 401
+curl -s -o/dev/null -w '%{http_code}\n' "$BASE/api/sales/needs-data"            # 401
+curl -s -o/dev/null -w '%{http_code}\n' -X POST "$BASE/api/sales/import"        # 401
+curl -s -o/dev/null -w '%{http_code}\n' -X POST "$BASE/api/sales/brief"         # 401
 curl -s -o/dev/null -w '%{http_code}\n' "$BASE/api/capture/nope"                # 404
-curl -s -o/dev/null -w '%{http_code}\n' -X POST "$BASE/api/sales/wipe-seed"     # 401
 
-# With your key (after migration):
-curl -s "$BASE/api/sales/board?key=$KEY" | head -c 300                          # real JSON
-curl -s -X POST "$BASE/api/jarvis/command?key=$KEY" -H 'Content-Type: application/json' \
-  -d '{"text":"what should D do now?","founder":"D"}'                            # sensible reply
-curl -s -X POST "$BASE/api/jarvis/command?key=$KEY" -H 'Content-Type: application/json' \
-  -d '{"text":"log called Standish Heating, gatekeeper, try after 4"}'          # row updated + echo
-curl -s "$BASE/api/sales/agent-events?key=$KEY" | head -c 300                    # feed
-curl -s -X POST "$BASE/api/cron/morning?key=$KEY" | head -c 200                  # daily briefing
+# With your key (after the SQL paste):
+curl -s "$BASE/api/sales/board?key=$KEY&mode=real" | head -c 300                # real JSON
+curl -s -X POST "$BASE/api/sales/import?key=$KEY" -H 'Content-Type: application/json' \
+  -d '{"pasted_text":"Joe Plumbing, 07700 900111, Wigan\nSpark Electric, 01942 000000, Leigh"}'
+# next-action enforcement → expect 422:
+curl -s -o/dev/null -w '%{http_code}\n' -X POST "$BASE/api/sales/prospects/SOMEID/log?key=$KEY" \
+  -H 'Content-Type: application/json' -d '{"outcome":"answered","new_status":"called"}'   # 422
+curl -s -X POST "$BASE/api/sales/brief?key=$KEY" | head -c 400                  # bottleneck + delivery
 ```
 
 ## Resilience
-- **No `ANTHROPIC_API_KEY`** → console answers status/today/log/follow-ups/run on deterministic
-  parsing with an "AI OFFLINE — RAW MODE" chip. Never dies.
-- **Migration not run** → board returns `setup_needed` (clean message, not a crash); /jarvis shows
-  the red "DATABASE NOT INITIALISED" banner.
-- **Telegram not configured** → everything else works; sends no-op with a warning.
-- **Non-founder hits the bot** → ignored. **Duplicate Telegram delivery** → de-duped by message id.
+- **No `ANTHROPIC_API_KEY`** → angles + briefing fall back to deterministic templates; console shows "AI OFFLINE — RAW MODE". Never dies.
+- **Migration not run** → board returns `setup_needed` (clean message, CORS intact); Mission Control shows the red "DATABASE NOT INITIALISED" banner.
+- **No `OPENCLAW_WEBHOOK_URL`** → notifications fall back to Telegram, else log-only. Everything else works.
+- **REAL vs DEMO** → every query is single-mode; the toggle never mixes them. Demo view is amber-bordered.

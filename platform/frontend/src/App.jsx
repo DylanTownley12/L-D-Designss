@@ -8,7 +8,7 @@ import Agents from './pages/Agents'
 import Command from './pages/Command'
 import Hub from './pages/Hub'
 import Calls from './pages/Calls'
-import Jarvis from './pages/Jarvis'
+import MissionControl from './pages/MissionControl'
 import Capture from './pages/Capture'
 import ClientDashboard from './pages/ClientDashboard'
 
@@ -16,8 +16,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Standalone full-screen JARVIS OS — no dashboard chrome */}
-        <Route path="/jarvis" element={<Jarvis />} />
+        {/* Standalone full-screen founder cockpit — no dashboard chrome */}
+        <Route path="/mission-control" element={<MissionControl />} />
+        {/* Old routes redirect to Mission Control (SPA equivalent of a 301) */}
+        <Route path="/jarvis" element={<Navigate to="/mission-control" replace />} />
+        <Route path="/ops" element={<Navigate to="/mission-control" replace />} />
+        <Route path="/command" element={<Navigate to="/mission-control" replace />} />
 
         {/* Public, token-gated pages — no dashboard chrome */}
         <Route path="/capture/:token" element={<Capture />} />
@@ -29,14 +33,12 @@ export default function App() {
             <Sidebar />
             <main className="flex-1 overflow-y-auto">
               <Routes>
-                {/* ONE founder interface: everything funnels to /jarvis */}
-                <Route path="/" element={<Navigate to="/jarvis" replace />} />
-                <Route path="/command" element={<Navigate to="/jarvis" replace />} />
-                <Route path="/ops" element={<Navigate to="/jarvis" replace />} />
-                <Route path="/dashboard" element={<Navigate to="/jarvis" replace />} />
-                <Route path="/missed-call" element={<Navigate to="/jarvis" replace />} />
-                <Route path="/plan" element={<Navigate to="/jarvis" replace />} />
-                <Route path="/live" element={<Navigate to="/jarvis" replace />} />
+                {/* ONE founder interface: everything funnels to /mission-control */}
+                <Route path="/" element={<Navigate to="/mission-control" replace />} />
+                <Route path="/dashboard" element={<Navigate to="/mission-control" replace />} />
+                <Route path="/missed-call" element={<Navigate to="/mission-control" replace />} />
+                <Route path="/plan" element={<Navigate to="/mission-control" replace />} />
+                <Route path="/live" element={<Navigate to="/mission-control" replace />} />
                 {/* Barber DO-NEXT preserved (not the trades cockpit) */}
                 <Route path="/do-next" element={<Command />} />
                 <Route path="/hub" element={<Hub />} />

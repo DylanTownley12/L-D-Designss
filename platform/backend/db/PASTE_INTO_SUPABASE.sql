@@ -190,17 +190,130 @@ ALTER TABLE decisions      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs  ENABLE ROW LEVEL SECURITY;
 
 -- ════════════════════════════════════════════════════════════════════
+--  REVENUE OS v2 — data_mode (real/demo), opportunity scoring, website
+--  qualification, on-demand preview + QA, alerts, CEO briefings.
+--  All idempotent. Safe to re-run. Backfills existing seed rows to demo.
+-- ════════════════════════════════════════════════════════════════════
+
+-- ── data_mode on the four core tables (real vs demo). Backfill from is_seed. ──
+ALTER TABLE prospects        ADD COLUMN IF NOT EXISTS data_mode TEXT NOT NULL DEFAULT 'real';
+ALTER TABLE captured_leads   ADD COLUMN IF NOT EXISTS data_mode TEXT NOT NULL DEFAULT 'real';
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS data_mode TEXT NOT NULL DEFAULT 'real';
+ALTER TABLE tasks            ADD COLUMN IF NOT EXISTS data_mode TEXT NOT NULL DEFAULT 'real';
+
+UPDATE prospects        SET data_mode='demo' WHERE is_seed IS TRUE AND data_mode='real';
+UPDATE captured_leads   SET data_mode='demo' WHERE is_seed IS TRUE AND data_mode='real';
+UPDATE textback_clients SET data_mode='demo' WHERE is_seed IS TRUE AND data_mode='real';
+UPDATE tasks            SET data_mode='demo' WHERE is_seed IS TRUE AND data_mode='real';
+
+ALTER TABLE prospects        DROP CONSTRAINT IF EXISTS prospects_data_mode_check;
+ALTER TABLE prospects        ADD  CONSTRAINT prospects_data_mode_check CHECK (data_mode IN ('real','demo'));
+ALTER TABLE captured_leads   DROP CONSTRAINT IF EXISTS captured_leads_data_mode_check;
+ALTER TABLE captured_leads   ADD  CONSTRAINT captured_leads_data_mode_check CHECK (data_mode IN ('real','demo'));
+ALTER TABLE textback_clients DROP CONSTRAINT IF EXISTS textback_clients_data_mode_check;
+ALTER TABLE textback_clients ADD  CONSTRAINT textback_clients_data_mode_check CHECK (data_mode IN ('real','demo'));
+ALTER TABLE tasks            DROP CONSTRAINT IF EXISTS tasks_data_mode_check;
+ALTER TABLE tasks            ADD  CONSTRAINT tasks_data_mode_check CHECK (data_mode IN ('real','demo'));
+
+CREATE INDEX IF NOT EXISTS idx_prospects_data_mode      ON prospects(data_mode, status);
+CREATE INDEX IF NOT EXISTS idx_captured_leads_data_mode ON captured_leads(data_mode);
+CREATE INDEX IF NOT EXISTS idx_tasks_data_mode          ON tasks(data_mode, status);
+
+-- captured_leads can now belong to a prospect's on-demand preview (no client yet).
+ALTER TABLE captured_leads ADD COLUMN IF NOT EXISTS prospect_id UUID;
+CREATE INDEX IF NOT EXISTS idx_captured_leads_prospect ON captured_leads(prospect_id);
+
+-- ── prospects: website qualification + opportunity score + sales angle + preview ──
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website_url           TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website_status        TEXT DEFAULT 'unknown';  -- unknown|none|has_website
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website_quality       TEXT;                    -- poor|old|modern (only if has_website)
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website_status_source TEXT;                    -- paste|places|founder|ai
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS reviews_status        TEXT;                    -- poor|ok|strong
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS local_demand          TEXT;                    -- high|normal|low
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS opportunity_score     INTEGER;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS score_factors         JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS score_override        INTEGER;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS score_override_reason TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS sales_angle           TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS angle_source          TEXT;                    -- ai|template
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS queue_ready           BOOLEAN DEFAULT FALSE;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS needs_data_reason     TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS capture_token         TEXT;                    -- live capture form for the prospect's demo preview
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS preview_id            UUID;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS preview_status        TEXT;                    -- none|draft|qa_failed|ready
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website_status_check  TEXT;                    -- last website-status check note
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_captoken ON prospects(capture_token) WHERE capture_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_prospects_score ON prospects(opportunity_score DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_prospects_queue ON prospects(assigned_to, queue_ready, opportunity_score DESC NULLS LAST);
+
+-- ── textback_clients: bundle pricing — one-off build fee + recurring MRR ──
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_fee     NUMERIC(10,2) DEFAULT 500;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_paid    BOOLEAN DEFAULT FALSE;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_paid_at TIMESTAMPTZ;
+
+-- ── previews: link a preview to a prospect + deterministic QA gate (barber-safe) ──
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema='public' AND table_name='previews') THEN
+    ALTER TABLE previews ADD COLUMN IF NOT EXISTS prospect_id   UUID;
+    ALTER TABLE previews ADD COLUMN IF NOT EXISTS qa_status     TEXT;       -- pending|qa_failed|qa_passed|ready
+    ALTER TABLE previews ADD COLUMN IF NOT EXISTS qa_reasons    JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE previews ADD COLUMN IF NOT EXISTS qa_checked_at TIMESTAMPTZ;
+    CREATE INDEX IF NOT EXISTS idx_previews_prospect ON previews(prospect_id);
+  END IF;
+END $$;
+
+-- ── alerts: backs the Mission Control RED ALERT banner (never silently drops) ──
+CREATE TABLE IF NOT EXISTS alerts (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    kind        TEXT NOT NULL,   -- agent_fail|qa_failed|broken_preview|missing_phone|missing_owner|no_next_action|db_error|dead_pipeline
+    severity    TEXT DEFAULT 'warn' CHECK (severity IN ('info','warn','error')),
+    message     TEXT NOT NULL,
+    entity      TEXT,
+    entity_id   TEXT,
+    data_mode   TEXT NOT NULL DEFAULT 'real',
+    resolved    BOOLEAN DEFAULT FALSE,
+    resolved_at TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_open ON alerts(resolved, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_dedupe ON alerts(kind, entity_id) WHERE resolved = FALSE;
+
+-- ── briefings: the latest CEO briefing (shown in the UI + sent to OpenClaw) ──
+CREATE TABLE IF NOT EXISTS briefings (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    kind        TEXT DEFAULT 'daily',
+    text        TEXT NOT NULL,
+    bottleneck  TEXT,
+    metrics     JSONB DEFAULT '{}'::jsonb,
+    data_mode   TEXT NOT NULL DEFAULT 'real',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_briefings_recent ON briefings(created_at DESC);
+
+ALTER TABLE alerts    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE briefings ENABLE ROW LEVEL SECURITY;
+
+-- ════════════════════════════════════════════════════════════════════
 --  VERIFICATION — these should all run clean and show the new tables.
 -- ════════════════════════════════════════════════════════════════════
 SELECT 'tables' AS check, string_agg(table_name, ', ' ORDER BY table_name) AS present
 FROM information_schema.tables
 WHERE table_schema = 'public'
   AND table_name IN ('prospects','captured_leads','next_actions','tasks',
-                     'jarvis_log','agent_events','decisions','activity_logs');
+                     'jarvis_log','agent_events','decisions','activity_logs',
+                     'alerts','briefings');
 
 SELECT 'prospects_cols' AS check, count(*) AS cols
 FROM information_schema.columns WHERE table_name = 'prospects';
 
-SELECT 'seed_prospects' AS check, count(*) AS rows FROM prospects WHERE is_seed;
+SELECT 'data_mode_cols' AS check, count(*) AS cols
+FROM information_schema.columns
+WHERE column_name = 'data_mode'
+  AND table_name IN ('prospects','captured_leads','textback_clients','tasks');
+
+SELECT 'prospects_by_mode' AS check, data_mode, count(*) AS rows FROM prospects GROUP BY data_mode;
 SELECT 'captured_leads' AS check, count(*) AS rows FROM captured_leads;
--- Expect 8 tables listed above. Seed counts are 0 until you click "Seed demo".
+-- Expect 10 tables listed, prospects has ~40 cols, data_mode_cols = 4.
+-- Seed/real counts depend on what you've seeded. "Wipe demo" clears data_mode='demo' only.

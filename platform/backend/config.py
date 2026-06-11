@@ -23,11 +23,19 @@ class Settings(BaseSettings):
     FOUNDER_D_CHAT_ID: Optional[str] = None   # Dylan's chat id (gets D's call list at 08:00)
     FOUNDER_L_CHAT_ID: Optional[str] = None   # L's chat id (gets L's call list at 08:00)
 
+    # Founder notifications — PRIMARY channel. POSTs internal alerts/briefings to
+    # OpenClaw (Baz) which relays them to the founders' WhatsApp. Telegram is a
+    # fallback only. Set this in Railway to the OpenClaw inbound webhook URL.
+    # NOTHING here ever contacts a prospect or client — founders only.
+    OPENCLAW_WEBHOOK_URL: Optional[str] = None
+
     # Internal ops board gate (founders only). Falls back to SECRET_KEY if unset.
     OPS_KEY: Optional[str] = None
 
     # Where the public capture form + client dashboard live (for building links)
     FRONTEND_BASE_URL: str = "https://l-d-designss.vercel.app"
+    # This backend's own public URL (for generated previews' live capture form + webhooks)
+    BACKEND_BASE_URL: str = "https://l-d-designss-production.up.railway.app"
 
     # Gmail
     GMAIL_ADDRESS: str
@@ -120,6 +128,19 @@ class Settings(BaseSettings):
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.TELEGRAM_BOT_TOKEN and self.founder_chat_id_list)
+
+    @property
+    def notify_enabled(self) -> bool:
+        """True if ANY founder-notification channel is configured (OpenClaw or Telegram)."""
+        return bool((self.OPENCLAW_WEBHOOK_URL or "").strip()) or self.telegram_enabled
+
+    @property
+    def notify_channel(self) -> str:
+        if (self.OPENCLAW_WEBHOOK_URL or "").strip():
+            return "openclaw"
+        if self.telegram_enabled:
+            return "telegram"
+        return "none"
 
     @property
     def sms_provider(self) -> str:

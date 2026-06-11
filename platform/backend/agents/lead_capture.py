@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 
 from config import settings
 from db.client import get_db
-from utils import telegram
+from utils import telegram, notify
+from models.validate import clean as validate_clean, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -56,24 +57,41 @@ def _ai_triage(client: dict, lead: dict):
     return summary, reply
 
 
-def record_lead(client_id: str, phone: str, name: str = None, postcode: str = None,
+def record_lead(client_id: str = None, phone: str = None, name: str = None, postcode: str = None,
                 job_description: str = None, source: str = "web_form",
                 job_type: str = None, urgency: str = None, photo_urls=None,
-                notify: bool = True) -> dict:
-    """Insert a captured_lead (with AI summary + suggested reply), ping founders on
-    Telegram ALWAYS, optionally the client, and (opt-in) confirm to the homeowner."""
+                notify_founders: bool = True, prospect_id: str = None) -> dict:
+    """Insert a captured_lead (with AI summary + suggested reply), ping founders
+    ALWAYS, optionally the client. Works for a real client OR a prospect's on-demand
+    preview (client_id None + prospect_id set) — the demo form captures a real lead."""
     db = get_db()
 
-    client = None
-    try:
-        client = db.table("textback_clients").select("*").eq("id", client_id).single().execute().data
-    except Exception:
-        client = None
-    if not client:
-        return {"ok": False, "error": "client_not_found"}
+    client, prospect, data_mode = None, None, "real"
+    if client_id:
+        try:
+            client = db.table("textback_clients").select("*").eq("id", client_id).single().execute().data
+        except Exception:
+            client = None
+        if not client:
+            return {"ok": False, "error": "client_not_found"}
+        data_mode = client.get("data_mode") or "real"
+    elif prospect_id:
+        try:
+            prospect = db.table("prospects").select("*").eq("id", prospect_id).single().execute().data
+        except Exception:
+            prospect = None
+        if not prospect:
+            return {"ok": False, "error": "prospect_not_found"}
+        data_mode = prospect.get("data_mode") or "real"
+        # A prospect acts as a light "client" for branding + triage only.
+        client = {"business_name": prospect.get("business_name"), "trade": prospect.get("trade"),
+                  "town": prospect.get("town"), "dashboard_token": None, "telegram_chat_id": None}
+    else:
+        return {"ok": False, "error": "no_target"}
 
     lead_row = {
         "client_id": client_id,
+        "prospect_id": prospect_id,
         "name": (name or "").strip() or None,
         "phone": (phone or "").strip(),
         "postcode": (postcode or "").strip() or None,
@@ -84,10 +102,15 @@ def record_lead(client_id: str, phone: str, name: str = None, postcode: str = No
         "source": source,
         "status": "new",
         "notified": False,
+        "data_mode": data_mode,
     }
     summary, suggested = _ai_triage(client, lead_row)
     lead_row["ai_summary"] = summary
     lead_row["suggested_reply"] = suggested
+    try:
+        lead_row = validate_clean("captured_leads", lead_row)
+    except ValidationError as ve:
+        return {"ok": False, "error": str(ve)}
     res = db.table("captured_leads").insert(lead_row).execute()
     lead = res.data[0] if res.data else lead_row
 
@@ -101,7 +124,7 @@ def record_lead(client_id: str, phone: str, name: str = None, postcode: str = No
         pass
 
     notified = False
-    if notify:
+    if notify_founders:
         notified = _notify_founders(client, lead, source)   # founders ALWAYS
         _notify_client(client, lead)                        # client if chat id set
         if notified and lead.get("id"):
@@ -144,8 +167,9 @@ def _notify_founders(client: dict, lead: dict, source: str) -> bool:
         parts.append(f"“{lead['job_description'][:300]}”")
     if lead.get("photo_urls"):
         parts.append(f"📷 {len(lead['photo_urls'])} photo(s) attached")
-    parts.append(f"Dashboard: {link}")
-    return telegram.broadcast_founders("\n".join(parts)) > 0
+    if dash:
+        parts.append(f"Dashboard: {link}")
+    return notify.notify_founders("\n".join(parts), kind="new_lead").get("ok", False)
 
 
 def _notify_client(client: dict, lead: dict) -> bool:

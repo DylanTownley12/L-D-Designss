@@ -1,8 +1,9 @@
-# GO LIVE TODAY — JARVIS trades system
+# GO LIVE TODAY — Tradesman Website Revenue OS
 
-The founder cockpit is **`https://l-d-designss.vercel.app/jarvis`** (everything —
-`/`, `/command`, `/ops` — redirects there). One brain, one agent set, two doors
-(web console + Telegram). Below: the exact order tonight, then tomorrow before calls.
+The founder cockpit is **`https://l-d-designss.vercel.app/mission-control`** (everything —
+`/`, `/jarvis`, `/command`, `/ops` — redirects there). One brain, one agent set, two doors
+(web console + the same brain over chat). We sell tradespeople a **website build + lead
+capture** (one-off build fee + recurring). Below: the exact order tonight, then before calls.
 
 ---
 
@@ -18,11 +19,12 @@ The founder cockpit is **`https://l-d-designss.vercel.app/jarvis`** (everything 
 ### 2. Confirm Railway env vars  (Settings → Variables)
 | Var | State | Action |
 |---|---|---|
-| `OPS_KEY` | ✅ set | this is what you type into the /jarvis gate |
+| `OPS_KEY` | ✅ set | this is what you type into the /mission-control gate |
 | `ANTHROPIC_API_KEY` | ✅ set | powers JARVIS + AI lead summaries |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | ✅ set | DB + photo storage |
-| `TELEGRAM_BOT_TOKEN` | ❌ **not set** | set it to get the daily briefing + live lead alerts on Telegram (optional — the web cockpit works without it) |
-| `FOUNDER_CHAT_IDS` | ❌ **not set** | comma-separated chat IDs for D and L (see SETUP.md for how to get them) |
+| `OPENCLAW_WEBHOOK_URL` | ❌ **not set** | **PRIMARY** notify channel — point at the OpenClaw inbound webhook so the daily CEO briefing + live lead alerts hit your WhatsApp via Baz. Optional (web cockpit works without it). |
+| `TELEGRAM_BOT_TOKEN` | ❌ not set | fallback only, used if OpenClaw URL is blank |
+| `FOUNDER_CHAT_IDS` | ❌ not set | comma-separated chat IDs for D and L (only needed for the Telegram fallback) |
 | `CLAUDE_MODEL` | optional | defaults to `claude-opus-4-8`; set to swap models |
 | `FRONTEND_BASE_URL` | optional | defaults to the Vercel URL (correct) |
 
@@ -30,7 +32,7 @@ The founder cockpit is **`https://l-d-designss.vercel.app/jarvis`** (everything 
 set `VITE_API_URL`, you must redeploy Vercel for it to take effect.)
 
 ### 3. Open the cockpit + seed
-- Go to **`/jarvis`**, type your `OPS_KEY` (remembered after the first time).
+- Go to **`/mission-control`**, type your `OPS_KEY` (remembered after the first time).
 - Hit **Seed demo** → 30 NW-England prospects (split D/L, with notes + overdue follow-ups),
   10 tasks, "Demo Plumbing Co" with a live capture link, and 3 sample leads (one with a photo).
 - Every panel should now be populated.
@@ -51,7 +53,7 @@ set `VITE_API_URL`, you must redeploy Vercel for it to take effect.)
 
 ## TOMORROW — before the founders start calling
 
-1. **`/jarvis` → Wipe seed** (footer button, red). Deletes ONLY demo rows (`is_seed=true`).
+1. **`/mission-control` → Wipe demo** (footer button, red). Deletes ONLY demo rows (`data_mode='demo'`).
    Real data is never touched. Confirm the queues go empty.
 2. **Import the real prospect list** — in the console:
    ```
@@ -78,7 +80,7 @@ set `VITE_API_URL`, you must redeploy Vercel for it to take effect.)
   `source` field (`web_form` now, `missed_call` later) so it bolts on without a rewrite.
 
 ## If something's wrong
-- **/jarvis says "DATABASE NOT INITIALISED"** → step 1 wasn't run (or failed). Re-run the SQL.
+- **/mission-control says "DATABASE NOT INITIALISED"** → step 1 wasn't run (or failed). Re-run the SQL.
 - **Console says "AI OFFLINE — RAW MODE"** → `ANTHROPIC_API_KEY` missing/invalid; commands
   still work on deterministic parsing.
 - **No Telegram** → `TELEGRAM_BOT_TOKEN` / `FOUNDER_CHAT_IDS` not set (step 2). Web cockpit is unaffected.

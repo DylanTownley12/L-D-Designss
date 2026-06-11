@@ -228,3 +228,126 @@ def is_trial_touchpoint(trial_start, today: Optional[date] = None) -> Optional[i
     """Return 7 or 12 if today is a trial check-in day, else None."""
     d = trial_day(trial_start, today)
     return d if d in (7, 12) else None
+
+
+# ════════════════════════════════════════════════════════════════════
+#  QUALIFICATION + OPPORTUNITY SCORE + SALES ANGLE  (all deterministic)
+# ════════════════════════════════════════════════════════════════════
+
+def valid_uk_phone(phone: Optional[str]) -> bool:
+    """A dialable UK number — mobile (07…) or landline (01/02…). We can't sell to
+    a row we can't ring, so this is part of the queue-ready gate."""
+    if not phone:
+        return False
+    digits = re.sub(r"\D", "", str(phone))
+    if digits.startswith("0044"):
+        digits = "0" + digits[4:]
+    elif digits.startswith("44") and len(digits) >= 11:
+        digits = "0" + digits[2:]
+    if digits.startswith("07") and len(digits) >= 11:       # mobile
+        return True
+    if digits.startswith(("01", "02")) and len(digits) >= 10:  # landline
+        return True
+    return False
+
+
+def local_demand_for(town: Optional[str], trade: Optional[str]) -> str:
+    """Deterministic local-demand band. Emergency trades in our core patch see the
+    most panic-call volume; everything else is normal. No external calls."""
+    if is_emergency_trade(trade) and proximity_score(town) >= 30:
+        return "high"
+    if is_emergency_trade(trade):
+        return "normal"
+    return "low" if proximity_score(town) <= 10 else "normal"
+
+
+# Opportunity factors — Fable's exact weights. Each only scores when its signal is
+# KNOWN; unknown signals contribute 0. Positive = a reason to call (gap to fix),
+# negative = already sorted (lower priority).
+def opportunity_score(signals: Dict) -> Tuple[int, List[Dict]]:
+    """signals keys (all optional; unknown → 0):
+        website_status: 'none'|'has_website'|'unknown'
+        website_quality: 'poor'|'old'|'modern'|None
+        mobile_friendly: True/False/None        (website works on phones)
+        reviews_status: 'poor'|'ok'|'strong'|None
+        cta_strength: 'weak'|'strong'|None
+        local_demand: 'high'|'normal'|'low'|None
+        is_emergency_trade: True/False
+        recently_updated: True/False/None
+    Returns (score 0-100, [{factor, points}])."""
+    s = signals or {}
+    factors: List[Dict] = []
+
+    def add(cond, factor, pts):
+        if cond:
+            factors.append({"factor": factor, "points": pts})
+
+    ws = s.get("website_status")
+    wq = s.get("website_quality")
+    add(ws == "none", "no website", 25)
+    add(ws == "has_website" and wq == "poor", "poor website", 20)
+    add(ws == "has_website" and wq == "old", "old website", 15)
+    add(s.get("mobile_friendly") is False, "weak on mobile", 15)
+    add(s.get("reviews_status") == "poor", "reviews not shown", 10)
+    add(s.get("cta_strength") == "weak", "weak call-to-action", 10)
+    add(s.get("local_demand") == "high", "high local demand", 10)
+    add(bool(s.get("is_emergency_trade")), "emergency trade", 5)
+    # Negatives — reasons they're already converting / lower priority.
+    add(s.get("recently_updated") is True, "recently updated", -20)
+    add(ws == "has_website" and wq == "modern", "modern site", -15)
+    add(s.get("cta_strength") == "strong", "strong conversion design", -15)
+
+    score = max(0, min(100, sum(f["points"] for f in factors)))
+    return score, factors
+
+
+def qualify(prospect: Dict) -> Tuple[bool, Optional[str]]:
+    """The queue-ready gate. A prospect may enter a call queue only with: business
+    name, trade, town, a valid UK phone, AND a known website status (none|has_website).
+    Returns (queue_ready, needs_data_reason). reason is None when ready."""
+    missing = []
+    if not str(prospect.get("business_name") or "").strip():
+        missing.append("business name")
+    if not str(prospect.get("trade") or "").strip():
+        missing.append("trade")
+    if not str(prospect.get("town") or "").strip():
+        missing.append("town")
+    if not valid_uk_phone(prospect.get("phone")):
+        missing.append("valid UK phone")
+    if (prospect.get("website_status") or "unknown") not in ("none", "has_website"):
+        missing.append("website status (none / has website)")
+    if missing:
+        return False, "Needs: " + ", ".join(missing)
+    return True, None
+
+
+def sales_angle_template(prospect: Dict, factors: Optional[List[Dict]] = None) -> str:
+    """Deterministic one-line reason-to-call, built from the dominant scoring factor.
+    Used as the fallback when the AI angle isn't available. References the bundle
+    (website build + lead capture). UK tone, concrete, no fluff."""
+    trade = (prospect.get("trade") or "trade").strip()
+    town = (prospect.get("town") or "their area").strip()
+    factors = factors or []
+    top = factors[0]["factor"] if factors else None
+    search = f"'{trade} {town}'"
+
+    by_factor = {
+        "no website": f"No website — invisible when {town} locals google {search}. "
+                      f"Build them one with a lead-capture form built in.",
+        "poor website": f"Website's poor — losing trust and mobile enquiries in {town}. "
+                        f"Rebuild + capture form turns lookers into calls.",
+        "old website": f"Dated website — looks behind the competition in {town}. "
+                       f"A modern rebuild + capture form wins back enquiries.",
+        "weak on mobile": f"Their site breaks on phones — and most {trade} searches are mobile. "
+                          f"Quick rebuild + capture form is an easy win.",
+        "reviews not shown": f"Good {trade} but no proof on show — add reviews + a capture form "
+                             f"so {town} visitors actually get in touch.",
+        "high local demand": f"Emergency {trade} in {town} — every missed enquiry is a lost job. "
+                             f"Website + instant lead capture pays for itself fast.",
+        "emergency trade": f"Emergency {trade} in {town} — needs to catch every enquiry. "
+                           f"Website + capture form so none slip through.",
+    }
+    if top in by_factor:
+        return by_factor[top]
+    return (f"{trade.title()} in {town} — tighten their online presence and capture "
+            f"more enquiries with a proper site + lead form.")

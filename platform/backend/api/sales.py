@@ -49,6 +49,30 @@ class ProspectBody(BaseModel):
 class LogBody(BaseModel):
     outcome: str
     new_status: Optional[str] = None
+    next_action: Optional[str] = None
+    next_action_date: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class WebsiteStatusBody(BaseModel):
+    website_status: str                 # none | has_website
+    website_quality: Optional[str] = None   # poor | old | modern
+    website_url: Optional[str] = None
+
+
+class ImportBody(BaseModel):
+    pasted_text: Optional[str] = None
+    entries: Optional[list] = None
+    town: Optional[str] = None
+    trade: Optional[str] = None
+
+
+class OverrideBody(BaseModel):
+    score: int
+    reason: str
+
+
+_TERMINAL = ("won", "lost", "not_interested")
 
 
 class ConvertBody(BaseModel):
@@ -66,49 +90,107 @@ class ClientBody(BaseModel):
 
 
 # ── Ops board snapshot ─────────────────────────────────────────────────
+_HEALTH_AGENTS = [
+    ("dial_manager", "Lead Prioritiser"), ("qualifier", "Lead Qualifier"),
+    ("preview_qa", "Preview QA"), ("followup", "Follow-Up"),
+    ("reporter", "Revenue Analyst"), ("ceo", "CEO Briefing"),
+]
+
+
+def _agent_health(mode: str) -> list:
+    """Last run + pass/fail-against-metric per agent, from agent_events."""
+    evs = trades.get_agent_events(limit=200)
+    last = {}
+    for e in evs:
+        a = e.get("agent")
+        if a and a not in last:
+            last[a] = e
+    out = []
+    for key, label in _HEALTH_AGENTS:
+        e = last.get(key)
+        data = (e or {}).get("data") or {}
+        out.append({
+            "agent": key, "label": label,
+            "last_run": (e or {}).get("created_at"),
+            "message": (e or {}).get("message"),
+            "metric": data.get("metric"),
+            "ok": bool(data.get("metric_ok", True)) if e else None,
+            "level": (e or {}).get("level"),
+        })
+    return out
+
+
 @router.get("/board")
-async def ops_board(_=Depends(require_ops_key)):
-    """Board snapshot for the Ops + JARVIS pages. Must NEVER raise an unhandled
-    500: an exception here (e.g. the trades migration hasn't been run, so the
-    `prospects` table is missing) would come back without CORS headers and the
-    browser would report it as a generic "Network Error". Instead we catch it
-    and return setup_needed so the key still works and the UI can say what's
-    actually wrong."""
+async def ops_board(mode: str = "real", _=Depends(require_ops_key)):
+    """Board snapshot for Mission Control. Mode = real|demo (never mixed). Must NEVER
+    raise an unhandled 500 (that would drop CORS and show as a generic "Network
+    Error") — on any failure we return setup_needed so the key still works and the
+    UI can say what's actually wrong."""
     db = get_db()
+    mode = "demo" if mode == "demo" else "real"
     try:
         ctx_pipeline = {
-            s: (db.table("prospects").select("id", count="exact").eq("status", s).execute().count or 0)
+            s: (db.table("prospects").select("id", count="exact")
+                .eq("status", s).eq("data_mode", mode).execute().count or 0)
             for s in ("to_call", "called", "interested", "demo_booked", "won", "not_interested", "lost")
         }
-        report = trades.revenue_report(weekly=False)
+        report = trades.revenue_report(weekly=False, mode=mode)
 
-        # Recent captured leads with their client name for the board feed.
-        recent = (db.table("captured_leads").select("*")
+        # Recent captured leads (this mode) with their client/prospect name.
+        recent = (db.table("captured_leads").select("*").eq("data_mode", mode)
                   .order("created_at", desc=True).limit(25).execute().data or [])
-        client_names = {}
+        name_cache = {}
         for lead in recent:
-            cid = lead.get("client_id")
-            if cid and cid not in client_names:
-                try:
-                    cn = db.table("textback_clients").select("business_name").eq("id", cid).single().execute().data
-                    client_names[cid] = (cn or {}).get("business_name")
-                except Exception:
-                    client_names[cid] = None
-            lead["client_name"] = client_names.get(cid)
+            cid, pid = lead.get("client_id"), lead.get("prospect_id")
+            nm = None
+            if cid:
+                if cid not in name_cache:
+                    try:
+                        name_cache[cid] = (db.table("textback_clients").select("business_name")
+                                           .eq("id", cid).single().execute().data or {}).get("business_name")
+                    except Exception:
+                        name_cache[cid] = None
+                nm = name_cache[cid]
+            elif pid:
+                if pid not in name_cache:
+                    try:
+                        name_cache[pid] = (db.table("prospects").select("business_name")
+                                           .eq("id", pid).single().execute().data or {}).get("business_name") + " (preview)"
+                    except Exception:
+                        name_cache[pid] = None
+                nm = name_cache[pid]
+            lead["client_name"] = nm
 
+        # NEEDS DATA bucket — qualified-out prospects (never in a queue).
+        needs = [p for p in (db.table("prospects").select("*").eq("data_mode", mode)
+                             .eq("queue_ready", False).limit(300).execute().data or [])
+                 if p.get("status") not in ("won", "lost", "not_interested")][:100]
+
+        funnel = trades.compute_funnel(mode=mode)
         return {
+            "mode": mode,
             "pipeline": ctx_pipeline,
-            "calls": {"D": trades.build_call_list("D"), "L": trades.build_call_list("L")},
+            "funnel": funnel,
+            "bottleneck": trades.find_bottleneck(funnel),
+            "calls": {"D": trades.build_call_list("D", mode=mode),
+                      "L": trades.build_call_list("L", mode=mode)},
             "report": report,
             "recent_leads": recent,
-            "tasks": trades.list_tasks(),
+            "tasks": trades.list_tasks(mode=mode),
+            "needs_data": needs,
+            "at_risk": trades.find_dead_pipeline(mode=mode),
+            "overdue": trades.get_overdue_followups(mode=mode),
+            "alerts": trades.get_open_alerts(mode=mode),
+            "briefing": trades.get_latest_briefing(mode=mode),
+            "agent_health": _agent_health(mode),
         }
     except Exception as e:
         logger.error(f"[sales/board] data load failed — migration not run? {e}", exc_info=True)
         return {
             "pipeline": {}, "calls": {"D": [], "L": []}, "report": {}, "recent_leads": [],
+            "needs_data": [], "at_risk": [], "alerts": [], "agent_health": [],
             "setup_needed": True,
-            "error": "Couldn't read the trades tables. Run db/migrations.sql in Supabase, then reload.",
+            "error": "Couldn't read the trades tables. Paste db/PASTE_INTO_SUPABASE.sql in Supabase, then reload.",
         }
 
 
@@ -163,10 +245,13 @@ async def agent_events(limit: int = 40, agent: Optional[str] = None, _=Depends(r
 
 
 @router.post("/run-agent")
-async def run_agent(agent: str = Query(...), post: bool = True, _=Depends(require_ops_key)):
-    """Fire one no-arg agent on demand (Lead Prioritiser / Follow-Up / Revenue Analyst)."""
+async def run_agent(agent: str = Query(...), post: bool = True, mode: str = "real",
+                    _=Depends(require_ops_key)):
+    """Fire one agent on demand (Lead Prioritiser / Qualifier / Preview QA / Follow-Up
+    / Revenue Analyst / CEO)."""
     try:
-        return trades.run_agent(agent, post_to_telegram=post)
+        return trades.run_agent(agent, post_to_telegram=post,
+                                mode="demo" if mode == "demo" else "real")
     except Exception as e:
         logger.error(f"[sales/run-agent {agent}] {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Couldn't run {agent} — is the migration applied?")
@@ -211,7 +296,131 @@ async def add_prospect(body: ProspectBody, _=Depends(require_ops_key)):
 
 @router.post("/prospects/{prospect_id}/log")
 async def log_call(prospect_id: str, body: LogBody, _=Depends(require_ops_key)):
-    return trades.log_call(prospect_id, body.outcome, body.new_status)
+    # Phase 4: a non-terminal outcome must carry a next action (the 2-tap picker's
+    # "when"). Terminal outcomes (won/lost/not_interested) need none.
+    status = (body.new_status or "").lower()
+    is_terminal = status in _TERMINAL
+    if not is_terminal and not (body.next_action or body.next_action_date):
+        raise HTTPException(status_code=422,
+            detail="A next action is required — pick when to follow up (the 2-tap picker).")
+    outcome = body.outcome
+    if body.reason:
+        outcome = f"{outcome} — {body.reason}".strip(" —")
+    return trades.log_call(prospect_id, outcome, body.new_status,
+                           next_action=body.next_action, next_action_date=body.next_action_date)
+
+
+@router.get("/needs-data")
+async def needs_data(mode: str = "real", _=Depends(require_ops_key)):
+    """Prospects that can't enter a queue yet (missing website status etc.)."""
+    db = get_db()
+    mode = "demo" if mode == "demo" else "real"
+    rows = (db.table("prospects").select("*").eq("data_mode", mode)
+            .eq("queue_ready", False).limit(200).execute().data or [])
+    rows = [r for r in rows if r.get("status") not in _TERMINAL]
+    return {"needs_data": rows, "count": len(rows)}
+
+
+@router.post("/prospects/{prospect_id}/website-status")
+async def set_website_status(prospect_id: str, body: WebsiteStatusBody, _=Depends(require_ops_key)):
+    """Founder resolves a NEEDS DATA prospect (none|has_website[+quality]) → rescore."""
+    return trades.set_website_status(prospect_id, body.website_status,
+                                     quality=body.website_quality, url=body.website_url)
+
+
+@router.post("/prospects/{prospect_id}/score-override")
+async def score_override(prospect_id: str, body: OverrideBody, _=Depends(require_ops_key)):
+    """Manual opportunity-score override — requires a logged reason."""
+    db = get_db()
+    if not (body.reason or "").strip():
+        raise HTTPException(status_code=422, detail="A reason is required to override the score.")
+    db.table("prospects").update({
+        "score_override": max(0, min(100, int(body.score))),
+        "score_override_reason": body.reason.strip(),
+    }).eq("id", prospect_id).execute()
+    trades.log_event("qualifier", f"score override → {body.score} ({body.reason[:60]})", "info",
+                     {"prospect_id": prospect_id})
+    return {"ok": True, "message": f"Score overridden to {body.score}."}
+
+
+@router.post("/import")
+async def import_prospects(body: ImportBody, _=Depends(require_ops_key)):
+    """THE qualifier — paste a raw Google-Maps list (name, phone, town). Dedupes,
+    scores, angles, qualifies, assigns D/L. Returns the % that reached queue-ready."""
+    return trades.scout(entries=body.entries, pasted_text=body.pasted_text,
+                        town=body.town, trade=body.trade, source="import", data_mode="real")
+
+
+@router.post("/requalify")
+async def requalify(mode: str = "real", _=Depends(require_ops_key)):
+    return trades.requalify_all(mode="demo" if mode == "demo" else "real")
+
+
+# ── Previews (on-demand per prospect) + QA gate ───────────────────────
+@router.post("/prospects/{prospect_id}/preview")
+async def build_preview(prospect_id: str, _=Depends(require_ops_key)):
+    from agents import preview_qa
+    return preview_qa.build_for_prospect(prospect_id)
+
+
+@router.post("/prospects/{prospect_id}/preview/qa")
+async def rerun_qa(prospect_id: str, _=Depends(require_ops_key)):
+    from agents import preview_qa
+    db = get_db()
+    p = db.table("prospects").select("preview_id").eq("id", prospect_id).single().execute().data
+    if not p or not p.get("preview_id"):
+        raise HTTPException(status_code=404, detail="No preview built for this prospect yet.")
+    return preview_qa.qa_preview(p["preview_id"])
+
+
+@router.post("/prospects/{prospect_id}/preview/approve")
+async def approve_preview(prospect_id: str, _=Depends(require_ops_key)):
+    from agents import preview_qa
+    return preview_qa.approve_preview(name_or_id=prospect_id)
+
+
+# ── Alerts (Mission Control RED ALERT banner) ─────────────────────────
+@router.get("/alerts")
+async def list_alerts(mode: str = "real", _=Depends(require_ops_key)):
+    return {"alerts": trades.get_open_alerts(mode="demo" if mode == "demo" else "real")}
+
+
+@router.post("/alerts/{alert_id}/resolve")
+async def resolve_alert(alert_id: str, _=Depends(require_ops_key)):
+    return trades.resolve_alert(alert_id=alert_id)
+
+
+# ── CEO briefing ──────────────────────────────────────────────────────
+@router.get("/briefing")
+async def latest_briefing(mode: str = "real", _=Depends(require_ops_key)):
+    return {"briefing": trades.get_latest_briefing(mode="demo" if mode == "demo" else "real")}
+
+
+@router.post("/brief")
+async def run_brief(post: bool = True, mode: str = "real", _=Depends(require_ops_key)):
+    """'brief me' — run the CEO briefing now (delivers to OpenClaw if configured)."""
+    return trades.ceo_briefing(post=post, mode="demo" if mode == "demo" else "real")
+
+
+# ── Bundle: mark a client's one-off build fee as paid ─────────────────
+@router.post("/clients/{client_id}/build-paid")
+async def mark_build_paid(client_id: str, _=Depends(require_ops_key)):
+    db = get_db()
+    from datetime import datetime, timezone
+    db.table("textback_clients").update({
+        "build_paid": True, "build_paid_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", client_id).execute()
+    trades.log_event("reporter", "💷 build fee marked PAID", "success", {"client_id": client_id})
+    return {"ok": True, "message": "Build fee marked paid."}
+
+
+# ── Wipe demo (alias of wipe-seed; deletes data_mode='demo' only) ─────
+@router.post("/wipe-demo")
+async def wipe_demo(_=Depends(require_ops_key)):
+    try:
+        return trades.wipe_seed()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Couldn't wipe: {e}")
 
 
 @router.post("/prospects/{prospect_id}/convert")
@@ -348,7 +557,8 @@ def _seed_enrichment(db, demo_client_id) -> dict:
             for s in samples:
                 try:
                     db.table("captured_leads").insert({"client_id": demo_client_id,
-                                                       "notified": True, "is_seed": True, **s}).execute()
+                                                       "notified": True, "is_seed": True,
+                                                       "data_mode": "demo", **s}).execute()
                     out["captured_leads"] += 1
                 except Exception as e:
                     logger.warning(f"[seed] captured_lead failed: {e}")
@@ -366,7 +576,7 @@ def _seed_enrichment(db, demo_client_id) -> dict:
         ]:
             try:
                 db.table("tasks").insert({**t, "due_date": today, "is_seed": True,
-                                          "created_by": "seed", "status": "open"}).execute()
+                                          "data_mode": "demo", "created_by": "seed", "status": "open"}).execute()
                 out["tasks"] += 1
             except Exception as e:
                 logger.warning(f"[seed] task failed: {e}")
@@ -382,15 +592,28 @@ def seed_demo_data() -> dict:
     from datetime import date, timedelta
     db = get_db()
 
+    # Give the demo prospects a realistic spread of website states so they qualify
+    # and score across the range (no website = top opportunity; modern = lowest).
+    _WS = [("none", None), ("none", None), ("has_website", "poor"),
+           ("has_website", "old"), ("has_website", "modern")]
+    entries = []
+    for i, p in enumerate(_DEMO_PROSPECTS):
+        ws, wq = _WS[i % len(_WS)]
+        entries.append({**p, "website_status": ws, "website_quality": wq})
     try:
-        scout_res = trades.scout(entries=[dict(p) for p in _DEMO_PROSPECTS], source="seed_demo")
-        # Flag every seeded prospect so /api/sales/wipe-seed can clear them
-        # before real calling (never overloads the lead `source` field).
+        scout_res = trades.scout(entries=entries, source="seed_demo", data_mode="demo")
+        # Belt-and-braces: flag is_seed too (back-compat) — data_mode='demo' is authoritative.
         db.table("prospects").update({"is_seed": True}).eq("source", "seed_demo").execute()
+        # website_quality isn't a scout column, so set it directly, then requalify.
+        for e in entries:
+            if e.get("website_quality"):
+                db.table("prospects").update({"website_quality": e["website_quality"]}) \
+                    .eq("business_name", e["business_name"]).eq("data_mode", "demo").execute()
+        trades.requalify_all(mode="demo")
     except Exception as e:
         logger.error(f"[sales/seed-demo] scout failed — migration not run? {e}", exc_info=True)
         raise HTTPException(status_code=503,
-                            detail="Couldn't seed: run db/migrations.sql in Supabase first, then try again.")
+                            detail="Couldn't seed: paste db/PASTE_INTO_SUPABASE.sql in Supabase first, then try again.")
 
     # Demo client — reuse if present so repeat seeds don't pile up duplicates.
     existing = (db.table("textback_clients").select("*")
@@ -412,7 +635,8 @@ def seed_demo_data() -> dict:
             "plan_status": "trial", "trial_start": date.today().isoformat(),
             "trial_end": (date.today() + timedelta(days=14)).isoformat(),
             "dashboard_token": dash, "capture_token": cap, "total_textbacks_sent": 0,
-            "is_seed": True, "avg_job_value": 150,
+            "is_seed": True, "data_mode": "demo", "avg_job_value": 150,
+            "build_fee": 500, "build_paid": False,
         }
         res = db.table("textback_clients").insert(rec).execute()
         cid = res.data[0]["id"] if res.data else None

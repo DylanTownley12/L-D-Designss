@@ -124,9 +124,29 @@ TOOLS = [
     {"name": "update_lead_status", "description": "Set a captured lead's status.",
      "input_schema": {"type": "object", "properties": {
          "lead_id": {"type": "string"}, "status": {"type": "string"}}, "required": ["lead_id", "status"]}},
-    {"name": "wipe_seed", "description": "Delete ALL demo/seed rows. Requires confirm=true. Only when "
-        "explicitly asked to clear demo data before real calling.",
+    {"name": "wipe_seed", "description": "Delete ALL demo rows (data_mode='demo'). Requires confirm=true. "
+        "Only when explicitly asked to clear demo data before real calling.",
      "input_schema": {"type": "object", "properties": {"confirm": {"type": "boolean"}}, "required": ["confirm"]}},
+    {"name": "set_website_status", "description": "Resolve a NEEDS DATA prospect: set whether they have a "
+        "website ('none' or 'has_website') + optional quality (poor|old|modern). Rescores + may queue them.",
+     "input_schema": {"type": "object", "properties": {
+         "prospect": {"type": "string"}, "website_status": {"type": "string", "enum": ["none", "has_website"]},
+         "quality": {"type": "string", "enum": ["poor", "old", "modern"]}}, "required": ["prospect", "website_status"]}},
+    {"name": "build_preview", "description": "Build an on-demand demo website + live capture form for a "
+        "prospect (to show on the call), then QA it. Use for 'build preview for <name>'.",
+     "input_schema": {"type": "object", "properties": {"prospect": {"type": "string"}}, "required": ["prospect"]}},
+    {"name": "qa_preview", "description": "Re-run the deterministic QA gate on a prospect's preview.",
+     "input_schema": {"type": "object", "properties": {"prospect": {"type": "string"}}, "required": ["prospect"]}},
+    {"name": "approve_preview", "description": "Approve a QA-passed preview → READY (unlocks sharing). Human gate.",
+     "input_schema": {"type": "object", "properties": {"prospect": {"type": "string"}}, "required": ["prospect"]}},
+    {"name": "requalify", "description": "Rescore + requalify every prospect and regenerate angles. Use after "
+        "importing or if scores look stale.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "find_at_risk", "description": "Prospects gone cold — contacted 7+ days ago with no next action.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "brief_me", "description": "Run the CEO briefing now: what happened, what's broken, the bottleneck "
+        "(with numbers), the highest-revenue action, and what D and L each do next.",
+     "input_schema": {"type": "object", "properties": {}}},
 ]
 
 
@@ -289,8 +309,35 @@ def _run_tool(name: str, args: dict, founder_code: str = "D"):
             return r.get("message", "Updated."), r.get("_undo")
         if name == "wipe_seed":
             if not args.get("confirm"):
-                return "Refused — wipe_seed needs confirm=true (say 'wipe seed data confirm').", None
+                return "Refused — wipe needs confirm=true (say 'wipe demo confirm').", None
             return trades.wipe_seed().get("message", "Wiped."), None
+        if name == "set_website_status":
+            r = trades.set_website_status(args.get("prospect"), args.get("website_status"),
+                                          quality=args.get("quality"))
+            return r.get("message", "Updated."), r.get("_undo")
+        if name == "build_preview":
+            from agents import preview_qa
+            return preview_qa.build_for_prospect(args.get("prospect")).get("message", "Built."), None
+        if name == "qa_preview":
+            from agents import preview_qa
+            p = trades.find_prospect(args.get("prospect"))
+            if not p or not p.get("preview_id"):
+                return "No preview built yet — say 'build preview for <name>' first.", None
+            return preview_qa.qa_preview(p["preview_id"]).get("message", "QA done."), None
+        if name == "approve_preview":
+            from agents import preview_qa
+            return preview_qa.approve_preview(name_or_id=args.get("prospect")).get("message", "Approved."), None
+        if name == "requalify":
+            return trades.requalify_all().get("message", "Requalified."), None
+        if name == "find_at_risk":
+            dead = trades.find_dead_pipeline()
+            if not dead:
+                return "✅ Nothing at risk — every active prospect has a next action.", None
+            return (f"⚠️ {len(dead)} AT RISK (7+ days, no next action):\n"
+                    + "\n".join(f"• {d.get('business_name')} [{d.get('assigned_to')}] — last {(d.get('last_called_at') or '?')[:10]}"
+                                for d in dead[:15])), None
+        if name == "brief_me":
+            return trades.ceo_briefing(post=settings.telegram_enabled or bool(settings.OPENCLAW_WEBHOOK_URL)).get("briefing", "No briefing."), None
     except Exception as e:
         logger.error(f"[jarvis] tool {name} failed: {e}", exc_info=True)
         return f"⚠️ {name} failed: {e}", None
@@ -327,10 +374,45 @@ def _raw_dump(text: str, ctx: dict, founder_code: str) -> str:
             msg = _fallback_log(text)
             if msg:
                 return f"{_TAG}\n{msg}"
-        if low.startswith("scout"):
+        if low.startswith("scout") or low.startswith("import"):
             chunks = text.split("\n", 1)
             pasted = chunks[1] if len(chunks) > 1 else ""
-            return f"{_TAG}\n{trades.scout(pasted_text=pasted, source='jarvis').get('message')}"
+            return f"{_TAG}\n{trades.scout(pasted_text=pasted, source='import').get('message')}"
+        if low.startswith("build preview"):
+            from agents import preview_qa
+            nm = re.sub(r"^build preview\s*(for\s+)?", "", text, flags=re.I).strip()
+            return f"{_TAG}\n{preview_qa.build_for_prospect(nm).get('message')}"
+        if low.startswith("qa "):
+            from agents import preview_qa
+            nm = re.sub(r"^qa\s+(preview\s+)?(for\s+)?", "", text, flags=re.I).strip()
+            p = trades.find_prospect(nm)
+            if p and p.get("preview_id"):
+                return f"{_TAG}\n{preview_qa.qa_preview(p['preview_id']).get('message')}"
+            return f"{_TAG}\nNo preview for '{nm}' — build one first."
+        if low.startswith("approve"):
+            from agents import preview_qa
+            nm = re.sub(r"^approve\s*(preview\s+)?(for\s+)?", "", text, flags=re.I).strip()
+            return f"{_TAG}\n{preview_qa.approve_preview(name_or_id=nm).get('message')}"
+        if low.startswith("website"):
+            # "website <name> none" / "website <name> has poor"
+            body = re.sub(r"^website\s+", "", text, flags=re.I).strip()
+            m = re.search(r"\b(none|no site|no website|has|has website|has_website)\b", body, flags=re.I)
+            if m:
+                nm = body[:m.start()].strip().rstrip(",")
+                ws = "none" if m.group(1).lower().startswith(("none", "no")) else "has_website"
+                q = None
+                for cand in ("poor", "old", "modern"):
+                    if cand in body.lower():
+                        q = cand
+                return f"{_TAG}\n{trades.set_website_status(nm, ws, quality=q).get('message')}"
+        if low.startswith("requalify"):
+            return f"{_TAG}\n{trades.requalify_all().get('message')}"
+        if any(k in low for k in ("at risk", "dead pipeline", "going cold")):
+            dead = trades.find_dead_pipeline()
+            return f"{_TAG}\n" + (f"{len(dead)} at risk: " + ", ".join(d.get('business_name') for d in dead[:10])
+                                  if dead else "Nothing at risk.")
+        if low.startswith("brief") or "brief me" in low:
+            return f"{_TAG}\n{trades.ceo_briefing(post=False).get('briefing')}"
         if low.startswith("prep "):
             r = trades.sales_prep(name=text[5:].strip())
             return f"{_TAG}\n{r.get('message')}" + (f"\n\n{r.get('call_notes')}" if r.get("ok") else "")

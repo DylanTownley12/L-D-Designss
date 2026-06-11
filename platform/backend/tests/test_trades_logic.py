@@ -13,6 +13,7 @@ from agents.trades_logic import (
     normalize_phone, has_mobile_number, is_emergency_trade, proximity_score,
     rank_prospect, score_prospect, parse_pasted_list, dedupe_entries,
     trial_day, trial_days_remaining, churn_risk, is_trial_touchpoint,
+    valid_uk_phone, opportunity_score, qualify, sales_angle_template, local_demand_for,
 )
 
 
@@ -120,6 +121,64 @@ def test_churn_risk():
     assert churn_risk(2, 5) is False      # ending soon but plenty of leads
     assert churn_risk(9, 0) is False      # lots of time left
     assert churn_risk(None, 0) is False   # no trial end → not flagged
+
+
+def test_valid_uk_phone():
+    assert valid_uk_phone("07700 900118") is True       # mobile
+    assert valid_uk_phone("+447700900118") is True
+    assert valid_uk_phone("01942 123456") is True        # landline
+    assert valid_uk_phone("0161 123 4567") is True
+    assert valid_uk_phone("12") is False
+    assert valid_uk_phone("") is False
+    assert valid_uk_phone(None) is False
+
+
+def test_opportunity_score_weights():
+    # No website + emergency + high demand = 25 + 5 + 10 = 40
+    s, f = opportunity_score({"website_status": "none", "is_emergency_trade": True, "local_demand": "high"})
+    assert s == 40
+    assert {"factor": "no website", "points": 25} in f
+    # Poor website = 20
+    s2, _ = opportunity_score({"website_status": "has_website", "website_quality": "poor"})
+    assert s2 == 20
+    # Modern + strong CTA clamps to 0 (negatives)
+    s3, _ = opportunity_score({"website_status": "has_website", "website_quality": "modern", "cta_strength": "strong"})
+    assert s3 == 0
+    # Unknown everything = 0 (unknown factors score 0)
+    assert opportunity_score({})[0] == 0
+    # Clamp at 100 ceiling
+    s4, _ = opportunity_score({"website_status": "none", "mobile_friendly": False,
+                               "reviews_status": "poor", "cta_strength": "weak",
+                               "local_demand": "high", "is_emergency_trade": True})
+    assert s4 == 75  # 25+15+10+10+10+5
+
+
+def test_qualify_gate():
+    ok, reason = qualify({"business_name": "Joe", "trade": "plumber", "town": "Wigan",
+                          "phone": "07700900118", "website_status": "none"})
+    assert ok is True and reason is None
+    # Missing website status → not ready, lands in NEEDS DATA
+    ok2, reason2 = qualify({"business_name": "Joe", "trade": "plumber", "town": "Wigan",
+                            "phone": "07700900118"})
+    assert ok2 is False and "website status" in reason2
+    # Missing phone → not ready
+    ok3, reason3 = qualify({"business_name": "Joe", "trade": "plumber", "town": "Wigan",
+                            "website_status": "none"})
+    assert ok3 is False and "phone" in reason3
+
+
+def test_sales_angle_template_references_gap():
+    _, factors = opportunity_score({"website_status": "none"})
+    angle = sales_angle_template({"trade": "plumber", "town": "Leigh"}, factors)
+    assert "Leigh" in angle and "plumber" in angle.lower()
+    assert len(angle) > 20
+
+
+def test_local_demand():
+    assert local_demand_for("Wigan", "plumber") == "high"     # emergency + close
+    assert local_demand_for("London", "plumber") == "normal"  # emergency, far
+    assert local_demand_for("Bolton", "painter") == "normal"  # non-emergency, mid
+    assert local_demand_for("London", "painter") == "low"     # non-emergency, far
 
 
 # ── Allow running as a plain script (no pytest needed locally) ────────

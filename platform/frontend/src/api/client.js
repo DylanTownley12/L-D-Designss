@@ -151,25 +151,35 @@ export const portal = {
     api.post(`/portal/${token}/leads/${leadId}/status`, { status }),
 }
 
-// Internal Ops Board + the 5 sales agents (founders only — ops key).
+// Internal Mission Control + the sales agents (founders only — ops key).
+// `mode` is 'real' (default) or 'demo' — the UI toggle; never mixed server-side.
 export const salesOps = {
-  board: (key) => api.get('/sales/board', { params: { key } }),
+  board: (key, mode = 'real') => api.get('/sales/board', { params: { key, mode } }),
   prospects: (key, params = {}) => api.get('/sales/prospects', { params: { ...params, key } }),
   scout: (key, body) => api.post('/sales/scout', body, { params: { key } }),
+  importProspects: (key, body) => api.post('/sales/import', body, { params: { key } }),
+  requalify: (key, mode = 'real') => api.post('/sales/requalify', null, { params: { key, mode } }),
   addProspect: (key, body) => api.post('/sales/prospects', body, { params: { key } }),
   log: (key, id, body) => api.post(`/sales/prospects/${id}/log`, body, { params: { key } }),
   prep: (key, id) => api.post(`/sales/prospects/${id}/prep`, null, { params: { key } }),
   convert: (key, id, body = {}) => api.post(`/sales/prospects/${id}/convert`, body, { params: { key } }),
+  setWebsiteStatus: (key, id, body) => api.post(`/sales/prospects/${id}/website-status`, body, { params: { key } }),
+  scoreOverride: (key, id, body) => api.post(`/sales/prospects/${id}/score-override`, body, { params: { key } }),
+  buildPreview: (key, id) => api.post(`/sales/prospects/${id}/preview`, null, { params: { key } }),
+  qaPreview: (key, id) => api.post(`/sales/prospects/${id}/preview/qa`, null, { params: { key } }),
+  approvePreview: (key, id) => api.post(`/sales/prospects/${id}/preview/approve`, null, { params: { key } }),
   createClient: (key, body) => api.post('/sales/clients', body, { params: { key } }),
+  markBuildPaid: (key, id) => api.post(`/sales/clients/${id}/build-paid`, null, { params: { key } }),
   report: (key, weekly = false) => api.get('/sales/report', { params: { key, weekly } }),
-  dialToday: (key) => api.post('/sales/dial-today', null, { params: { key } }),
-  followup: (key) => api.post('/sales/followup', null, { params: { key } }),
   seedDemo: (key) => api.post('/sales/seed-demo', null, { params: { key } }),
-  wipeSeed: (key) => api.post('/sales/wipe-seed', null, { params: { key } }),
+  wipeSeed: (key) => api.post('/sales/wipe-demo', null, { params: { key } }),
   agentEvents: (key, limit = 40) => api.get('/sales/agent-events', { params: { key, limit } }),
-  runAgent: (key, agent) => api.post('/sales/run-agent', null, { params: { key, agent } }),
+  runAgent: (key, agent, mode = 'real') => api.post('/sales/run-agent', null, { params: { key, agent, mode } }),
   tasks: (key, owner) => api.get('/sales/tasks', { params: { key, owner } }),
   taskDone: (key, id) => api.post(`/sales/tasks/${id}/done`, null, { params: { key } }),
+  alerts: (key, mode = 'real') => api.get('/sales/alerts', { params: { key, mode } }),
+  resolveAlert: (key, id) => api.post(`/sales/alerts/${id}/resolve`, null, { params: { key } }),
+  brief: (key, mode = 'real') => api.post('/sales/brief', null, { params: { key, mode } }),
   // Browser-facing JARVIS brain (same answers as the Telegram bot).
   command: (key, text, founder = 'D') => api.post('/jarvis/command', { text, founder }, { params: { key } }),
 }

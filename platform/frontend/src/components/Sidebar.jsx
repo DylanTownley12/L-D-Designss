@@ -4,7 +4,7 @@ import { agents as agentsApi, team as teamApi } from '../api/client'
 import { Zap, Network, Users, Database, Crosshair, Globe, Settings, Phone, Cpu } from 'lucide-react'
 
 const nav = [
-  { to: '/jarvis',   Icon: Cpu,       label: 'JARVIS',   highlight: true },
+  { to: '/mission-control', Icon: Cpu, label: 'MISSION CTRL', highlight: true },
   { to: '/do-next',  Icon: Zap,       label: 'DO NEXT',  highlight: true,  badge: 'action' },
   { to: '/calls',    Icon: Phone,     label: 'CALLS',    highlight: true },
   { to: '/hub',      Icon: Network,   label: 'WAR ROOM',                   badge: 'approvals' },

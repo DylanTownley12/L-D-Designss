@@ -27,26 +27,40 @@ class CaptureSubmit(BaseModel):
     photo_urls: Optional[List[str]] = None
 
 
-def _client_by_capture_token(token: str) -> dict:
+def _resolve_capture(token: str):
+    """Resolve a capture token to ('client', row) or ('prospect', row). A prospect
+    token backs the on-demand demo preview so the form is live before they sign."""
     db = get_db()
     try:
         c = db.table("textback_clients").select("*").eq("capture_token", token).single().execute().data
     except Exception:
         c = None
-    if not c:
-        raise HTTPException(status_code=404, detail="Form not found")
-    return c
+    if c:
+        return "client", c
+    try:
+        p = db.table("prospects").select("*").eq("capture_token", token).single().execute().data
+    except Exception:
+        p = None
+    if p:
+        return "prospect", p
+    raise HTTPException(status_code=404, detail="Form not found")
+
+
+def _client_by_capture_token(token: str) -> dict:
+    """Back-compat: a client OR a prospect-backed form. Returns the branding row."""
+    _, row = _resolve_capture(token)
+    return row
 
 
 @router.get("/{capture_token}")
 async def capture_info(capture_token: str):
     """Branding info the public form renders (business name, trade, town)."""
-    c = _client_by_capture_token(capture_token)
+    kind, row = _resolve_capture(capture_token)
     return {
-        "business_name": c.get("business_name"),
-        "trade": c.get("trade"),
-        "town": c.get("town"),
-        "active": bool(c.get("active", True)),
+        "business_name": row.get("business_name"),
+        "trade": row.get("trade"),
+        "town": row.get("town"),
+        "active": bool(row.get("active", True)) if kind == "client" else True,
     }
 
 
@@ -54,7 +68,7 @@ async def capture_info(capture_token: str):
 async def capture_photo(capture_token: str, file: UploadFile = File(...)):
     """Upload one photo for an in-progress enquiry. Returns its signed URL, which
     the form then submits in photo_urls. Backend-only upload via the service key."""
-    _client_by_capture_token(capture_token)          # validates the token
+    _resolve_capture(capture_token)                  # validates the token
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
     content = await file.read()
@@ -68,19 +82,22 @@ async def capture_photo(capture_token: str, file: UploadFile = File(...)):
 
 @router.post("/{capture_token}")
 async def capture_submit(capture_token: str, data: CaptureSubmit):
-    c = _client_by_capture_token(capture_token)
+    kind, row = _resolve_capture(capture_token)
     phone = (data.phone or "").strip()
     if len(phone) < 7:
         raise HTTPException(status_code=400, detail="A valid phone number is required")
 
-    result = lead_capture.record_lead(
-        client_id=c["id"], phone=phone, name=data.name, postcode=data.postcode,
-        job_type=data.job_type, urgency=data.urgency, job_description=data.job_description,
-        photo_urls=data.photo_urls, source="web_form",
-    )
+    kwargs = dict(phone=phone, name=data.name, postcode=data.postcode,
+                  job_type=data.job_type, urgency=data.urgency,
+                  job_description=data.job_description, photo_urls=data.photo_urls,
+                  source="web_form")
+    if kind == "client":
+        result = lead_capture.record_lead(client_id=row["id"], **kwargs)
+    else:
+        result = lead_capture.record_lead(prospect_id=row["id"], **kwargs)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Could not save enquiry"))
     return {
         "ok": True,
-        "message": f"Thanks! {c.get('business_name','The team')} has your details and will be in touch shortly.",
+        "message": f"Thanks! {row.get('business_name','The team')} has your details and will be in touch shortly.",
     }
