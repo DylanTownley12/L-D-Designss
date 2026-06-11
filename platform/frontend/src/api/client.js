@@ -137,6 +137,11 @@ export const strategy = {
 export const capture = {
   info: (token) => api.get(`/capture/${token}`),
   submit: (token, data) => api.post(`/capture/${token}`, data),
+  uploadPhoto: (token, file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post(`/capture/${token}/photo`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
 }
 
 // Public, token-gated client dashboard (trade client sees their leads).
@@ -160,6 +165,11 @@ export const salesOps = {
   dialToday: (key) => api.post('/sales/dial-today', null, { params: { key } }),
   followup: (key) => api.post('/sales/followup', null, { params: { key } }),
   seedDemo: (key) => api.post('/sales/seed-demo', null, { params: { key } }),
+  wipeSeed: (key) => api.post('/sales/wipe-seed', null, { params: { key } }),
+  agentEvents: (key, limit = 40) => api.get('/sales/agent-events', { params: { key, limit } }),
+  runAgent: (key, agent) => api.post('/sales/run-agent', null, { params: { key, agent } }),
+  tasks: (key, owner) => api.get('/sales/tasks', { params: { key, owner } }),
+  taskDone: (key, id) => api.post(`/sales/tasks/${id}/done`, null, { params: { key } }),
   // Browser-facing JARVIS brain (same answers as the Telegram bot).
   command: (key, text, founder = 'D') => api.post('/jarvis/command', { text, founder }, { params: { key } }),
 }

@@ -1,132 +1,53 @@
-# TESTING — Trades Lead-Capture Product + JARVIS
+# TESTING — JARVIS trades system (production acceptance)
 
-Two layers: **what was verified locally** (here, now) and **the live acceptance
-tests** you run against the deployed URL once the env vars are set.
-
----
-
-## A. Verified locally (no secrets needed)
-
-```bash
-# 1. Pure sales logic — ranking, dedupe, phone normalisation, trial maths
-cd platform/backend && python3 tests/test_trades_logic.py
-#   → 10/10 trades-logic tests passed
-
-# 2. Whole backend compiles under Python 3
-cd platform/backend && python3 -m py_compile main.py config.py api/*.py agents/*.py utils/*.py tasks/*.py db/*.py
-#   → (no output = clean)
-
-# 3. Frontend builds with the 3 new pages
-cd platform/frontend && npm run build
-#   → ✓ built  (Capture, ClientDashboard, Ops all transform)
-```
-
-> The end-to-end flow (Supabase + Telegram + Twilio) can't be exercised from a
-> dev box without live secrets — that's section B, which runs on Railway.
-
-Set a base + key once for the commands below:
-
+All against **production**. Set once:
 ```bash
 BASE=https://l-d-designss-production.up.railway.app
+FE=https://l-d-designss.vercel.app
 KEY=<your OPS_KEY>
 ```
 
----
+## Pre-req (founder, ~3 min)
+Run `backend/db/PASTE_INTO_SUPABASE.sql` in Supabase SQL Editor. Verification SELECTs at
+the bottom must list 8 tables. Then in `/jarvis` hit **Seed demo**.
 
-## B. Live acceptance tests (the "Done when" list)
+## The 12 acceptance tests
+| # | Test | How |
+|---|---|---|
+| 1 | Migration applied | SQL verification SELECTs list 8 tables (or it's the founder's pending step) |
+| 2 | Seed visible in /jarvis | open `/jarvis`, enter key → D/L queues, tasks, leads populated |
+| 3 | Capture loads at phone width | open `/capture/<token>` on a phone — one-handed, big targets |
+| 4 | Submit with photo → lead row | submit the form with a photo; row has `photo_urls` (📷 in the panel) |
+| 5 | Founders' Telegram alert | (needs `TELEGRAM_BOT_TOKEN`+`FOUNDER_CHAT_IDS`) alert arrives on submit |
+| 6 | Client dashboard shows lead | open `/d/<token>` → the new lead is listed |
+| 7 | /jarvis on real data | every panel populated, system dot green |
+| 8 | RUN NOW per agent → events | click RUN NOW (Lead Prioritiser/Follow-Up/Revenue Analyst); feed updates |
+| 9 | "what should D and L do now?" | console returns a data-grounded answer; logged to `decisions` |
+| 10 | one-tap outcome updates instantly | tap GATEKEEPER on a card → status flips, feed logs it |
+| 11 | `log called <prospect>, gatekeeper, try after 4` | row updated, change echoed; `undo` reverts |
+| 12 | manual cron → Telegram briefing | `POST $BASE/api/cron/morning?key=$KEY` → briefing (Telegram if configured) |
 
-### 0. Provision a test client
-
+## Curl checks (no browser)
 ```bash
-curl -s -X POST "$BASE/api/sales/clients?key=$KEY" -H 'Content-Type: application/json' \
-  -d '{"business_name":"Test Plumbing","phone":"07000000000","town":"Wigan","trade":"plumber"}'
-# → note capture_url, dashboard_url, missed_call_webhook + the tokens
-CAP=<capture_token>; DASH=<dashboard_token>
+# Routing + gating (no key → 401, bad token → 404). Proves deploy + auth.
+curl -s -o/dev/null -w '%{http_code}\n' "$BASE/api/sales/board"                 # 401
+curl -s -o/dev/null -w '%{http_code}\n' "$BASE/api/capture/nope"                # 404
+curl -s -o/dev/null -w '%{http_code}\n' -X POST "$BASE/api/sales/wipe-seed"     # 401
+
+# With your key (after migration):
+curl -s "$BASE/api/sales/board?key=$KEY" | head -c 300                          # real JSON
+curl -s -X POST "$BASE/api/jarvis/command?key=$KEY" -H 'Content-Type: application/json' \
+  -d '{"text":"what should D do now?","founder":"D"}'                            # sensible reply
+curl -s -X POST "$BASE/api/jarvis/command?key=$KEY" -H 'Content-Type: application/json' \
+  -d '{"text":"log called Standish Heating, gatekeeper, try after 4"}'          # row updated + echo
+curl -s "$BASE/api/sales/agent-events?key=$KEY" | head -c 300                    # feed
+curl -s -X POST "$BASE/api/cron/morning?key=$KEY" | head -c 200                  # daily briefing
 ```
 
-### 1. ✅ Capture form works end-to-end: **phone → Telegram → dashboard**
-
-```bash
-# Submit an enquiry through the public form API (or open capture_url in a browser)
-curl -s -X POST "$BASE/api/capture/$CAP" -H 'Content-Type: application/json' \
-  -d '{"name":"Sarah","phone":"07712345678","postcode":"WN1 1AA","job_description":"Leaking boiler"}'
-# → {"ok":true,"message":"Thanks! …"}
-```
-- **Telegram:** founders get `📞 NEW LEAD for Test Plumbing (web form) … Dashboard: …`
-- **Dashboard:** open `dashboard_url` (or `GET $BASE/api/portal/$DASH`) → the
-  enquiry appears with status `new`; flip it through new→contacted→won.
-- **Missed call variant:** `POST $BASE/api/textback/webhook/missed-call/<client_id>`
-  with form field `From=07712345678` → texts the caller back **and** creates the
-  same dashboard lead.
-
-### 2. ✅ From Telegram — morning call list
-
-First load some prospects (see test 6), then DM JARVIS: **`today`**
-→ replies with D's and L's ordered lists (overdue actions first, then ranked).
-Or fire the job: `curl -s -X POST "$BASE/api/cron/morning?key=$KEY"`.
-
-### 3. ✅ Ask who's next
-
-DM JARVIS: **`who's next`** → top prospect with phone + call notes + reason.
-
-### 4. ✅ Log a call
-
-DM JARVIS: **`log Test Plumbing — keen, wants a demo Thursday`**
-→ `Logged Test Plumbing → demo_booked. Next: Run the demo (by …). 📝 Prep notes generated.`
-Then **`undo`** → reverts it. (Echo confirms every DB write.)
-
-### 5. ✅ Get a drafted follow-up
-
-DM JARVIS: **`draft a follow-up for Test Plumbing`**
-→ a short UK-tone message you can copy & send. (JARVIS drafts; it never sends.)
-
-### 6. ✅ Run Scout on a pasted list
-
-DM JARVIS (paste straight in):
-```
-scout wigan plumber
-Joe's Plumbing, 07504 683058, Wigan
-Spark Electrical, 01942 123456, Leigh
-AB Heating  07700900123  Bolton
-```
-→ `Added 3 prospect(s) (D:2 / L:1), 0 duplicates skipped.` + ranked top list.
-HTTP equivalent: `POST $BASE/api/agents/scout` or `$BASE/api/sales/scout`
-with `{"pasted_text":"…","town":"Wigan","trade":"plumber"}`.
-
-### 7. ✅ Pull a status report
-
-DM JARVIS: **`status`** (or `report` / `weekly report`)
-→ dials yesterday, pipeline, trials live (days left + leads each), paying, MRR,
-churn-risk flags. HTTP: `GET $BASE/api/sales/report?key=$KEY`.
-
----
-
-## C. The Ops Board
-
-Open `https://l-d-designss.vercel.app/ops` → enter the **ops key** once → live
-pipeline, revenue snapshot, Scout box, both founders' call lists with inline
-call-logging + prep, trials with churn flags, and the recent captured-leads feed.
-Buttons fire the 08:00 / 18:00 jobs.
-
----
-
-## D. Resilience checks
-
-- **Claude offline / no key:** JARVIS still answers — `status`, `today`,
-  `trial` return real data with an `⚙️ (AI offline — raw data)` prefix.
-- **Telegram not configured:** the rest of the platform is unaffected; sends
-  log a warning and no-op.
-- **Non-founder messages the bot:** silently ignored (no reply).
-- **Duplicate Telegram delivery:** de-duped by message id.
-
----
-
-## Troubleshooting
-
-| Symptom | Check |
-|---|---|
-| JARVIS silent | `GET /api/jarvis/ping`; webhook set? chat id in `FOUNDER_CHAT_IDS`? |
-| `401 Invalid ops key` | `OPS_KEY` (or `SECRET_KEY`) matches the `?key=` you sent |
-| No Telegram on new lead | `TELEGRAM_BOT_TOKEN` + `FOUNDER_CHAT_IDS` set; check logs |
-| Migration errors | re-run `db/migrations.sql` — it's idempotent |
-| Scout inserts dupes | dedupe is by normalised phone; entries with no phone dedupe by name |
+## Resilience
+- **No `ANTHROPIC_API_KEY`** → console answers status/today/log/follow-ups/run on deterministic
+  parsing with an "AI OFFLINE — RAW MODE" chip. Never dies.
+- **Migration not run** → board returns `setup_needed` (clean message, not a crash); /jarvis shows
+  the red "DATABASE NOT INITIALISED" banner.
+- **Telegram not configured** → everything else works; sends no-op with a warning.
+- **Non-founder hits the bot** → ignored. **Duplicate Telegram delivery** → de-duped by message id.

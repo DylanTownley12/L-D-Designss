@@ -8,12 +8,16 @@ const C = {
   stone: '#F6F4EF', ink: '#15171C', navy: '#1C3D5E',
   line: 'rgba(21,23,28,0.12)', muted: '#5b5f66', white: '#ffffff',
 }
+const JOB_TYPES = ['Leak', 'Boiler', 'Bathroom', 'Electrics', 'Roof', 'Emergency', 'Other']
+const URGENCIES = ['Today', 'This week', 'Just a quote']
 
 export default function Capture() {
   const { token } = useParams()
   const [info, setInfo] = useState(null)
   const [notFound, setNotFound] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', postcode: '', job_description: '' })
+  const [form, setForm] = useState({ name: '', phone: '', postcode: '', job_type: '', urgency: '', job_description: '' })
+  const [photos, setPhotos] = useState([])      // {url, name}
+  const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState(null)
   const [error, setError] = useState('')
@@ -21,6 +25,17 @@ export default function Capture() {
   useEffect(() => {
     capture.info(token).then(setInfo).catch(() => setNotFound(true))
   }, [token])
+
+  const addPhotos = async (files) => {
+    setError(''); setUploading(true)
+    try {
+      for (const file of Array.from(files).slice(0, 5)) {
+        const r = await capture.uploadPhoto(token, file)
+        if (r?.url) setPhotos(p => [...p, { url: r.url, name: file.name }])
+      }
+    } catch (e) { setError('Photo upload failed — you can still send without it.') }
+    finally { setUploading(false) }
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -31,7 +46,7 @@ export default function Capture() {
     }
     setSending(true)
     try {
-      const res = await capture.submit(token, form)
+      const res = await capture.submit(token, { ...form, photo_urls: photos.map(p => p.url) })
       setDone(res.message || 'Thanks! They have your details and will be in touch shortly.')
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
@@ -97,10 +112,51 @@ export default function Capture() {
         <input style={input} value={form.postcode} placeholder="e.g. WN1 1AA"
           onChange={e => setForm({ ...form, postcode: e.target.value })} />
 
-        <label style={label}>What do you need? </label>
-        <textarea style={{ ...input, minHeight: 90, resize: 'vertical' }} value={form.job_description}
+        <label style={label}>What's the job?</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {JOB_TYPES.map(j => {
+            const on = form.job_type === j
+            return <button type="button" key={j} onClick={() => setForm({ ...form, job_type: on ? '' : j })}
+              style={{ padding: '11px 14px', borderRadius: 10, fontSize: 15, cursor: 'pointer',
+                border: `1px solid ${on ? C.navy : C.line}`, background: on ? C.navy : C.white,
+                color: on ? '#fff' : C.ink, fontWeight: 600 }}>{j}</button>
+          })}
+        </div>
+
+        <label style={label}>How soon?</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {URGENCIES.map(u => {
+            const on = form.urgency === u
+            return <button type="button" key={u} onClick={() => setForm({ ...form, urgency: on ? '' : u })}
+              style={{ flex: 1, minWidth: 100, padding: '12px', borderRadius: 10, fontSize: 15, cursor: 'pointer',
+                border: `1px solid ${on ? C.navy : C.line}`, background: on ? C.navy : C.white,
+                color: on ? '#fff' : C.ink, fontWeight: 600 }}>{u}</button>
+          })}
+        </div>
+
+        <label style={label}>Anything else?</label>
+        <textarea style={{ ...input, minHeight: 80, resize: 'vertical' }} value={form.job_description}
           placeholder="Briefly describe the job…"
           onChange={e => setForm({ ...form, job_description: e.target.value })} />
+
+        <label style={label}>Photos (optional)</label>
+        <label style={{ display: 'block', padding: '14px', borderRadius: 10, border: `1px dashed ${C.navy}`,
+          textAlign: 'center', color: C.navy, fontWeight: 600, fontSize: 15, cursor: 'pointer', background: C.stone }}>
+          {uploading ? 'Uploading…' : '📷 Add photos of the problem'}
+          <input type="file" accept="image/*" multiple capture="environment" style={{ display: 'none' }}
+            onChange={e => e.target.files?.length && addPhotos(e.target.files)} />
+        </label>
+        {photos.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            {photos.map((p, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                <img src={p.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}` }} />
+                <button type="button" onClick={() => setPhotos(ph => ph.filter((_, j) => j !== i))}
+                  style={{ position: 'absolute', top: -7, right: -7, width: 22, height: 22, borderRadius: 99, border: 'none', background: C.ink, color: '#fff', cursor: 'pointer', fontSize: 13 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {error && <div style={{ color: '#b3261e', fontSize: 14, marginTop: 14 }}>{error}</div>}
 

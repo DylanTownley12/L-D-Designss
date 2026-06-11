@@ -2,49 +2,47 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { salesOps, cron } from '../api/client'
 
 // ════════════════════════════════════════════════════════════════════
-//  J.A.R.V.I.S — standalone trades operations OS. No app chrome.
-//  Live command terminal (→ /api/jarvis/command) + intel panels +
-//  a call queue that writes straight to the DB. Founders only (ops key).
+//  J.A.R.V.I.S — the single founder cockpit for the trades business.
+//  Standalone, zero app chrome. OPS_KEY gate (remembered per device).
+//  Inline styles only. No Tailwind, no deps. Dark, fast, readable.
 // ════════════════════════════════════════════════════════════════════
 const C = {
-  bg: '#05070a', panelBg: 'rgba(0,212,255,0.035)', border: 'rgba(0,212,255,0.18)',
-  borderSoft: 'rgba(0,212,255,0.10)', cyan: '#00d4ff', green: '#00ff88',
-  red: '#ff5470', amber: '#ffb547', text: '#dfe9f0', muted: '#6b7d8c',
-  inputBg: 'rgba(255,255,255,0.03)',
+  bg: '#0a0a0a', panel: '#101317', line: '#1d2530', lineSoft: '#161b22',
+  cyan: '#00d4ff', green: '#00ff88', red: '#ff3b3b', amber: '#ffb547',
+  text: '#e7eef3', dim: '#8b9aa7', faint: '#5a6b78',
 }
-const mono = "'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace"
-const ui = "Inter, system-ui, sans-serif"
+const mono = "'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace"
+const ui = "Inter,system-ui,sans-serif"
+const card = { background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14 }
+const inp = { background: '#0c0f13', border: `1px solid ${C.line}`, color: C.text, borderRadius: 7, padding: '9px 11px', fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: ui }
+const btn = (c = C.cyan) => ({ background: 'transparent', border: `1px solid ${c}`, color: c, borderRadius: 6, padding: '6px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: 0.4, textTransform: 'uppercase', fontFamily: ui, whiteSpace: 'nowrap' })
 
-const panel = {
-  background: C.panelBg, border: `1px solid ${C.border}`, borderRadius: 12,
-  padding: 16, backdropFilter: 'blur(6px)',
-}
-const inputStyle = {
-  background: C.inputBg, border: `1px solid ${C.border}`, color: C.text,
-  borderRadius: 8, padding: '9px 11px', fontSize: 13, outline: 'none',
-  width: '100%', boxSizing: 'border-box', fontFamily: ui,
-}
-const btn = (c = C.cyan) => ({
-  background: 'transparent', border: `1px solid ${c}`, color: c, borderRadius: 8,
-  padding: '7px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-  letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: ui,
-})
-const STATUSES = ['interested', 'demo_booked', 'called', 'not_interested', 'won', 'lost']
-const SUGGESTIONS = ['status', "who's next", 'today', 'draft a follow-up for', 'prep', 'scout']
+// One-tap call outcomes → (label, outcome text, new_status)
+const OUTCOMES = [
+  ['ANSWERED', 'answered', 'called'],
+  ['NO ANSWER', 'no answer', 'called'],
+  ['GATEKEEPER', 'gatekeeper', 'called'],
+  ['INTERESTED', 'interested', 'interested'],
+  ['DEMO BOOKED', 'demo booked', 'demo_booked'],
+  ['NOT INTERESTED', 'not interested', 'not_interested'],
+]
+const OUTCOME_COLOR = { ANSWERED: C.cyan, 'NO ANSWER': C.faint, GATEKEEPER: C.amber, INTERESTED: C.green, 'DEMO BOOKED': C.green, 'NOT INTERESTED': C.red }
+const CHIPS = ['status', "who's next", 'today', 'hottest prospects', 'follow-ups due', "what should D do now?", 'summarise today']
+const AGENTS = [
+  ['dial_manager', 'LEAD PRIORITISER'], ['followup', 'FOLLOW-UP'], ['reporter', 'REVENUE ANALYST'],
+]
 
-// Cinematic keyframes — injected once.
 const FX = `
-@keyframes jblink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
-@keyframes jpulse { 0%,100%{opacity:.5} 50%{opacity:1} }
-@keyframes jscan { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
-@keyframes jfade { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-@keyframes jboot { from{opacity:0} to{opacity:1} }
-.jline{ animation: jfade .25s ease both; }
-.jdot{ animation: jpulse 1.6s ease-in-out infinite; }
-.jcursor{ animation: jblink 1s step-end infinite; }
-.jglow{ text-shadow: 0 0 12px rgba(0,212,255,.55), 0 0 30px rgba(0,212,255,.25); }
-::-webkit-scrollbar{ width:8px; height:8px; }
-::-webkit-scrollbar-thumb{ background: rgba(0,212,255,.2); border-radius:8px; }
+@keyframes jblink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes jpulseRed{0%,100%{box-shadow:0 0 0 0 rgba(255,59,59,.0)}50%{box-shadow:0 0 0 2px rgba(255,59,59,.35)}}
+@keyframes jflash{0%{background:rgba(0,255,136,.18)}100%{background:transparent}}
+@keyframes jfade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.jln{animation:jfade .2s ease both}
+.jcur{animation:jblink 1s step-end infinite}
+.jred{animation:jpulseRed 1.8s ease-in-out infinite}
+.jflash{animation:jflash 1.4s ease-out}
+.jglow{text-shadow:0 0 10px rgba(0,212,255,.5)}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:#1d2530;border-radius:7px}
 `
 
 export default function Jarvis() {
@@ -52,345 +50,354 @@ export default function Jarvis() {
   const [authed, setAuthed] = useState(false)
   const [authErr, setAuthErr] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
+  const [booting, setBooting] = useState(false)
 
-  const [founder, setFounder] = useState(localStorage.getItem('jarvisFounder') || 'D')
+  const [founder, setFounder] = useState('D')
   const [board, setBoard] = useState(null)
+  const [events, setEvents] = useState([])
   const [clock, setClock] = useState(new Date())
+  const [pollOk, setPollOk] = useState(true)
 
-  const [lines, setLines] = useState([])     // {role:'sys'|'you'|'jarvis'|'err', text}
+  const [lines, setLines] = useState([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
-  const [outcomes, setOutcomes] = useState({})
-  const [statuses, setStatuses] = useState({})
-  const [busy, setBusy] = useState('')        // footer action label while running
+  const [history, setHistory] = useState([])
+  const [histIdx, setHistIdx] = useState(-1)
+  const [busy, setBusy] = useState('')
+  const [seenLeadIds, setSeenLeadIds] = useState(null)
+  const [flashLeads, setFlashLeads] = useState({})
 
   const scrollRef = useRef(null)
-  const model = board?._model || 'claude'
+  const inputRef = useRef(null)
 
-  // ── data ──────────────────────────────────────────────────────────
-  const loadBoard = useCallback(async (k = key) => {
-    try { const b = await salesOps.board(k); setBoard(b); return b }
-    catch (e) { /* keep last board on transient errors */ return null }
+  // ── data ───────────────────────────────────────────────────────────
+  const refresh = useCallback(async (k = key) => {
+    try {
+      const [b, ev] = await Promise.all([
+        salesOps.board(k),
+        salesOps.agentEvents(k, 40).catch(() => ({ events: [] })),
+      ])
+      setBoard(b); setEvents(ev.events || []); setPollOk(true)
+      // green-flash newly arrived captured leads
+      const ids = (b.recent_leads || []).map(l => l.id)
+      setSeenLeadIds(prev => {
+        if (prev) {
+          const fresh = ids.filter(id => !prev.includes(id))
+          if (fresh.length) { const f = {}; fresh.forEach(id => f[id] = 1); setFlashLeads(f); setTimeout(() => setFlashLeads({}), 1500) }
+        }
+        return ids
+      })
+      return b
+    } catch (e) { setPollOk(false); return null }
   }, [key])
 
   const unlock = async (k) => {
     setAuthBusy(true); setAuthErr('')
     try {
       const b = await salesOps.board(k)
-      setBoard(b); setAuthed(true); localStorage.setItem('opsKey', k)
-      setLines([
-        { role: 'sys', text: 'J.A.R.V.I.S online. Trades operations core initialised.' },
-        { role: 'sys', text: `Authenticated as founder ${founder}. Type a command or tap a chip.` },
-      ])
+      setBoard(b); localStorage.setItem('opsKey', k)
+      setBooting(true); setAuthed(true)
+      setTimeout(() => setBooting(false), 1700)
+      setLines([{ role: 'sys', text: 'JARVIS online. Trades operations core ready.' }])
+      refresh(k)
     } catch (e) {
       const m = e.message || ''
       setAuthErr(/network/i.test(m) || !m
-        ? 'Reached JARVIS but the API call failed — the backend may be restarting, or the Supabase migration isn’t run yet. Wait ~20s and retry.'
+        ? 'Reached JARVIS but the API failed — backend restarting, or the Supabase migration isn’t run yet. Wait ~20s and retry.'
         : m)
-      setAuthed(false)
     } finally { setAuthBusy(false) }
   }
 
-  useEffect(() => { if (key) unlock(key) }, [])            // eslint-disable-line
-  useEffect(() => {                                        // live clock
-    const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t)
-  }, [])
-  useEffect(() => {                                        // poll board every 20s
-    if (!authed) return
-    const t = setInterval(() => loadBoard(), 20000); return () => clearInterval(t)
-  }, [authed, loadBoard])
-  useEffect(() => {                                        // auto-scroll terminal
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [lines, thinking])
+  useEffect(() => { if (key) unlock(key) }, [])                       // eslint-disable-line
+  useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t) }, [])
+  useEffect(() => { if (!authed) return; const t = setInterval(() => refresh(), 15000); return () => clearInterval(t) }, [authed, refresh])
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight }, [lines, thinking])
 
-  const pushLine = (role, text) => setLines(l => [...l, { role, text }])
+  const push = (role, text) => setLines(l => [...l, { role, text }])
 
-  // ── command terminal ──────────────────────────────────────────────
+  // ── console ──────────────────────────────────────────────────────
   const send = async (raw) => {
     const text = (raw ?? input).trim()
     if (!text || thinking) return
-    setInput(''); pushLine('you', text); setThinking(true)
+    setInput(''); setHistory(h => [text, ...h].slice(0, 50)); setHistIdx(-1)
+    push('you', text); setThinking(true)
     try {
       const r = await salesOps.command(key, text, founder)
-      pushLine('jarvis', r.reply || '…')
-      loadBoard()                                          // a write may have changed the board
-    } catch (e) {
-      pushLine('err', e.message || 'Command failed')
-    } finally { setThinking(false) }
+      push('jarvis', r.reply || '…'); refresh()
+    } catch (e) { push('err', e.message || 'Command failed') }
+    finally { setThinking(false) }
   }
+  const onKey = (e) => {
+    if (e.key === 'Enter') return send()
+    if (e.key === 'ArrowUp' && history.length) { e.preventDefault(); const i = Math.min(histIdx + 1, history.length - 1); setHistIdx(i); setInput(history[i]) }
+    if (e.key === 'ArrowDown' && histIdx >= 0) { e.preventDefault(); const i = histIdx - 1; setHistIdx(i); setInput(i < 0 ? '' : history[i]) }
+  }
+  const tapProspect = (name) => { setInput(`log ${name}, `); inputRef.current?.focus() }
 
-  // ── call-queue writes ─────────────────────────────────────────────
-  const logCall = async (id) => {
-    try {
-      await salesOps.log(key, id, { outcome: outcomes[id] || 'called', new_status: statuses[id] || undefined })
-      setOutcomes(o => ({ ...o, [id]: '' })); pushLine('sys', 'Call logged.'); loadBoard()
-    } catch (e) { pushLine('err', 'Log failed: ' + e.message) }
+  // ── writes ───────────────────────────────────────────────────────
+  const logOutcome = async (id, outcome, status) => {
+    try { await salesOps.log(key, id, { outcome, new_status: status }); refresh() }
+    catch (e) { push('err', 'Log failed: ' + e.message) }
   }
-  const prep = async (id) => {
-    try { const r = await salesOps.prep(key, id); pushLine('sys', `Prep ready: ${r.prospect || ''}`); loadBoard() }
-    catch (e) { pushLine('err', 'Prep failed: ' + e.message) }
-  }
+  const taskDone = async (id) => { try { await salesOps.taskDone(key, id); refresh() } catch (e) { push('err', e.message) } }
 
-  // ── footer ops ────────────────────────────────────────────────────
   const run = async (label, fn) => {
     setBusy(label)
-    try { const r = await fn(); pushLine('sys', typeof r === 'string' ? r : (r?.message || `${label} done.`)) }
-    catch (e) { pushLine('err', `${label} failed: ${e.message}`) }
-    finally { setBusy('') }
+    try { const r = await fn(); push('sys', typeof r === 'string' ? r : (r?.message || `${label} done.`)); refresh() }
+    catch (e) { push('err', `${label} failed: ${e.message}`) } finally { setBusy('') }
   }
   const seed = () => run('Seed', async () => {
-    const r = await salesOps.seedDemo(key)
-    await loadBoard()
-    const d = r.demo_client || {}
-    pushLine('sys', `Seeded ${r.prospects?.added ?? 0} prospect(s). Demo client → ${d.business_name}`)
-    if (d.capture_url) pushLine('sys', `Capture form: ${d.capture_url}`)
-    if (d.dashboard_url) pushLine('sys', `Client dashboard: ${d.dashboard_url}`)
-    return 'Demo dataset ready.'
+    const r = await salesOps.seedDemo(key); const d = r.demo_client || {}
+    push('sys', `Seeded ${r.prospects?.added ?? 0} prospects + ${r.enrichment?.captured_leads ?? 0} leads.`)
+    if (d.capture_url) push('sys', `Demo capture link: ${d.capture_url}`)
+    return 'Demo data ready.'
   })
+  const runAgent = (a, label) => run(label, async () => { const r = await salesOps.runAgent(key, a); return r.message || `${label} ran.` })
 
-  const switchFounder = (f) => { setFounder(f); localStorage.setItem('jarvisFounder', f) }
-
-  // ════════════════════════════════════════════════════════════════
-  //  ACCESS GATE
   // ════════════════════════════════════════════════════════════════
   if (!authed) return (
     <div style={shell}>
       <style>{FX}</style>
-      <Scanline />
-      <div style={{ position: 'relative', zIndex: 2, minHeight: '100vh', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', fontFamily: ui }}>
-        <div style={{ ...panel, width: 380, textAlign: 'center' }}>
-          <div className="jglow" style={{ color: C.cyan, fontFamily: mono, fontSize: 30, fontWeight: 800, letterSpacing: 6 }}>
-            J.A.R.V.I.S
-          </div>
-          <div style={{ color: C.muted, fontSize: 12, letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>
-            Trades Operations Core
-          </div>
-          <div style={{ color: C.muted, fontSize: 13, margin: '20px 0 10px' }}>Authenticate — ops key</div>
-          <input style={{ ...inputStyle, fontFamily: mono, textAlign: 'center', letterSpacing: 2 }} type="password"
-            value={key} placeholder="• • • • • • • •" autoFocus
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: ui }}>
+        <div style={{ ...card, width: 380, textAlign: 'center', padding: 26 }}>
+          <div className="jglow" style={{ color: C.cyan, fontFamily: mono, fontSize: 30, fontWeight: 800, letterSpacing: 6 }}>JARVIS</div>
+          <div style={{ color: C.faint, fontSize: 11, letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>Trades Operations · Founders only</div>
+          <input style={{ ...inp, fontFamily: mono, textAlign: 'center', letterSpacing: 2, marginTop: 22 }} type="password"
+            value={key} placeholder="ops key" autoFocus
             onChange={e => setKey(e.target.value)} onKeyDown={e => e.key === 'Enter' && unlock(key)} />
-          {authErr && <div style={{ color: C.red, fontSize: 12, marginTop: 10 }}>{authErr}</div>}
-          <button style={{ ...btn(), marginTop: 16, width: '100%', padding: '11px' }}
-            onClick={() => unlock(key)} disabled={authBusy}>
-            {authBusy ? 'Authenticating…' : 'Initialise'}
+          {authErr && <div style={{ color: C.red, fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>{authErr}</div>}
+          <button style={{ ...btn(), marginTop: 16, width: '100%', padding: 11, fontSize: 13 }} onClick={() => unlock(key)} disabled={authBusy}>
+            {authBusy ? 'Authenticating…' : 'Unlock'}
           </button>
-          <a href="/command" style={{ color: C.muted, fontSize: 11, display: 'block', marginTop: 14, textDecoration: 'none' }}>
-            ← back to L&D dashboard
-          </a>
         </div>
       </div>
     </div>
   )
 
-  // ════════════════════════════════════════════════════════════════
-  //  MAIN OS
-  // ════════════════════════════════════════════════════════════════
   const r = board?.report || {}
   const pipe = board?.pipeline || {}
   const calls = board?.calls || { D: [], L: [] }
+  const tasks = board?.tasks || []
   const trials = r.trial_details || []
   const leads = board?.recent_leads || []
   const setupNeeded = !!board?.setup_needed
-  const empty = !setupNeeded && !Object.values(pipe).some(v => v > 0) && !(calls.D?.length || calls.L?.length)
+  const hotProspects = [...(calls.D || []), ...(calls.L || [])].filter(p => ['interested', 'demo_booked'].includes(p.status)).slice(0, 6)
+  const lastByAgent = {}; events.forEach(e => { if (!lastByAgent[e.agent]) lastByAgent[e.agent] = e })
+
+  const whatNow = (f) => {
+    const list = calls[f] || []
+    if (setupNeeded) return 'Run the migration, then seed.'
+    if (!list.length) return 'Queue clear — import prospects (scout) or seed demo.'
+    const top = list[0]
+    return `${top.priority === 0 ? '⏰ ' : ''}Ring ${top.business_name}${top.phone ? ' · ' + top.phone : ''}`
+  }
 
   return (
     <div style={shell}>
       <style>{FX}</style>
-      <Scanline />
-      <div style={{ position: 'relative', zIndex: 2, padding: '16px 20px 40px', fontFamily: ui, color: C.text }}>
+      {booting && <Boot onSkip={() => setBooting(false)} />}
+      <div style={{ padding: '12px 16px 48px', fontFamily: ui, color: C.text, maxWidth: 1500, margin: '0 auto' }}>
 
-        {/* ── top bar ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="jglow" style={{ color: C.cyan, fontFamily: mono, fontSize: 22, fontWeight: 800, letterSpacing: 4 }}>
-              J.A.R.V.I.S
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.green, fontFamily: mono, letterSpacing: 1 }}>
-              <span className="jdot" style={{ width: 7, height: 7, borderRadius: 99, background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
-              ONLINE
-            </span>
-            <span style={{ fontSize: 11, color: C.muted, fontFamily: mono }}>{model}</span>
+        {/* TOP BAR */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, paddingBottom: 12, borderBottom: `1px solid ${C.line}`, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <span className="jglow" style={{ color: C.cyan, fontFamily: mono, fontWeight: 800, fontSize: 20, letterSpacing: 3 }}>JARVIS</span>
+            <Dot ok={pollOk} /><span style={{ fontFamily: mono, fontSize: 12, color: C.dim }}>{clock.toLocaleTimeString('en-GB')} · London</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: mono, fontSize: 13, color: C.muted, letterSpacing: 1 }}>
-              {clock.toLocaleTimeString('en-GB')}
-            </span>
-            <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
-              {['D', 'L'].map(f => (
-                <button key={f} onClick={() => switchFounder(f)} style={{
-                  background: founder === f ? C.cyan : 'transparent', color: founder === f ? '#05070a' : C.muted,
-                  border: 'none', padding: '6px 14px', fontWeight: 800, cursor: 'pointer', fontSize: 12, fontFamily: mono,
-                }}>{f}</button>
-              ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap' }}>
+            <Metric label="MRR" value={`£${Math.round(r.mrr ?? 0)}`} big color={C.green} />
+            <Metric label="Trials" value={r.trials_live ?? 0} color={C.cyan} />
+            <Metric label="Paying" value={r.paying_clients ?? 0} color={C.green} />
+            <Metric label="To-call" value={pipe.to_call ?? 0} color={C.amber} />
+            <div style={{ display: 'flex', border: `1px solid ${C.line}`, borderRadius: 7, overflow: 'hidden' }}>
+              {['D', 'L'].map(f => <button key={f} onClick={() => setFounder(f)} style={{ background: founder === f ? C.cyan : 'transparent', color: founder === f ? '#000' : C.dim, border: 'none', padding: '6px 13px', fontWeight: 800, cursor: 'pointer', fontFamily: mono }}>{f}</button>)}
             </div>
-            <button style={btn()} onClick={() => loadBoard()}>↻</button>
-            <a href="/command" style={{ ...btn(C.muted), textDecoration: 'none', display: 'inline-block' }}>Exit</a>
+            <button style={btn()} onClick={() => refresh()}>↻</button>
           </div>
         </div>
 
         {setupNeeded && (
-          <div style={{ ...panel, borderColor: C.red, marginBottom: 16 }}>
-            <div style={{ color: C.red, fontFamily: mono, fontSize: 13, fontWeight: 700 }}>⚠ DATABASE NOT INITIALISED</div>
-            <div style={{ color: C.text, fontSize: 13, marginTop: 6 }}>
-              Your key works — but the trades tables don’t exist yet. Open <b>Supabase → SQL Editor</b> and run
-              <code style={{ color: C.cyan }}> platform/backend/db/migrations.sql</code> (it’s safe to re-run), then hit ↻ Refresh.
-              Until then JARVIS has no data to read.
-            </div>
-          </div>
+          <Banner color={C.red} title="DATABASE NOT INITIALISED">
+            Your key works, but the trades tables don’t exist yet. Paste <b>backend/db/PASTE_INTO_SUPABASE.sql</b> into
+            Supabase → SQL Editor → Run, then hit ↻. Until then every panel is empty.
+          </Banner>
         )}
-        {empty && (
-          <div style={{ ...panel, borderColor: C.amber, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <span style={{ color: C.amber, fontFamily: mono, fontSize: 13 }}>⚠ No pipeline data. Initialise the demo dataset to populate 30 local prospects + a live demo client.</span>
-            <button style={btn(C.amber)} onClick={seed} disabled={busy === 'Seed'}>{busy === 'Seed' ? 'Seeding…' : 'Initialise demo'}</button>
-          </div>
+        {!setupNeeded && !((calls.D || []).length || (calls.L || []).length) && (
+          <Banner color={C.amber} title="NO PROSPECTS">
+            Tables are live but empty. <button style={{ ...btn(C.amber), marginLeft: 6 }} onClick={seed} disabled={busy === 'Seed'}>{busy === 'Seed' ? 'Seeding…' : 'Seed demo data'}</button>
+            &nbsp;or paste a real list into the console: <code style={{ color: C.cyan }}>scout wigan plumber</code> then the rows.
+          </Banner>
         )}
 
-        {/* ── main grid: console | intel ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
-
-          {/* CONSOLE */}
-          <div style={{ ...panel, display: 'flex', flexDirection: 'column', height: 460 }}>
-            <SectionTitle>Command Console</SectionTitle>
-            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', fontFamily: mono, fontSize: 13, lineHeight: 1.55, padding: '4px 2px' }}>
-              {lines.map((l, i) => <TermLine key={i} role={l.role} text={l.text} />)}
-              {thinking && <div className="jline" style={{ color: C.cyan }}><span className="jdot">▸ JARVIS processing</span><span className="jcursor">_</span></div>}
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0 8px' }}>
-              {SUGGESTIONS.map(s => (
-                <button key={s} onClick={() => setInput(s + (s.endsWith('for') || s === 'prep' || s === 'scout' ? ' ' : ''))}
-                  style={{ ...chip }}>{s}</button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <span style={{ color: C.cyan, fontFamily: mono, alignSelf: 'center', fontSize: 15 }}>›</span>
-              <input style={{ ...inputStyle, fontFamily: mono }} value={input} placeholder="ask JARVIS…  (status · who's next · log a call · scout …)"
-                onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} disabled={thinking} />
-              <button style={btn(C.green)} onClick={() => send()} disabled={thinking}>Send</button>
-            </div>
-          </div>
-
-          {/* INTEL */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={panel}>
-              <SectionTitle>Revenue</SectionTitle>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                <Stat label="Dials yest" value={r.dials_yesterday ?? 0} />
-                <Stat label="Trials" value={r.trials_live ?? 0} color={C.cyan} />
-                <Stat label="Paying" value={r.paying_clients ?? 0} color={C.green} />
-                <Stat label="MRR" value={`£${Math.round(r.mrr ?? 0)}`} color={C.green} />
-                <Stat label="Churn" value={r.churn_risk_count ?? 0} color={(r.churn_risk_count ?? 0) > 0 ? C.red : C.text} />
-              </div>
-            </div>
-            <div style={panel}>
-              <SectionTitle>Pipeline</SectionTitle>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {['to_call', 'called', 'interested', 'demo_booked', 'won', 'not_interested', 'lost'].map(s => (
-                  <Stat key={s} label={s.replace('_', ' ')} value={pipe[s] ?? 0} small
-                    color={s === 'won' ? C.green : s === 'demo_booked' ? C.cyan : s === 'to_call' ? C.amber : C.text} />
-                ))}
-              </div>
-            </div>
-            <div style={panel}>
-              <SectionTitle>Trials {trials.length > 0 && <Count n={trials.length} />}</SectionTitle>
-              {trials.length === 0 && <Muted>No live trials.</Muted>}
-              {trials.map((t, i) => (
-                <Row key={i}>
-                  <span>{t.business_name}</span>
-                  <span style={{ color: t.churn_risk ? C.red : C.muted, fontSize: 12, fontFamily: mono }}>
-                    {t.days_remaining}d · {t.leads_captured} leads {t.churn_risk ? '🔴' : ''}
-                  </span>
-                </Row>
-              ))}
-            </div>
-            <div style={panel}>
-              <SectionTitle>Captured leads {leads.length > 0 && <Count n={leads.length} />}</SectionTitle>
-              {leads.length === 0 && <Muted>None yet — submit the capture form to test.</Muted>}
-              {leads.slice(0, 8).map(l => (
-                <Row key={l.id}>
-                  <span style={{ fontSize: 13 }}>{l.client_name || '—'} · {l.name || ''} {l.phone}</span>
-                  <span style={{ color: C.muted, fontSize: 11, fontFamily: mono }}>{l.source} · {l.status}</span>
-                </Row>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── call queue ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px,1fr))', gap: 16, marginTop: 16 }}>
+        {/* WHAT NOW strip */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           {['D', 'L'].map(f => (
-            <div key={f} style={panel}>
-              <SectionTitle>{f}’s call queue <Count n={(calls[f] || []).length} /></SectionTitle>
-              {(calls[f] || []).length === 0 && <Muted>List clear.</Muted>}
-              {(calls[f] || []).map(p => (
-                <div key={p.id} className="jline" style={{ borderTop: `1px solid ${C.borderSoft}`, padding: '10px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ fontWeight: 600 }}>
-                      {p.priority === 0 ? '⏰ ' : ''}{p.business_name}
-                      <span style={{ color: C.muted, fontWeight: 400, fontSize: 12 }}> · {[p.trade, p.town].filter(Boolean).join(', ')}</span>
-                    </div>
-                    <span style={{ color: C.green, fontSize: 11, fontFamily: mono }}>{p.priority === 0 ? p.reason : `#${p.rank_score}`}</span>
-                  </div>
-                  {p.phone && <a href={`tel:${p.phone}`} style={{ color: C.cyan, fontSize: 13, textDecoration: 'none', fontFamily: mono }}>{p.phone}</a>}
-                  {p.call_notes && <div style={{ color: C.muted, fontSize: 12, marginTop: 4, whiteSpace: 'pre-wrap' }}>📝 {p.call_notes.slice(0, 200)}</div>}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                    <input style={{ ...inputStyle, flex: 2, minWidth: 120, padding: '6px 9px' }} placeholder="call outcome…"
-                      value={outcomes[p.id] || ''} onChange={e => setOutcomes(o => ({ ...o, [p.id]: e.target.value }))}
-                      onKeyDown={e => e.key === 'Enter' && logCall(p.id)} />
-                    <select style={{ ...inputStyle, flex: 1, minWidth: 110, padding: '6px 9px' }}
-                      value={statuses[p.id] || ''} onChange={e => setStatuses(s => ({ ...s, [p.id]: e.target.value }))}>
-                      <option value="">auto status</option>
-                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <button style={btn(C.green)} onClick={() => logCall(p.id)}>Log</button>
-                    <button style={btn()} onClick={() => prep(p.id)}>Prep</button>
-                  </div>
-                </div>
-              ))}
+            <div key={f} style={{ ...card, flex: 1, minWidth: 280, borderLeft: `3px solid ${C.cyan}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontFamily: mono, fontWeight: 800, color: C.cyan, fontSize: 18 }}>{f}</span>
+              <div><div style={{ fontSize: 10, color: C.faint, letterSpacing: 1, textTransform: 'uppercase' }}>What now</div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{whatNow(f)}</div></div>
             </div>
           ))}
         </div>
 
-        {/* ── footer ops ── */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 20, alignItems: 'center' }}>
-          <button style={btn(C.green)} onClick={() => run('08:00 job', () => cron.morning(key))} disabled={!!busy}>Run 08:00 (calls + report)</button>
-          <button style={btn(C.amber)} onClick={() => run('18:00 job', () => cron.evening(key))} disabled={!!busy}>Run 18:00 (follow-ups)</button>
-          <button style={btn(C.cyan)} onClick={seed} disabled={!!busy}>{busy === 'Seed' ? 'Seeding…' : 'Seed demo data'}</button>
-          {busy && <span style={{ color: C.muted, fontFamily: mono, fontSize: 12 }}>running {busy}…</span>}
+        {/* MAIN GRID */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px,1fr) minmax(340px,1.15fr) minmax(280px,1fr)', gap: 14, alignItems: 'start' }}>
+
+          {/* LEFT — missions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {['D', 'L'].map(f => (
+              <Section key={f} title={`${f}'S MISSION`} count={(calls[f] || []).length}>
+                {(calls[f] || []).length === 0 && <Empty>AWAITING PROSPECTS — seed or scout a list.</Empty>}
+                {(calls[f] || []).map(p => (
+                  <div key={p.id} className={p.priority === 0 ? 'jln jred' : 'jln'} style={{ borderTop: `1px solid ${C.lineSoft}`, padding: '9px 0', borderRadius: p.priority === 0 ? 6 : 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                      <span onClick={() => tapProspect(p.business_name)} style={{ fontWeight: 600, cursor: 'pointer' }} title="tap to log">
+                        {p.priority === 0 ? '⏰ ' : ''}{p.business_name}
+                        <span style={{ color: C.faint, fontWeight: 400, fontSize: 12 }}> · {[p.trade, p.town].filter(Boolean).join(', ')}</span>
+                      </span>
+                      <span style={{ color: p.priority === 0 ? C.red : C.green, fontSize: 11, fontFamily: mono, whiteSpace: 'nowrap' }}>{p.priority === 0 ? 'OVERDUE' : `#${p.rank_score}`}</span>
+                    </div>
+                    {p.phone && <a href={`tel:${p.phone}`} style={{ color: C.cyan, fontSize: 14, textDecoration: 'none', fontFamily: mono }}>📞 {p.phone}</a>}
+                    {p.call_notes && <div style={{ color: C.dim, fontSize: 12, marginTop: 3, whiteSpace: 'pre-wrap' }}>{p.call_notes.slice(0, 160)}</div>}
+                    <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap' }}>
+                      {OUTCOMES.map(([label, outcome, status]) => (
+                        <button key={label} style={{ ...btn(OUTCOME_COLOR[label]), padding: '4px 8px', fontSize: 10 }}
+                          onClick={() => logOutcome(p.id, outcome, status)}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </Section>
+            ))}
+          </div>
+
+          {/* CENTRE — console + agent feed */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ ...card, display: 'flex', flexDirection: 'column', height: 420 }}>
+              <Head>COMMAND CONSOLE {lines.some(l => /raw mode/i.test(l.text)) && <span style={{ color: C.amber }}>· AI OFFLINE — RAW MODE</span>}</Head>
+              <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', fontFamily: mono, fontSize: 13, lineHeight: 1.5, padding: '2px 0' }}>
+                {lines.length === 0 && <div style={{ color: C.faint }}>Ask anything — “what should {founder} do now?”, “who’s next?”, “log called …”.</div>}
+                {lines.map((l, i) => <Term key={i} {...l} />)}
+                {thinking && <div className="jln" style={{ color: C.cyan }}>▸ processing<span className="jcur">_</span></div>}
+              </div>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', margin: '9px 0 7px' }}>
+                {CHIPS.map(c => <button key={c} onClick={() => send(c)} style={chip}>{c}</button>)}
+              </div>
+              <div style={{ display: 'flex', gap: 7 }}>
+                <span style={{ color: C.cyan, alignSelf: 'center', fontFamily: mono }}>›</span>
+                <input ref={inputRef} style={{ ...inp, fontFamily: mono }} value={input} placeholder="message JARVIS…"
+                  onChange={e => setInput(e.target.value)} onKeyDown={onKey} disabled={thinking} />
+                <button style={btn(C.green)} onClick={() => send()} disabled={thinking}>Send</button>
+              </div>
+            </div>
+
+            <Section title="AGENT OPS FEED" count={events.length}>
+              <div style={{ maxHeight: 220, overflowY: 'auto', fontFamily: mono, fontSize: 12 }}>
+                {events.length === 0 && <Empty>AWAITING ACTIVITY — run an agent or log a call.</Empty>}
+                {events.map(e => (
+                  <div key={e.id} className="jln" style={{ padding: '3px 0', color: e.level === 'error' ? C.red : e.level === 'warn' ? C.amber : C.dim }}>
+                    <span style={{ color: C.faint }}>[{(e.created_at || '').slice(11, 19)}]</span>{' '}
+                    <span style={{ color: C.cyan }}>{(e.agent || '').toUpperCase()}</span> {e.message}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </div>
+
+          {/* RIGHT — panels */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Section title="TASKS" count={tasks.length}>
+              {tasks.length === 0 && <Empty>AWAITING DATA — no open tasks.</Empty>}
+              {tasks.map(t => (
+                <Row key={t.id}>
+                  <span style={{ fontSize: 13 }}><span style={{ color: C.faint }}>{t.owner || '·'}</span> {t.title}</span>
+                  <button style={btn(C.green)} onClick={() => taskDone(t.id)}>✓</button>
+                </Row>
+              ))}
+            </Section>
+
+            <Section title="HOT PROSPECTS" count={hotProspects.length}>
+              {hotProspects.length === 0 && <Empty>AWAITING DATA — log calls as interested/demo.</Empty>}
+              {hotProspects.map(p => (
+                <Row key={p.id}><span style={{ fontSize: 13 }} onClick={() => tapProspect(p.business_name)} >{p.business_name} <span style={{ color: C.faint }}>[{p.status}]</span></span>
+                  {p.phone && <a href={`tel:${p.phone}`} style={{ color: C.cyan, fontFamily: mono, fontSize: 12, textDecoration: 'none' }}>{p.phone}</a>}</Row>
+              ))}
+            </Section>
+
+            <Section title="TRIAL MONITOR" count={trials.length}>
+              {trials.length === 0 && <Empty>AWAITING DATA — no live trials.</Empty>}
+              {trials.map((t, i) => (
+                <Row key={i}><span style={{ fontSize: 13 }}>{t.business_name}</span>
+                  <span className={t.churn_risk ? 'jred' : ''} style={{ color: t.churn_risk ? C.red : C.dim, fontSize: 12, fontFamily: mono, padding: t.churn_risk ? '1px 5px' : 0, borderRadius: 5 }}>{t.days_remaining}d · {t.leads_captured} leads{t.churn_risk ? ' ⚠' : ''}</span></Row>
+              ))}
+            </Section>
+
+            <Section title="CAPTURED LEADS" count={leads.length}>
+              {leads.length === 0 && <Empty>AWAITING DATA — submit the capture form to test.</Empty>}
+              {leads.slice(0, 8).map(l => (
+                <div key={l.id} className={flashLeads[l.id] ? 'jflash' : ''} style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.lineSoft}`, padding: '6px 0', fontSize: 12 }}>
+                  <span>{l.name || '—'} {l.phone}{l.photo_urls?.length ? ' 📷' : ''}<div style={{ color: C.faint }}>{l.client_name} · {l.job_type || l.source}</div></span>
+                  <span style={{ color: C.dim, fontFamily: mono }}>{l.status}</span>
+                </div>
+              ))}
+            </Section>
+
+            <Section title="AGENTS">
+              {AGENTS.map(([id, label]) => {
+                const e = lastByAgent[id]
+                return (
+                  <div key={id} style={{ borderTop: `1px solid ${C.lineSoft}`, padding: '7px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: mono, fontSize: 12, color: C.text }}>{label}</span>
+                      <button style={btn()} disabled={!!busy} onClick={() => runAgent(id, label)}>{busy === label ? '…' : 'RUN NOW'}</button>
+                    </div>
+                    <div style={{ color: C.faint, fontSize: 11, marginTop: 2 }}>{e ? `${(e.created_at || '').slice(11, 16)} · ${e.message.slice(0, 46)}` : 'no runs yet'}</div>
+                  </div>
+                )
+              })}
+            </Section>
+          </div>
+        </div>
+
+        {/* FOOTER ops */}
+        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line}`, alignItems: 'center' }}>
+          <button style={btn(C.green)} onClick={() => run('Daily briefing', () => cron.morning(key))} disabled={!!busy}>Run daily briefing</button>
+          <button style={btn(C.cyan)} onClick={seed} disabled={!!busy}>Seed demo</button>
+          <button style={btn(C.red)} onClick={() => { if (confirm('Delete ALL demo/seed rows? Real data is untouched.')) run('Wipe seed', () => salesOps.wipeSeed(key)) }} disabled={!!busy}>Wipe seed</button>
+          <a href="/leads" style={{ ...btn(C.faint), textDecoration: 'none' }}>Barber dashboard →</a>
+          {busy && <span style={{ color: C.dim, fontFamily: mono, fontSize: 12 }}>{busy}…</span>}
         </div>
       </div>
     </div>
   )
 }
 
-// ── presentational helpers ──────────────────────────────────────────
-const shell = { minHeight: '100vh', background: `radial-gradient(1200px 600px at 70% -10%, rgba(0,212,255,.08), transparent 60%), ${C.bg}`, position: 'relative', overflowX: 'hidden' }
-const chip = { background: 'rgba(0,212,255,0.06)', border: `1px solid ${C.borderSoft}`, color: C.cyan, borderRadius: 99, padding: '4px 11px', fontSize: 11, cursor: 'pointer', fontFamily: mono }
+// ── bits ─────────────────────────────────────────────────────────────
+const shell = { minHeight: '100vh', background: C.bg, position: 'relative' }
+const chip = { background: '#0c0f13', border: `1px solid ${C.line}`, color: C.cyan, borderRadius: 99, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: mono }
 
-const Scanline = () => (
-  <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none', overflow: 'hidden' }}>
-    <div style={{ position: 'absolute', left: 0, right: 0, height: 120, background: 'linear-gradient(rgba(0,212,255,0), rgba(0,212,255,.05), rgba(0,212,255,0))', animation: 'jscan 7s linear infinite' }} />
-    <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+const Boot = ({ onSkip }) => (
+  <div onClick={onSkip} style={{ position: 'fixed', inset: 0, zIndex: 50, background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: mono, cursor: 'pointer' }}>
+    <div className="jglow" style={{ color: C.cyan, fontSize: 40, fontWeight: 800, letterSpacing: 8 }}>JARVIS</div>
+    <div style={{ color: C.dim, fontSize: 12, marginTop: 12 }}>initialising trades operations core<span className="jcur">_</span></div>
+    <div style={{ color: C.faint, fontSize: 10, marginTop: 20 }}>click to skip</div>
   </div>
 )
-
-const SectionTitle = ({ children }) => (
-  <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12, fontFamily: mono }}>{children}</div>
-)
-const Count = ({ n }) => <span style={{ color: C.muted, fontWeight: 400 }}>· {n}</span>
-const Muted = ({ children }) => <div style={{ color: C.muted, fontSize: 13 }}>{children}</div>
-const Row = ({ children }) => <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: `1px solid ${C.borderSoft}`, padding: '7px 0' }}>{children}</div>
-
-const Stat = ({ label, value, color = C.text, small }) => (
-  <div style={{ minWidth: small ? 78 : 92 }}>
-    <div style={{ fontSize: small ? 20 : 26, fontWeight: 800, color, fontFamily: mono }}>{value}</div>
-    <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
+const Dot = ({ ok }) => <span style={{ width: 8, height: 8, borderRadius: 99, background: ok ? C.green : C.red, boxShadow: `0 0 7px ${ok ? C.green : C.red}`, display: 'inline-block' }} />
+const Metric = ({ label, value, color = C.text, big }) => (
+  <div style={{ textAlign: 'center' }}>
+    <div style={{ fontFamily: mono, fontWeight: 800, color, fontSize: big ? 26 : 18, lineHeight: 1 }}>{value}</div>
+    <div style={{ fontSize: 9, color: C.faint, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 }}>{label}</div>
   </div>
 )
-
-const TermLine = ({ role, text }) => {
-  if (role === 'you') return <div className="jline" style={{ margin: '2px 0' }}><span style={{ color: C.green }}>›</span> <span style={{ color: C.text }}>{text}</span></div>
-  if (role === 'jarvis') return <div className="jline" style={{ margin: '2px 0 10px', color: C.cyan, whiteSpace: 'pre-wrap' }}><span style={{ color: C.muted }}>JARVIS:</span> {text}</div>
-  if (role === 'err') return <div className="jline" style={{ margin: '2px 0', color: C.red, whiteSpace: 'pre-wrap' }}>✕ {text}</div>
-  return <div className="jline" style={{ margin: '2px 0', color: C.muted, whiteSpace: 'pre-wrap' }}>· {text}</div>
+const Head = ({ children }) => <div style={{ color: C.dim, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10, fontFamily: mono, display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 5, height: 5, background: C.cyan, borderRadius: 99 }} />{children}</div>
+const Section = ({ title, count, children }) => <div style={card}><Head>{title}{count != null && <span style={{ color: C.faint }}>· {count}</span>}</Head>{children}</div>
+const Row = ({ children }) => <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderTop: `1px solid ${C.lineSoft}`, padding: '6px 0' }}>{children}</div>
+const Empty = ({ children }) => <div style={{ color: C.faint, fontSize: 12, fontFamily: mono }}>{children}</div>
+const Banner = ({ color, title, children }) => <div style={{ ...card, borderColor: color, marginBottom: 14 }}><div style={{ color, fontFamily: mono, fontWeight: 700, fontSize: 13 }}>⚠ {title}</div><div style={{ fontSize: 13, marginTop: 6, lineHeight: 1.55, color: C.text }}>{children}</div></div>
+const Term = ({ role, text }) => {
+  if (role === 'you') return <div className="jln" style={{ margin: '2px 0' }}><span style={{ color: C.green }}>›</span> {text}</div>
+  if (role === 'jarvis') return <div className="jln" style={{ margin: '2px 0 9px', color: C.cyan, whiteSpace: 'pre-wrap' }}><span style={{ color: C.faint }}>JARVIS:</span> {text}</div>
+  if (role === 'err') return <div className="jln" style={{ margin: '2px 0', color: C.red, whiteSpace: 'pre-wrap' }}>✕ {text}</div>
+  return <div className="jln" style={{ margin: '2px 0', color: C.faint, whiteSpace: 'pre-wrap' }}>· {text}</div>
 }
