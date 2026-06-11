@@ -12,4 +12,5 @@ twilio==9.1.0
 python-multipart==0.0.9
 pytz==2024.1
 requests==2.32.3
+pillow==10.4.0  # renders the per-prospect OG link-preview card (/og/{id}.png) — WhatsApp first impression
 stripe>=8.0.0

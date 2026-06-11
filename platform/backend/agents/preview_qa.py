@@ -17,6 +17,8 @@ import secrets
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from functools import lru_cache
+from urllib.parse import quote as _urlquote
 
 import httpx
 
@@ -284,6 +286,38 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
     headline = (f"{_esc(biz)} — {_esc(town)}&#8217;s {rating:.1f}★ rated {_esc(plural)}" if rating
                 else f"{_esc(biz)} — {_esc(town)}&#8217;s trusted {_esc(plural)}")
 
+    # HERO QUOTE — the single strongest short REAL review, real author, right under
+    # the headline. Recognition: his own customer's words. Omitted when none exist.
+    hero_quote = ""
+    if reviews:
+        best = sorted(reviews, key=lambda r: (-(r.get("rating") or 0), len(r.get("text", ""))))[0]
+        q = (best.get("text") or "").strip()
+        if len(q) > 110:
+            q = q[:110].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
+        hero_quote = (f'<div class="hquote"><span class="hstars">{_stars(best.get("rating"))}</span> '
+                      f'&#8220;{_esc(q)}&#8221; <span class="hq-who">— {_esc(best.get("author"))}</span></div>')
+
+    # OG image: the branded per-prospect card (rendered server-side); falls back to
+    # the hero photo if we have no prospect id (e.g. unit tests).
+    pid_for_og = prospect.get("id")
+    og_url = f"{api}/og/{pid_for_og}.png" if pid_for_og else hero
+
+    # ASYNC CLOSER — preview-only strip that closes without a call. wa.me to the
+    # founder, prefilled from the prospect's side. £199 + £29/month, stated plainly.
+    founder_wa = re.sub(r"\D", "", settings.FOUNDER_PHONE or "")
+    if founder_wa.startswith("0"):
+        founder_wa = "44" + founder_wa[1:]
+    wa_text = _urlquote(f"Alright Dylan, it's {biz}. Seen the website you built us — want it live. What's next?")
+    closer = (
+        '<section class="closer"><div class="wrap czwrap">'
+        f'<div><div class="cz-eyebrow">This site is already built</div>'
+        f'<div class="cz-big">Built for {_esc(biz)}</div>'
+        f'<div class="cz-sub">Want it live this week? <b>£199</b> to launch, then <b>£29/month</b> — '
+        'hosting, updates and the booking system, all done for you.</div></div>'
+        f'<a class="cz-btn" href="https://wa.me/{founder_wa}?text={wa_text}">'
+        f'{_IC["phone"]} WhatsApp Dylan — make it live</a>'
+        '</div></section>')
+
     # Hero chips: live Google rating when we have it, locality otherwise.
     chips = []
     if rating:
@@ -342,11 +376,16 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
 <meta name="description" content="@@BIZ@@ — trusted @@TRADE_L@@ in @@TOWN@@. Book online in 30 seconds or call now. Fast, fully-insured local service.">
 <meta property="og:title" content="@@HEADLINE_PLAIN@@">
 <meta property="og:description" content="Book online in 30 seconds or call now. Fast, fully-insured local @@TRADE_L@@.">
-<meta property="og:image" content="@@OGIMG@@">
+<meta property="og:image" content="@@OGURL@@">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="@@OGURL@@">
 <meta property="og:type" content="website">
 <link rel="icon" href="@@FAVICON@@">
 <link rel="preload" as="image" href="@@OGIMG@@">
 <script type="application/ld+json">@@JSONLD@@</script>
+<link rel="preconnect" href="https://lh3.googleusercontent.com">
+<link rel="preconnect" href="https://images.unsplash.com">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -465,6 +504,22 @@ select:focus,input:focus{border-color:var(--accent)}
 .foot .fb{font-weight:800;color:#fff;font-size:19px}
 .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}
 .chip{background:var(--card);border:1px solid var(--line);border-radius:100px;padding:9px 16px;font-size:14px;font-weight:600;box-shadow:var(--shadow)}
+/* hero quote */
+.hquote{margin-top:16px;font-size:clamp(15px,2.2vw,18px);font-weight:600;opacity:.96;max-width:52ch}
+.hquote .hq-who{opacity:.75;font-weight:500;font-size:.9em}
+/* money section */
+.money .mlead{color:var(--muted);font-size:clamp(16px,2.3vw,19px);max-width:58ch;margin-top:14px;font-weight:500}
+/* async closer */
+.closer{background:linear-gradient(135deg,var(--accentdk),var(--accent));color:#fff}
+.czwrap{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;padding-top:44px;padding-bottom:44px}
+.cz-eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:800;opacity:.85}
+.cz-big{font-size:clamp(24px,3.6vw,36px);font-weight:800;margin:6px 0 8px}
+.cz-sub{font-size:16px;opacity:.95;max-width:48ch}
+.cz-btn{display:inline-flex;align-items:center;gap:10px;background:#fff;color:var(--accentdk);font-weight:800;
+  padding:16px 26px;border-radius:100px;text-decoration:none;font-size:16px;box-shadow:0 14px 34px rgba(0,0,0,.3);
+  transition:transform .15s ease;white-space:nowrap}
+.cz-btn:hover{transform:translateY(-2px)}
+.cz-btn svg{width:18px;height:18px}
 /* sticky mobile call */
 .mcall{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;align-items:center;justify-content:center;gap:9px;
   background:var(--accent);color:#fff;text-align:center;padding:16px;font-weight:800;text-decoration:none;font-size:16px;
@@ -487,6 +542,7 @@ select:focus,input:focus{border-color:var(--accent)}
   <div class="wrap">
     <span class="eyebrow">@@IC_SHIELD@@ @@TRADE@@ · @@TOWN@@</span>
     <h1>@@HEADLINE@@</h1>
+    @@HEROQUOTE@@
     <p class="sub">@@TRADE@@ work across @@TOWN@@ done properly — fully insured, priced up front, and there when you need us.</p>
     <div class="hchips">@@RATINGCHIP@@</div>
     <div class="cta-row">
@@ -503,7 +559,22 @@ select:focus,input:focus{border-color:var(--accent)}
   <span class="it">@@IC_STAR@@ Trusted in @@TOWN@@</span>
 </div></div>
 
-<section id="services" class="sec"><div class="wrap">
+<section class="sec money"><div class="wrap">
+  <div class="eyebrow">Why this site pays for itself</div>
+  <h2>Never miss a job again</h2>
+  <p class="mlead">You're under a sink. The phone rings out. They call the next bloke on Google —
+  and that job's gone. This site catches it instead:</p>
+  <div class="grid3">
+    <div class="svc fx"><span class="sic">@@IC_CLOCK@@</span><div><h3>They book in 30 seconds</h3>
+      <p>Day, time, what they need — even at 11pm when you're in bed.</p></div></div>
+    <div class="svc fx"><span class="sic">@@IC_PHONE@@</span><div><h3>The job lands on your phone</h3>
+      <p>Name, number and the job, sent straight to you the second they book.</p></div></div>
+    <div class="svc fx"><span class="sic">@@IC_CHECK@@</span><div><h3>You ring back when you're free</h3>
+      <p>Off the tools, kettle on, call them back — job booked, not lost.</p></div></div>
+  </div>
+</div></section>
+
+<section id="services" class="sec alt"><div class="wrap">
   <div class="eyebrow">What we do</div>
   <h2>@@TRADE@@ services in @@TOWN@@</h2>
   <div class="grid3">@@SERVICES@@</div>
@@ -552,6 +623,8 @@ select:focus,input:focus{border-color:var(--accent)}
   <h2>Covering @@TOWN@@ &amp; nearby</h2>
   <div class="chips">@@NEARBY@@</div>
 </div></section>
+
+@@CLOSER@@
 
 <footer class="foot">
   <div class="fb">@@BIZ@@</div>
@@ -614,6 +687,7 @@ select:focus,input:focus{border-color:var(--accent)}
         "@@API@@": api, "@@TOKEN@@": capture_token,
         "@@INITIALS@@": _esc(_initials(biz)), "@@OGIMG@@": hero, "@@FAVICON@@": fav,
         "@@HEADLINE@@": headline,
+        "@@HEROQUOTE@@": hero_quote, "@@OGURL@@": og_url, "@@CLOSER@@": closer,
         "@@HEADLINE_PLAIN@@": headline.replace("&#8217;", "\u2019").replace("&amp;", "&"),
         "@@JSONLD@@": jsonld, "@@HEROLAYERS@@": hero_layers,
         "@@ACCENT@@": accent, "@@ACCENT_DK@@": accent_dk,
@@ -627,6 +701,172 @@ select:focus,input:focus{border-color:var(--accent)}
     for k, v in repl.items():
         tmpl = tmpl.replace(k, v)
     return tmpl
+
+
+# ── OG link-preview card (the WhatsApp first impression) ──────────────
+_FONT_PATH = "/tmp/ld_og_font.ttf"
+_FONT_CSS = ("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800")
+
+
+def _og_font(size: int):
+    """Plus Jakarta Sans Bold, fetched once to /tmp (old-UA trick returns TTF).
+    Falls back to Pillow's built-in scalable font — the card never fails."""
+    from PIL import ImageFont
+    import os
+    try:
+        if not os.path.exists(_FONT_PATH):
+            with httpx.Client(timeout=15.0, follow_redirects=True) as c:
+                css = c.get(_FONT_CSS, headers={"User-Agent": "Mozilla/4.0"}).text
+                m = re.search(r"url\((https://[^)]+\.ttf)\)", css)
+                if m:
+                    ttf = c.get(m.group(1)).content
+                    with open(_FONT_PATH, "wb") as f:
+                        f.write(ttf)
+        if os.path.exists(_FONT_PATH):
+            return ImageFont.truetype(_FONT_PATH, size)
+    except Exception as e:
+        logger.debug(f"[og] font fetch failed: {e}")
+    try:
+        return ImageFont.load_default(size=size)      # Pillow ≥10.1 scalable default
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def _hex_rgb(h: str):
+    h = h.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+@lru_cache(maxsize=256)
+def og_card_png(prospect_id: str) -> bytes:
+    """1200×630 branded card: business name + '{rating}★ on Google' + trade colour.
+    The link looks like HIS site before he even taps it. Empty bytes on any failure
+    (caller falls back) — never raises."""
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        logger.warning("[og] Pillow not installed")
+        return b""
+    try:
+        p = (get_db().table("prospects")
+             .select("business_name,trade,town,preview_id").eq("id", prospect_id)
+             .single().execute().data)
+    except Exception:
+        p = None
+    if not p:
+        return b""
+    rating = review_count = None
+    if p.get("preview_id"):
+        try:
+            pv = (get_db().table("previews").select("personalization_data")
+                  .eq("id", p["preview_id"]).single().execute().data) or {}
+            og = (pv.get("personalization_data") or {}).get("og") or {}
+            rating, review_count = og.get("rating"), og.get("review_count")
+        except Exception:
+            pass
+
+    biz = (p.get("business_name") or "Your new website").strip()
+    trade_t = (p.get("trade") or "trade").title()
+    town = (p.get("town") or "").strip()
+    accent, accent_dk = _ACCENTS.get((p.get("trade") or "").lower(), _ACCENT_DEFAULT)
+    a, adk, base = _hex_rgb(accent), _hex_rgb(accent_dk), _hex_rgb("#0a1626")
+
+    W, H = 1200, 630
+    img = Image.new("RGB", (W, H), base)
+    dr = ImageDraw.Draw(img)
+    # vertical accent_dk → base gradient
+    for y in range(H):
+        t = y / H
+        dr.line([(0, y), (W, y)], fill=tuple(int(adk[i] * (1 - t) * .65 + base[i] * (t * .35 + .65)) for i in range(3)))
+    # accent glow top-right + brand bar bottom
+    glow = Image.new("RGB", (W, H), base)
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse([W - 560, -260, W + 260, 300], fill=a)
+    img = Image.blend(img, glow, 0.18)
+    dr = ImageDraw.Draw(img)
+    dr.rectangle([0, H - 14, W, H], fill=a)
+
+    f_big, f_mid, f_small = _og_font(82), _og_font(40), _og_font(28)
+    # wrap the name to ≤2 lines that fit
+    words, lines, cur = biz.split(), [], ""
+    for w in words:
+        t = (cur + " " + w).strip()
+        if dr.textlength(t, font=f_big) <= W - 160:
+            cur = t
+        else:
+            lines.append(cur); cur = w
+        if len(lines) == 2:
+            break
+    if cur and len(lines) < 2:
+        lines.append(cur)
+    if not lines:
+        lines = [biz[:24]]
+    y = 200 if len(lines) > 1 else 240
+    for ln in lines:
+        dr.text((80, y), ln, font=f_big, fill=(255, 255, 255))
+        y += 96
+    sub = (f"{rating:.1f}★ on Google · {trade_t} · {town}" if rating
+           else f"{trade_t} · {town}")
+    dr.text((80, y + 8), sub, font=f_mid, fill=(255, 212, 121) if rating else (205, 217, 230))
+    dr.text((80, H - 86), "Tap to see your new website  →", font=f_small, fill=(255, 255, 255))
+    rc = f"{review_count} Google reviews" if review_count else "Built by L&D Designs"
+    dr.text((W - 80 - dr.textlength(rc, font=f_small), H - 86), rc, font=f_small, fill=(160, 178, 196))
+
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+# ── WhatsApp message kit (stored per prospect, human-sent only) ───────
+def _gen_messages(p: dict, link: str, rating=None, review_count=None) -> dict:
+    """Two ready-to-send WhatsApp messages, written like a Wigan tradesman texts.
+    ONE Claude call; deterministic fallback. NEVER sent by the system — these are
+    drafts the founder copies. (a) first touch ends 'can I send the link?';
+    (b) the link-send message carries the link + £199/£29."""
+    biz = p.get("business_name") or "mate"
+    trade = p.get("trade") or "trade"
+    town = p.get("town") or "round here"
+    angle = (p.get("sales_angle") or "").strip()
+    rating_bit = f" — {rating:.1f}★, proper good reviews" if rating else ""
+
+    fallback = {
+        "first": (f"Alright mate, Dylan here, local lad from Wigan. Found {biz} on Google{rating_bit} "
+                  f"but there's no website, so {town} jobs are going to fellas ranked under you. "
+                  f"I've already built you one — can I send the link?"),
+        "link_msg": (f"Here it is mate: {link}\n"
+                     f"That's YOUR reviews and photos already on it, plus online booking that texts "
+                     f"jobs straight to your phone. Want it live this week? £199, then £29 a month — "
+                     f"all done for you. Have a look and tell me straight."),
+    }
+    if not settings.ANTHROPIC_API_KEY:
+        return fallback
+    try:
+        raw = trades._claude(
+            "You write WhatsApp messages for Dylan, a young web designer from Wigan, texting local "
+            "tradesmen he's never met. Sound exactly like a Wigan tradesman texts: short, plain, "
+            "friendly, zero marketing speak, no emojis. Output ONLY JSON: "
+            '{"first": "...", "link_msg": "..."}. RULES: "first" is 2-3 short sentences, uses their '
+            "business name and town and the angle, and ENDS with exactly: can I send the link? "
+            '"link_msg" MUST contain the link verbatim, mention their own reviews/photos are already '
+            "on it, the booking that texts jobs to their phone, and the price: £199 to go live, "
+            "then £29 a month.",
+            f"Business: {biz} ({trade}, {town}). "
+            + (f"Google rating {rating:.1f}★ from {review_count} reviews. " if rating else "No rating known. ")
+            + f"Angle: {angle or 'no website, losing local jobs'}. Link: {link}",
+            max_tokens=380, agent="msg_kit")
+        if raw:
+            m = re.search(r"\{.*\}", raw, re.S)
+            if m:
+                d = json.loads(m.group(0))
+                first, lm = (d.get("first") or "").strip(), (d.get("link_msg") or "").strip()
+                if first and lm and link in lm and "£199" in lm and "£29" in lm:
+                    if not first.rstrip("?").endswith("can I send the link"):
+                        first = first.rstrip(".!? ") + " — can I send the link?"
+                    return {"first": first, "link_msg": lm}
+    except Exception as e:
+        logger.warning(f"[preview_qa] msg kit Claude fail for {biz}: {e}")
+    return fallback
 
 
 # ── Build + QA ────────────────────────────────────────────────────────
@@ -674,6 +914,21 @@ def build_for_prospect(name_or_id: str, verify_live: bool = True) -> dict:
     if pid:
         db.table("prospects").update({"preview_id": pid, "preview_status": "draft",
                                       "updated_at": _now_iso()}).eq("id", p["id"]).execute()
+        # Store the OG-card inputs + the per-prospect WhatsApp message kit on the
+        # preview row (personalization_data jsonb — no migration needed).
+        link = base_url + pid
+        msgs = _gen_messages(p, link, rating=details.get("rating"),
+                             review_count=details.get("review_count"))
+        try:
+            db.table("previews").update({"personalization_data": {
+                "og": {"biz": p.get("business_name"), "town": p.get("town"),
+                       "trade": p.get("trade"), "rating": details.get("rating"),
+                       "review_count": details.get("review_count")},
+                "msg_first": msgs["first"], "msg_link": msgs["link_msg"],
+                "preview_link": link,
+            }}).eq("id", pid).execute()
+        except Exception as e:
+            logger.warning(f"[preview_qa] personalization store failed: {e}")
     trades.log_event("preview_qa", f"built preview for {p.get('business_name')}", "info",
                      {"prospect_id": p["id"], "preview_id": pid})
     return qa_preview(pid, verify_live=verify_live)
@@ -699,6 +954,10 @@ def qa_html(html: str, business_name: str, capture_token: str) -> tuple:
             reasons.append("business name not shown")
     if PLACEHOLDER_RE.search(h):
         reasons.append("placeholder/lorem text present")
+    # Offer integrity: the ONLY prices allowed anywhere on a preview are £199 + £29.
+    bad_prices = {m for m in re.findall(r"£\s?(\d[\d,]*)", h)} - {"199", "29"}
+    if bad_prices:
+        reasons.append(f"contradicts the £199+£29 offer (found £{', £'.join(sorted(bad_prices))})")
     if len(h) < 800:
         reasons.append("page too thin / likely broken")
     return (len(reasons) == 0, reasons)
@@ -813,24 +1072,34 @@ def build_all_ready(mode: str = "real", limit: int = 25, force: bool = False) ->
 
     def _one(p):
         try:
-            return build_for_prospect(p["id"], verify_live=False)
+            return p.get("business_name"), build_for_prospect(p["id"], verify_live=False)
         except Exception as e:
             logger.warning(f"[preview_qa] build failed for {p.get('business_name')}: {e}")
-            return {"ok": False}
+            return p.get("business_name"), {"ok": False, "reasons": [str(e)[:60]]}
 
     built = passed = failed = 0
+    table = []
     with ThreadPoolExecutor(max_workers=5) as ex:
-        for r in ex.map(_one, todo):
+        for name, r in ex.map(_one, todo):
             if r.get("ok"):
                 built += 1
-                passed += 1 if r.get("passed") else 0
-                failed += 0 if r.get("passed") else 1
+                if r.get("passed"):
+                    passed += 1
+                    table.append(f"✓ PASS  {name}")
+                else:
+                    failed += 1
+                    table.append(f"✗ FAIL  {name} — {'; '.join(r.get('reasons') or [])[:80]}")
+            else:
+                failed += 1
+                table.append(f"✗ ERROR {name} — {'; '.join(r.get('reasons') or ['build failed'])[:80]}")
     trades.log_event("preview_qa", f"built {built} preview(s) — {passed} passed QA, {failed} failed",
                      "success" if failed == 0 else "warn",
                      {"metric_ok": failed == 0, "built": built, "passed": passed})
     return {"ok": True, "built": built, "qa_passed": passed, "qa_failed": failed,
-            "message": (f"Built {built} preview(s): {passed} passed QA (open + Approve to share)"
-                        + (f"; {failed} failed QA" if failed else "") + ".")}
+            "table": table,
+            "message": (f"Built {built} preview(s): {passed} PASS / {failed} FAIL\n"
+                        + "\n".join(table)
+                        + "\n\nEach card now has the WhatsApp kit (intro + link msg) — copy buttons in the queue.")}
 
 
 def run_all(mode: str = "real") -> dict:

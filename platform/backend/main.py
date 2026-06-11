@@ -5,9 +5,10 @@ FastAPI application — entry point
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 
 from api import leads, outreach, previews, dashboard, agents, webhooks, textback, payments, strategy, ops, n8n, team, calls
 # Trades lead-capture product + JARVIS operator
@@ -121,6 +122,19 @@ async def serve_preview_direct(preview_id: str):
     return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
 
 
+@app.get("/og/{prospect_id}.png", include_in_schema=False)
+async def og_card(prospect_id: str):
+    """Per-prospect OG link-preview card — the WhatsApp first impression. Renders the
+    prospect's name + Google rating in their trade colour. Falls back to a neutral
+    stock image so a link card never breaks."""
+    from agents.preview_qa import og_card_png, _stock_photos
+    png = await run_in_threadpool(og_card_png, prospect_id)
+    if png:
+        return Response(content=png, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+    return RedirectResponse(_stock_photos("")[0], status_code=302)
+
+
 def _holding_page(msg: str) -> str:
     return f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -145,7 +159,7 @@ async def root():
     return {
         "name": "L&D Designs Platform",
         "status": "running",
-        "build": "headline-199-29",  # deploy marker — bump to confirm a deploy landed
+        "build": "closer-kit-og",  # deploy marker — bump to confirm a deploy landed
         "docs": "/docs",
     }
 

@@ -170,6 +170,14 @@ export default function MissionControl() {
   const buildPreview = (id) => act('Preview', () => salesOps.buildPreview(key, id))
   const approve = (id) => act('Approve', () => salesOps.approvePreview(key, id))
   const resolveAlert = (id) => act('Resolve', () => salesOps.resolveAlert(key, id))
+  const [copied, setCopied] = useState('')
+  const copyText = async (id, text) => {
+    try { await navigator.clipboard.writeText(text) } catch (e) {
+      const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t)
+      t.select(); document.execCommand('copy'); document.body.removeChild(t)
+    }
+    setCopied(id); setTimeout(() => setCopied(''), 1400)
+  }
 
   // ════════════════════════════════════════════════════════════════
   if (!authed) return (
@@ -274,6 +282,7 @@ export default function MissionControl() {
               {nextCall.call_notes && <div style={{ color: C.dim, fontSize: 13, marginTop: 4, whiteSpace: 'pre-wrap' }}>📝 {nextCall.call_notes.slice(0, 200)}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <PreviewChip p={nextCall} onBuild={() => buildPreview(nextCall.id)} onApprove={() => approve(nextCall.id)} busy={busy} />
+                <KitRow p={nextCall} copied={copied} onCopy={copyText} />
               </div>
               <OutcomeRow p={nextCall} big picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
             </>
@@ -297,7 +306,10 @@ export default function MissionControl() {
                     </div>
                     {p.phone && <a href={`tel:${p.phone}`} style={{ color: C.cyan, fontSize: 14, textDecoration: 'none', fontFamily: mono }}>📞 {p.phone}</a>}
                     <div style={{ color: C.green, fontSize: 12, marginTop: 3 }}>🎯 {p.sales_angle}</div>
-                    <div style={{ marginTop: 6 }}><PreviewChip p={p} onBuild={() => buildPreview(p.id)} onApprove={() => approve(p.id)} busy={busy} /></div>
+                    <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <PreviewChip p={p} onBuild={() => buildPreview(p.id)} onApprove={() => approve(p.id)} busy={busy} />
+                      <KitRow p={p} copied={copied} onCopy={copyText} />
+                    </div>
                     <OutcomeRow p={p} picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
                   </div>
                 ))}
@@ -461,6 +473,19 @@ const OutcomeRow = ({ p, big, picker, onOutcome, onWhen, onCancel }) => {
           onClick={() => onOutcome(p, o)}>{o[0]}</button>
       ))}
     </div>
+  )
+}
+
+// WhatsApp message kit — copy-to-send buttons (drafts only; founder sends them).
+const KitRow = ({ p, copied, onCopy }) => {
+  if (!p.msg_first && !p.msg_link) return null
+  return (
+    <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+      {p.msg_first && <button style={btn(C.green)} onClick={() => onCopy(p.id + ':a', p.msg_first)}>
+        {copied === p.id + ':a' ? '✓ copied' : '📋 intro msg'}</button>}
+      {p.msg_link && <button style={btn(C.green)} onClick={() => onCopy(p.id + ':b', p.msg_link)}>
+        {copied === p.id + ':b' ? '✓ copied' : '📋 link msg'}</button>}
+    </span>
   )
 }
 

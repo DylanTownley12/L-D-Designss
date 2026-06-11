@@ -169,14 +169,32 @@ def _board_sync(mode: str) -> dict:
                  if not p.get("queue_ready")
                  and p.get("status") not in ("won", "lost", "not_interested")][:100]
 
+        calls = {"D": trades.build_call_list("D", mode=mode),
+                 "L": trades.build_call_list("L", mode=mode)}
+        # Attach each prospect's WhatsApp message kit + preview link (stored on the
+        # preview row's personalization_data at build time) for the copy buttons.
+        try:
+            prev_ids = [p.get("preview_id") for p in calls["D"] + calls["L"] if p.get("preview_id")]
+            if prev_ids:
+                rows = (db.table("previews").select("id,personalization_data")
+                        .in_("id", prev_ids).execute().data or [])
+                pdmap = {r["id"]: (r.get("personalization_data") or {}) for r in rows}
+                for lst in calls.values():
+                    for p in lst:
+                        meta = pdmap.get(p.get("preview_id")) or {}
+                        p["msg_first"] = meta.get("msg_first")
+                        p["msg_link"] = meta.get("msg_link")
+                        p["preview_link"] = meta.get("preview_link")
+        except Exception as e:
+            logger.debug(f"[sales/board] kit attach skipped: {e}")
+
         funnel = trades.compute_funnel(mode=mode)
         return {
             "mode": mode,
             "pipeline": ctx_pipeline,
             "funnel": funnel,
             "bottleneck": trades.find_bottleneck(funnel),
-            "calls": {"D": trades.build_call_list("D", mode=mode),
-                      "L": trades.build_call_list("L", mode=mode)},
+            "calls": calls,
             "report": report,
             "recent_leads": recent,
             "tasks": trades.list_tasks(mode=mode),
