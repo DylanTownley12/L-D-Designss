@@ -157,20 +157,23 @@ def find_leads(cap: int = 20) -> dict:
         rows = []
 
     n = res.get("added", 0)
+    live = [r for r in rows if r.get("queue_ready")]
+    needs = [r for r in rows if not r.get("queue_ready")]
     trades.log_event("lead_finder",
-                     f"🔎 pulled {n} no-website prospect(s) from Google Places "
+                     f"🔎 {n} new + {len(live)} live no-website prospects in queues "
                      f"(scanned {scanned}, {dupes} dupes)", "success",
-                     {"metric_ok": n > 0, "metric": f"+{n} real", "scanned": scanned})
+                     {"metric_ok": len(live) > 0, "metric": f"{len(live)} live", "scanned": scanned})
 
     lines = [f"{r.get('business_name')} — {r.get('trade')}, {r.get('town')} · {r.get('phone') or 'no number'}"
-             f" [{r.get('assigned_to')}, score {r.get('opportunity_score')}]" for r in rows[:n or len(rows)]]
+             f" [{r.get('assigned_to')}, score {r.get('opportunity_score')}]" for r in live[:25]]
     return {
         "ok": True, "agent": "lead_finder",
-        "written": n, "scanned": scanned, "no_website": no_website, "duplicates": dupes,
-        "assigned": res.get("assigned"), "queue_ready": res.get("queue_ready"),
-        "rows": rows,
-        "message": (f"Lead Finder wrote {n} real no-website prospect(s) to Supabase "
-                    f"(scanned {scanned}, skipped {dupes} dupes). Now in REAL queues:\n"
+        "written": n, "queue_ready_total": len(live), "needs_data": len(needs),
+        "scanned": scanned, "no_website": no_website, "duplicates": dupes,
+        "assigned": res.get("assigned"), "rows": rows,
+        "message": (f"Lead Finder: {n} new this run ({dupes} already in your list). "
+                    f"{len(live)} no-website tradesmen are live in your REAL queues"
+                    + (f"; {len(needs)} held in NEEDS DATA (no valid phone)" if needs else "") + ".\n"
                     + "\n".join(lines) if lines else
-                    f"Lead Finder wrote {n} prospect(s)."),
+                    f"Lead Finder: {n} new, scanned {scanned} listings — nothing queue-ready yet."),
     }
