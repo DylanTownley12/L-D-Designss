@@ -176,6 +176,19 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_recent ON activity_logs(created_at DESC);
 
+-- ── Row Level Security: lock these tables to the backend only ─────────
+-- The backend (db/client.py) uses the SERVICE ROLE key, which bypasses RLS.
+-- Enabling RLS with NO policies means anon/public keys can read/write nothing
+-- (the frontend never touches Supabase directly — it goes through the API).
+ALTER TABLE prospects      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE captured_leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE next_actions   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE jarvis_log     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agent_events   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE decisions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs  ENABLE ROW LEVEL SECURITY;
+
 -- ════════════════════════════════════════════════════════════════════
 --  VERIFICATION — these should all run clean and show the new tables.
 -- ════════════════════════════════════════════════════════════════════
