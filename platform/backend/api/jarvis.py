@@ -153,7 +153,7 @@ TOOLS = [
 
 SYSTEM_BASE = (
     "You are JARVIS, the operations brain for L&D Designs' trades arm — a missed-call "
-    "text-back service sold to UK plumbers, electricians and other trades (~£49/mo, 14-day "
+    "website + lead-capture service sold to UK plumbers, electricians and other trades (£199 build + £29/mo, 14-day "
     "free trial). You report to the two founders, D (Dylan) and L. "
     "Voice: brief, dry, capable. No filler, no emojis-spam, no corporate tone. Answer the "
     "question, then stop.\n\n"
@@ -286,7 +286,7 @@ def _run_tool(name: str, args: dict, founder_code: str = "D"):
             return r.get("message", "Marked lost."), r.get("_undo")
         if name == "convert_to_client":
             r = trades.convert_prospect_to_client(args.get("prospect"),
-                                                  monthly_fee=args.get("monthly_fee") or 49.0)
+                                                  monthly_fee=args.get("monthly_fee") or 29.0)
             return r.get("message", "Converted."), r.get("_undo")
         if name == "run_agent":
             return trades.run_agent(args.get("name"), post_to_telegram=settings.telegram_enabled).get(

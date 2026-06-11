@@ -77,7 +77,7 @@ _TERMINAL = ("won", "lost", "not_interested")
 
 
 class ConvertBody(BaseModel):
-    monthly_fee: Optional[float] = 49.0
+    monthly_fee: Optional[float] = 29.0
 
 
 class ClientBody(BaseModel):
@@ -87,7 +87,7 @@ class ClientBody(BaseModel):
     owner_phone: Optional[str] = None
     trade: Optional[str] = "default"
     town: Optional[str] = None
-    monthly_fee: Optional[float] = 49.0
+    monthly_fee: Optional[float] = 29.0
 
 
 # ── Ops board snapshot ─────────────────────────────────────────────────
@@ -456,7 +456,7 @@ async def wipe_demo(_=Depends(require_ops_key)):
 
 @router.post("/prospects/{prospect_id}/convert")
 async def convert(prospect_id: str, body: ConvertBody, _=Depends(require_ops_key)):
-    return trades.convert_prospect_to_client(prospect_id, monthly_fee=body.monthly_fee or 49.0)
+    return trades.convert_prospect_to_client(prospect_id, monthly_fee=body.monthly_fee or 29.0)
 
 
 # ── Provision a client directly (e.g. the first one) ──────────────────
@@ -471,7 +471,7 @@ async def create_client(body: ClientBody, _=Depends(require_ops_key)):
         "business_name": body.business_name, "owner_name": body.owner_name,
         "phone": body.phone, "owner_phone": body.owner_phone or body.phone,
         "trade": body.trade or "default", "town": body.town,
-        "active": True, "monthly_fee": body.monthly_fee or 49.0,
+        "active": True, "monthly_fee": body.monthly_fee or 29.0,
         "plan_status": "trial", "trial_start": date.today().isoformat(),
         "trial_end": (date.today() + timedelta(days=14)).isoformat(),
         "dashboard_token": dash, "capture_token": cap, "total_textbacks_sent": 0,
@@ -530,7 +530,7 @@ _DEMO_CLIENT_NAME = "Demo Plumbing Co"
 _DEMO_NOTES = {
     "Wigan Rapid Plumbing":      ("interested", "Spoke to owner Dave — keen, reckons he loses 2-3 calls/week when he's under a sink. Wants to see it working. Ring back, push the free trial.", True),
     "Standish Heating Solutions":("called", "Gatekeeper — wife takes the calls, owner Mark's on the tools till 4. Try again after teatime.", True),
-    "Leigh Gas Services":        ("demo_booked", "Booked a demo Friday 10am. Misses loads of calls while servicing boilers. Have the £49 trial ready.", False),
+    "Leigh Gas Services":        ("demo_booked", "Booked a demo Friday 10am. Misses loads of calls while servicing boilers. Have the £29 trial ready.", False),
     "Bolton Boiler Doctor":      ("interested", "One-man band, sounded interested — 'go on then, send us something'. Follow up with a WhatsApp + a call.", True),
     "St Helens 24hr Plumbing":   ("called", "No answer x2, didn't leave VM. 24hr emergency plumber so the phone never stops — ideal fit. Retry tomorrow AM.", True),
 }
@@ -666,12 +666,12 @@ def seed_demo_data() -> dict:
         rec = {
             "business_name": _DEMO_CLIENT_NAME, "owner_name": "Demo Owner",
             "phone": "07700 900000", "owner_phone": "07700 900000",
-            "trade": "plumber", "town": "Wigan", "active": True, "monthly_fee": 49.0,
+            "trade": "plumber", "town": "Wigan", "active": True, "monthly_fee": 29.0,
             "plan_status": "trial", "trial_start": date.today().isoformat(),
             "trial_end": (date.today() + timedelta(days=14)).isoformat(),
             "dashboard_token": dash, "capture_token": cap, "total_textbacks_sent": 0,
             "is_seed": True, "data_mode": "demo", "avg_job_value": 150,
-            "build_fee": 500, "build_paid": False,
+            "build_fee": 199, "build_paid": False,
         }
         res = db.table("textback_clients").insert(rec).execute()
         cid = res.data[0]["id"] if res.data else None

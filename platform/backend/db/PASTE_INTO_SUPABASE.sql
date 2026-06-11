@@ -27,7 +27,7 @@ ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS is_seed             BOOLEA
 ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS avg_job_value       NUMERIC(10,2) DEFAULT 150;
 ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS stripe_payment_link TEXT;
 ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS telegram_chat_id    TEXT;
-ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS monthly_fee         NUMERIC(10,2) DEFAULT 49;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS monthly_fee         NUMERIC(10,2) DEFAULT 29;
 ALTER TABLE textback_clients DROP CONSTRAINT IF EXISTS textback_clients_plan_status_check;
 ALTER TABLE textback_clients ADD CONSTRAINT textback_clients_plan_status_check
     CHECK (plan_status IN ('trial','paying','churned','cancelled'));
@@ -249,7 +249,7 @@ CREATE INDEX IF NOT EXISTS idx_prospects_score ON prospects(opportunity_score DE
 CREATE INDEX IF NOT EXISTS idx_prospects_queue ON prospects(assigned_to, queue_ready, opportunity_score DESC NULLS LAST);
 
 -- ── textback_clients: bundle pricing — one-off build fee + recurring MRR ──
-ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_fee     NUMERIC(10,2) DEFAULT 500;
+ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_fee     NUMERIC(10,2) DEFAULT 199;
 ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_paid    BOOLEAN DEFAULT FALSE;
 ALTER TABLE textback_clients ADD COLUMN IF NOT EXISTS build_paid_at TIMESTAMPTZ;
 

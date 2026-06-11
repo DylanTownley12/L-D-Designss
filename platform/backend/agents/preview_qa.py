@@ -47,8 +47,9 @@ _STOCK_DEFAULT = ["1581244277943-fe4a9c777189", "1558618666-fcd25c85cd64", "1503
 
 
 def _stock_photos(trade: str, n: int = 3) -> list:
+    # w=1100/q=72 keeps the hero ~100-180KB — the whole page must load <3s on mobile.
     ids = _STOCK.get((trade or "").lower(), _STOCK_DEFAULT)
-    return [f"https://images.unsplash.com/photo-{i}?auto=format&fit=crop&w=1200&q=80" for i in ids[:n]]
+    return [f"https://images.unsplash.com/photo-{i}?auto=format&fit=crop&w=1100&q=72" for i in ids[:n]]
 
 
 _SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
@@ -119,10 +120,13 @@ def _fetch_place_details(place_id: str, trade: str = "", name: str = None,
                         "when": rv.get("relativePublishTimeDescription") or "",
                     })
                 # Real premises photos → keyless CDN urls (parallel resolve).
+                # Hero at 1100px, gallery at 640px — page weight budget for <3s mobile.
                 names = [p.get("name") for p in (d.get("photos") or [])[:3] if p.get("name")]
                 if names:
-                    with ThreadPoolExecutor(max_workers=min(3, len(names))) as ex:
-                        out["photos"] = [u for u in ex.map(resolve_photo_uri, names) if u]
+                    jobs = list(zip(names, [1100, 640, 640]))
+                    with ThreadPoolExecutor(max_workers=min(3, len(jobs))) as ex:
+                        out["photos"] = [u for u in ex.map(
+                            lambda nw: resolve_photo_uri(nw[0], max_w=nw[1]), jobs) if u]
                 out["real_photos"] = bool(out["photos"])
             else:
                 logger.warning(f"[preview_qa] details {r.status_code}: {r.text[:140]}")
@@ -214,6 +218,14 @@ def _initials(name: str) -> str:
     return "".join(w[0].upper() for w in words[:2]) or "A"
 
 
+_TRADE_PLURAL = {"drainage": "drainage experts"}
+
+
+def _trade_plural(trade: str) -> str:
+    t = (trade or "tradesperson").strip().lower()
+    return _TRADE_PLURAL.get(t, t + ("" if t.endswith("s") else "s"))
+
+
 def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
     """A premium, mobile-first demo site for a trade: real Google photos + reviews +
     rating, a 30-second booking widget that captures the enquiry, trust signals and
@@ -266,6 +278,12 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
         ld["aggregateRating"] = {"@type": "AggregateRating", "ratingValue": rating, "reviewCount": rcount}
     jsonld = json.dumps({k: v for k, v in ld.items() if v is not None})
 
+    # HERO HEADLINE — the biggest text on the page, built from their REAL data:
+    # "J Bury Plumbing — Wigan's 4.9★ rated plumbers" / fallback "…— Wigan's trusted plumbers".
+    plural = _trade_plural(trade)
+    headline = (f"{_esc(biz)} — {_esc(town)}&#8217;s {rating:.1f}★ rated {_esc(plural)}" if rating
+                else f"{_esc(biz)} — {_esc(town)}&#8217;s trusted {_esc(plural)}")
+
     # Hero chips: live Google rating when we have it, locality otherwise.
     chips = []
     if rating:
@@ -284,7 +302,7 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
     if gallery:
         gallery_html = ('<section class="sec"><div class="wrap"><div class="eyebrow">Our work</div>'
                         '<h2>Recent jobs &amp; premises</h2><div class="gal">'
-                        + "".join(f'<img class="gi fx" loading="lazy" alt="{_esc(biz)} — work photo" src="{g}">'
+                        + "".join(f'<img class="gi fx" loading="lazy" decoding="async" alt="{_esc(biz)} — work photo" src="{g}">'
                                   for g in gallery)
                         + '</div></div></section>')
 
@@ -322,11 +340,12 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@@BIZ@@ — @@TRADE@@ in @@TOWN@@</title>
 <meta name="description" content="@@BIZ@@ — trusted @@TRADE_L@@ in @@TOWN@@. Book online in 30 seconds or call now. Fast, fully-insured local service.">
-<meta property="og:title" content="@@BIZ@@ — @@TRADE@@ in @@TOWN@@">
+<meta property="og:title" content="@@HEADLINE_PLAIN@@">
 <meta property="og:description" content="Book online in 30 seconds or call now. Fast, fully-insured local @@TRADE_L@@.">
 <meta property="og:image" content="@@OGIMG@@">
 <meta property="og:type" content="website">
 <link rel="icon" href="@@FAVICON@@">
+<link rel="preload" as="image" href="@@OGIMG@@">
 <script type="application/ld+json">@@JSONLD@@</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -368,7 +387,7 @@ img{display:block;max-width:100%}
 .hero .wrap{position:relative;padding:88px 22px 96px}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;
   font-weight:800;color:#fff;background:@@ACCENT_SOFT@@;border:1px solid @@ACCENT_BORD@@;padding:7px 14px;border-radius:100px}
-.hero h1{font-size:clamp(34px,6.4vw,62px);font-weight:800;line-height:1.04;margin:20px 0 14px;max-width:16ch;
+.hero h1{font-size:clamp(34px,6.2vw,60px);font-weight:800;line-height:1.06;margin:20px 0 14px;max-width:24ch;
   text-shadow:0 2px 24px rgba(0,0,0,.35)}
 .hero .sub{font-size:clamp(16px,2.4vw,20px);opacity:.93;max-width:50ch;font-weight:500}
 .hchips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
@@ -467,7 +486,7 @@ select:focus,input:focus{border-color:var(--accent)}
   <div class="bg"></div><div class="grid"></div>
   <div class="wrap">
     <span class="eyebrow">@@IC_SHIELD@@ @@TRADE@@ · @@TOWN@@</span>
-    <h1>@@BIZ@@</h1>
+    <h1>@@HEADLINE@@</h1>
     <p class="sub">@@TRADE@@ work across @@TOWN@@ done properly — fully insured, priced up front, and there when you need us.</p>
     <div class="hchips">@@RATINGCHIP@@</div>
     <div class="cta-row">
@@ -594,6 +613,8 @@ select:focus,input:focus{border-color:var(--accent)}
         "@@TOWN@@": _esc(town), "@@PHONE@@": _esc(phone or "Call us"), "@@TEL@@": tel or "",
         "@@API@@": api, "@@TOKEN@@": capture_token,
         "@@INITIALS@@": _esc(_initials(biz)), "@@OGIMG@@": hero, "@@FAVICON@@": fav,
+        "@@HEADLINE@@": headline,
+        "@@HEADLINE_PLAIN@@": headline.replace("&#8217;", "\u2019").replace("&amp;", "&"),
         "@@JSONLD@@": jsonld, "@@HEROLAYERS@@": hero_layers,
         "@@ACCENT@@": accent, "@@ACCENT_DK@@": accent_dk,
         "@@ACCENT_SOFT@@": _hex_rgba(accent, .28), "@@ACCENT_BORD@@": _hex_rgba(accent, .5),

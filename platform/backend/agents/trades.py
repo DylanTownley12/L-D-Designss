@@ -588,9 +588,9 @@ def sales_prep(prospect_id: str = None, name: str = None) -> dict:
     town = p.get("town") or "their area"
 
     system = (
-        "You are the sales coach for L&D Designs, which sells a missed-call text-back "
-        "service to UK trades for ~£49/month (the phone auto-texts back anyone whose "
-        "call they miss, so they stop losing jobs). Prep the founder for a short demo call. "
+        "You are the sales coach for L&D Designs, which sells UK trades a professional "
+        "website with built-in lead capture — £199 build + £29/month hosting. "
+        "Prep the founder for a short demo call. "
         "Be concrete and trade-specific. UK tone, no fluff."
     )
     user = (
@@ -613,7 +613,7 @@ def sales_prep(prospect_id: str = None, name: str = None) -> dict:
             f"SCRIPT\n- \"Alright, it's Dylan from L&D — local lad, I help {town} trades stop "
             "losing jobs to missed calls.\"\n- \"When you're on a job and can't pick up, our system "
             "texts them straight back so they wait for you instead of ringing the next plumber.\"\n"
-            f"- \"Set up free, runs itself, ~£49 a month.\"\n- \"I'll switch {biz} on free for 14 "
+            f"- \"£199 to build, then £29 a month — runs itself.\"\n- \"I'll switch {biz} on free for 14 "
             "days — if it doesn't catch you a job, you've lost nothing. Shall I set it up now?\""
         )
 
@@ -761,8 +761,8 @@ def _draft_message(kind: str, ctx: dict) -> str:
     biz = ctx.get("business_name") or "there"
     first = (ctx.get("owner_name") or biz).split()[0] if (ctx.get("owner_name") or biz) else biz
     system = (
-        "You write short, friendly UK follow-up texts for L&D Designs (missed-call "
-        "text-back for trades, ~£49/mo, 14-day free trial). One message, 2-3 sentences, "
+        "You write short, friendly UK follow-up texts for L&D Designs (websites + lead "
+        "capture for trades, £199 build + £29/mo, 14-day free trial). One message, 2-3 sentences, "
         "no emojis-spam, sound like a local lad, soft call to action. Output ONLY the message."
     )
     prompts = {
@@ -771,7 +771,7 @@ def _draft_message(kind: str, ctx: dict) -> str:
         "trial7":   f"{biz} is 7 days into their free trial. Friendly check-in: how's it going, "
                     f"any missed calls caught yet, here to help.",
         "trial12":  f"{biz} is 12 days into their 14-day trial. It's nearly up — gently move them "
-                    f"onto the paid plan (~£49/mo) so the service keeps running.",
+                    f"onto the paid plan (£29/mo) so the service keeps running.",
         "stale_lead": f"Nudge for {biz}: a new enquiry came in over 24h ago and is still marked new. "
                       f"Remind them to ring the customer back before they book someone else.",
     }
@@ -786,7 +786,7 @@ def _draft_message(kind: str, ctx: dict) -> str:
         "trial7":   f"Hi {first}, you're a week into the free trial — how's it going? Caught any "
                     f"calls back yet? Give me a shout if you want anything tweaked.",
         "trial12":  f"Hi {first}, your free trial's nearly up (2 days left). It's been catching "
-                    f"your missed calls — want me to keep it running on the £49/mo plan?",
+                    f"your missed calls — want me to keep it running on the £29/mo plan?",
         "stale_lead": f"Heads up {first} — a new enquiry's been sitting on your dashboard over a day. "
                       f"Worth a quick ring back before they book someone else.",
     }
@@ -1136,7 +1136,7 @@ def log_call(name_or_id: str, outcome: str, new_status: str = None, founder: str
     }
 
 
-def convert_prospect_to_client(name_or_id: str, monthly_fee: float = 49.0) -> dict:
+def convert_prospect_to_client(name_or_id: str, monthly_fee: float = 29.0) -> dict:
     """Turn a won prospect into a trial client (Part A product) with portal tokens.
     Creates nothing outbound — just provisions the account + links."""
     db = get_db()
@@ -1149,7 +1149,7 @@ def convert_prospect_to_client(name_or_id: str, monthly_fee: float = 49.0) -> di
         "business_name": p.get("business_name"), "phone": p.get("phone") or "",
         "owner_phone": p.get("phone"), "trade": p.get("trade") or "default",
         "town": p.get("town"), "active": True, "monthly_fee": monthly_fee,
-        "build_fee": 500, "build_paid": False,
+        "build_fee": 199, "build_paid": False,
         "plan_status": "trial", "trial_start": _today().isoformat(),
         "trial_end": (_today() + timedelta(days=14)).isoformat(),
         "dashboard_token": dash, "capture_token": cap, "total_textbacks_sent": 0,
