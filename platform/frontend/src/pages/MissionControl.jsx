@@ -32,7 +32,7 @@ const OUTCOME_COLOR = { ANSWERED: C.cyan, 'NO ANSWER': C.faint, GATEKEEPER: C.am
 // 2-tap picker: WHEN to follow up → days from today
 const WHENS = [['Tomorrow', 1], ['3 days', 3], ['Next week', 7]]
 const CHIPS = ['what should D do now?', "who's next", 'hottest prospects', 'follow-ups due', 'brief me', 'at risk', 'summarise today']
-const AGENT_LABELS = { dial_manager: 'LEAD PRIORITISER', qualifier: 'QUALIFIER', preview_qa: 'PREVIEW QA', followup: 'FOLLOW-UP', reporter: 'REVENUE', ceo: 'CEO' }
+const AGENT_LABELS = { lead_finder: 'LEAD FINDER', dial_manager: 'LEAD PRIORITISER', qualifier: 'QUALIFIER', preview_qa: 'PREVIEW QA', followup: 'FOLLOW-UP', reporter: 'REVENUE', ceo: 'CEO' }
 
 const FX = `
 @keyframes jblink{0%,49%{opacity:1}50%,100%{opacity:0}}

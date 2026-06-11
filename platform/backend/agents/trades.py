@@ -485,6 +485,13 @@ def scout(entries=None, pasted_text: str = None, town: str = None,
 
     kept, dropped = dedupe_entries(rows, _existing_phone_norms(data_mode))
 
+    # Does the prospects table have the place_id column yet (Lead Finder dedupe key)?
+    try:
+        db.table("prospects").select("place_id").limit(1).execute()
+        _place_ok = True
+    except Exception:
+        _place_ok = False
+
     counts = _assignment_counts(data_mode)
     inserted, ids = [], []
     for e in kept:
@@ -509,6 +516,8 @@ def scout(entries=None, pasted_text: str = None, town: str = None,
             "source": source,
             "data_mode": data_mode,
         }
+        if _place_ok and e.get("place_id"):        # Lead Finder dedupe key (only if the column exists)
+            rec["place_id"] = e["place_id"]
         try:
             rec = validate_clean("prospects", rec)
             res = db.table("prospects").insert(rec).execute()
@@ -1282,6 +1291,8 @@ _RUN_AGENT_ALIASES = {
     "qualifier": "qualifier", "lead_qualifier": "qualifier", "lead qualifier": "qualifier",
     "ceo": "ceo", "brief": "ceo", "briefing": "ceo", "ceo_briefing": "ceo",
     "qa": "preview_qa", "preview": "preview_qa", "preview_qa": "preview_qa", "preview qa": "preview_qa",
+    "lead_finder": "lead_finder", "finder": "lead_finder", "find_leads": "lead_finder",
+    "find leads": "lead_finder", "lead finder": "lead_finder", "scout_new": "lead_finder",
 }
 
 
@@ -1309,6 +1320,9 @@ def run_agent(name: str, post_to_telegram: bool = True, mode: str = REAL) -> dic
             return trades_result("preview_qa", preview_qa.run_all(mode=mode))
         except Exception as e:
             return {"ok": False, "message": f"Preview QA needs a prospect — 'build preview <name>' first ({e})."}
+    if canon == "lead_finder":
+        from agents import trades_leadfinder
+        return trades_result("lead_finder", trades_leadfinder.find_leads(cap=20))
     return {"ok": False, "message": f"Can't run '{name}' on its own — "
             "Scout needs a pasted list and Sales Prep needs a prospect name."}
 

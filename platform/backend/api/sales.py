@@ -91,9 +91,9 @@ class ClientBody(BaseModel):
 
 # ── Ops board snapshot ─────────────────────────────────────────────────
 _HEALTH_AGENTS = [
-    ("dial_manager", "Lead Prioritiser"), ("qualifier", "Lead Qualifier"),
-    ("preview_qa", "Preview QA"), ("followup", "Follow-Up"),
-    ("reporter", "Revenue Analyst"), ("ceo", "CEO Briefing"),
+    ("lead_finder", "Lead Finder"), ("dial_manager", "Lead Prioritiser"),
+    ("qualifier", "Lead Qualifier"), ("preview_qa", "Preview QA"),
+    ("followup", "Follow-Up"), ("reporter", "Revenue Analyst"), ("ceo", "CEO Briefing"),
 ]
 
 

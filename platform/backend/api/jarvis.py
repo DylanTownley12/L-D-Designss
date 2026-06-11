@@ -104,8 +104,9 @@ TOOLS = [
         "and provision their capture form + dashboard links.",
      "input_schema": {"type": "object", "properties": {
          "prospect": {"type": "string"}, "monthly_fee": {"type": "number"}}, "required": ["prospect"]}},
-    {"name": "run_agent", "description": "Run one agent now: 'dial_manager'/Lead Prioritiser (build "
-        "call lists), 'followup'/Follow-Up (draft chases), or 'reporter'/Revenue Analyst (numbers).",
+    {"name": "run_agent", "description": "Run one agent now: 'lead_finder'/Lead Finder (pull NEW no-website "
+        "tradespeople from Google Places into the queues), 'dial_manager'/Lead Prioritiser (build call "
+        "lists), 'followup'/Follow-Up (draft chases), or 'reporter'/Revenue Analyst (numbers).",
      "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "create_task", "description": "Add a general to-do for a founder.",
      "input_schema": {"type": "object", "properties": {
@@ -405,6 +406,8 @@ def _raw_dump(text: str, ctx: dict, founder_code: str) -> str:
                     if cand in body.lower():
                         q = cand
                 return f"{_TAG}\n{trades.set_website_status(nm, ws, quality=q).get('message')}"
+        if any(k in low for k in ("find leads", "find new leads", "pull leads", "lead finder", "find prospects")):
+            return f"{_TAG}\n{trades.run_agent('lead_finder').get('message')}"
         if low.startswith("requalify"):
             return f"{_TAG}\n{trades.requalify_all().get('message')}"
         if any(k in low for k in ("at risk", "dead pipeline", "going cold")):

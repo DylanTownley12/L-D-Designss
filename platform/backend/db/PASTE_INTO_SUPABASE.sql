@@ -242,7 +242,9 @@ ALTER TABLE prospects ADD COLUMN IF NOT EXISTS capture_token         TEXT;      
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS preview_id            UUID;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS preview_status        TEXT;                    -- none|draft|qa_failed|ready
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website_status_check  TEXT;                    -- last website-status check note
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS place_id              TEXT;                    -- Google Places id, for Lead Finder dedupe
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_captoken ON prospects(capture_token) WHERE capture_token IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_place_id ON prospects(place_id) WHERE place_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_prospects_score ON prospects(opportunity_score DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_prospects_queue ON prospects(assigned_to, queue_ready, opportunity_score DESC NULLS LAST);
 
