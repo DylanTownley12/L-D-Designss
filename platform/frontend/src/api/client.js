@@ -166,6 +166,7 @@ export const salesOps = {
   setWebsiteStatus: (key, id, body) => api.post(`/sales/prospects/${id}/website-status`, body, { params: { key } }),
   scoreOverride: (key, id, body) => api.post(`/sales/prospects/${id}/score-override`, body, { params: { key } }),
   buildPreview: (key, id) => api.post(`/sales/prospects/${id}/preview`, null, { params: { key } }),
+  buildPreviews: (key, mode = 'real') => api.post('/sales/build-previews', null, { params: { key, mode } }),
   qaPreview: (key, id) => api.post(`/sales/prospects/${id}/preview/qa`, null, { params: { key } }),
   approvePreview: (key, id) => api.post(`/sales/prospects/${id}/preview/approve`, null, { params: { key } }),
   createClient: (key, body) => api.post('/sales/clients', body, { params: { key } }),

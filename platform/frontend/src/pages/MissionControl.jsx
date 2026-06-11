@@ -297,6 +297,7 @@ export default function MissionControl() {
                     </div>
                     {p.phone && <a href={`tel:${p.phone}`} style={{ color: C.cyan, fontSize: 14, textDecoration: 'none', fontFamily: mono }}>📞 {p.phone}</a>}
                     <div style={{ color: C.green, fontSize: 12, marginTop: 3 }}>🎯 {p.sales_angle}</div>
+                    <div style={{ marginTop: 6 }}><PreviewChip p={p} onBuild={() => buildPreview(p.id)} onApprove={() => approve(p.id)} busy={busy} /></div>
                     <OutcomeRow p={p} picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
                   </div>
                 ))}
@@ -431,6 +432,7 @@ export default function MissionControl() {
           <button style={btn(C.cyan)} onClick={seed} disabled={!!busy}>Seed demo</button>
           <button style={btn(C.red)} onClick={() => { if (confirm('Delete ALL demo rows (data_mode=demo)? Real data untouched.')) act('Wipe', () => salesOps.wipeSeed(key)) }} disabled={!!busy}>Wipe demo</button>
           <button style={btn(C.green)} onClick={() => act('Requalify', () => salesOps.requalify(key, mode))} disabled={!!busy}>Requalify</button>
+          <button style={btn(C.cyan)} onClick={() => act('Build previews', () => salesOps.buildPreviews(key, mode))} disabled={!!busy}>{busy === 'Build previews' ? 'Building previews…' : '🖥 Build all previews'}</button>
           <a href="/leads" style={{ ...btn(C.faint), textDecoration: 'none' }}>Barber dashboard →</a>
           {busy && <span style={{ color: C.dim, fontFamily: mono, fontSize: 12 }}>{busy}…</span>}
         </div>

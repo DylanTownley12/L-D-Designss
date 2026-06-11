@@ -366,7 +366,19 @@ async def requalify(mode: str = "real", _=Depends(require_ops_key)):
 @router.post("/prospects/{prospect_id}/preview")
 async def build_preview(prospect_id: str, _=Depends(require_ops_key)):
     from agents import preview_qa
-    return preview_qa.build_for_prospect(prospect_id)
+    return await run_in_threadpool(preview_qa.build_for_prospect, prospect_id)
+
+
+@router.post("/build-previews")
+async def build_previews(mode: str = "real", _=Depends(require_ops_key)):
+    """Bulk: build + QA a preview for every queue-ready prospect that lacks one."""
+    from agents import preview_qa
+    try:
+        return await run_in_threadpool(preview_qa.build_all_ready,
+                                       "demo" if mode == "demo" else "real")
+    except Exception as e:
+        logger.error(f"[sales/build-previews] {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"build-previews failed: {type(e).__name__}: {e}")
 
 
 @router.post("/prospects/{prospect_id}/preview/qa")

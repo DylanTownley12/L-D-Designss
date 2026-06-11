@@ -381,7 +381,9 @@ def _raw_dump(text: str, ctx: dict, founder_code: str) -> str:
             return f"{_TAG}\n{trades.scout(pasted_text=pasted, source='import').get('message')}"
         if low.startswith("build preview"):
             from agents import preview_qa
-            nm = re.sub(r"^build preview\s*(for\s+)?", "", text, flags=re.I).strip()
+            nm = re.sub(r"^build previews?\s*(all\s*)?(for\s+)?", "", text, flags=re.I).strip()
+            if not nm or nm.lower() in ("all", "everyone", "them", "them all"):
+                return f"{_TAG}\n{preview_qa.build_all_ready().get('message')}"
             return f"{_TAG}\n{preview_qa.build_for_prospect(nm).get('message')}"
         if low.startswith("qa "):
             from agents import preview_qa

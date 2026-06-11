@@ -24,7 +24,8 @@ from agents import trades
 
 logger = logging.getLogger(__name__)
 
-PLACEHOLDER_RE = re.compile(r"lorem ipsum|your business name|placeholder|tbd|coming soon|xxxx", re.I)
+# Real filler markers only — must NOT match the legit HTML `placeholder=` attribute.
+PLACEHOLDER_RE = re.compile(r"lorem ipsum|your business name|\btbd\b|coming soon|xxxx", re.I)
 
 
 def _now_iso():
@@ -266,6 +267,37 @@ def approve_preview(name_or_id: str = None, preview_id: str = None) -> dict:
     trades.log_event("preview_qa", f"preview APPROVED → READY for {biz}", "success",
                      {"preview_id": preview_id})
     return {"ok": True, "message": f"Preview for {biz} is READY — share it on the call."}
+
+
+def build_all_ready(mode: str = "real", limit: int = 25) -> dict:
+    """Build (+QA) a preview for every queue-ready prospect that doesn't have one yet.
+    Capped so a single click can't run away. Returns counts + a short summary."""
+    db = get_db()
+    try:
+        pros = (db.table("prospects").select("id,business_name,preview_id,queue_ready,data_mode")
+                .eq("data_mode", mode).limit(2000).execute().data or [])
+    except Exception as e:
+        return {"ok": False, "built": 0, "message": f"Couldn't read prospects: {e}"}
+    todo = [p for p in pros if p.get("queue_ready") and not p.get("preview_id")][:limit]
+    if not todo:
+        return {"ok": True, "built": 0, "qa_passed": 0, "qa_failed": 0,
+                "message": "Every queue-ready prospect already has a preview. ✓"}
+    built = passed = failed = 0
+    for p in todo:
+        try:
+            r = build_for_prospect(p["id"])
+            if r.get("ok"):
+                built += 1
+                passed += 1 if r.get("passed") else 0
+                failed += 0 if r.get("passed") else 1
+        except Exception as e:
+            logger.warning(f"[preview_qa] build failed for {p.get('business_name')}: {e}")
+    trades.log_event("preview_qa", f"built {built} preview(s) — {passed} passed QA, {failed} failed",
+                     "success" if failed == 0 else "warn",
+                     {"metric_ok": failed == 0, "built": built, "passed": passed})
+    return {"ok": True, "built": built, "qa_passed": passed, "qa_failed": failed,
+            "message": (f"Built {built} preview(s): {passed} passed QA (open + Approve to share)"
+                        + (f"; {failed} failed QA" if failed else "") + ".")}
 
 
 def run_all(mode: str = "real") -> dict:
