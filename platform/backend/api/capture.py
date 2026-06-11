@@ -6,6 +6,7 @@ shows on the client's dashboard.
 import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -74,7 +75,8 @@ async def capture_photo(capture_token: str, file: UploadFile = File(...)):
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
-    url = storage.upload_photo(content, file.filename or "photo.jpg", file.content_type)
+    url = await run_in_threadpool(storage.upload_photo, content,
+                                  file.filename or "photo.jpg", file.content_type)
     if not url:
         raise HTTPException(status_code=502, detail="Photo upload failed")
     return {"ok": True, "url": url}
@@ -91,10 +93,11 @@ async def capture_submit(capture_token: str, data: CaptureSubmit):
                   job_type=data.job_type, urgency=data.urgency,
                   job_description=data.job_description, photo_urls=data.photo_urls,
                   source="web_form")
+    # threadpool: record_lead runs an AI triage (Claude) + notify — must not block the loop.
     if kind == "client":
-        result = lead_capture.record_lead(client_id=row["id"], **kwargs)
+        result = await run_in_threadpool(lead_capture.record_lead, client_id=row["id"], **kwargs)
     else:
-        result = lead_capture.record_lead(prospect_id=row["id"], **kwargs)
+        result = await run_in_threadpool(lead_capture.record_lead, prospect_id=row["id"], **kwargs)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Could not save enquiry"))
     return {

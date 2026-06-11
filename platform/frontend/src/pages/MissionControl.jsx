@@ -432,7 +432,7 @@ export default function MissionControl() {
           <button style={btn(C.cyan)} onClick={seed} disabled={!!busy}>Seed demo</button>
           <button style={btn(C.red)} onClick={() => { if (confirm('Delete ALL demo rows (data_mode=demo)? Real data untouched.')) act('Wipe', () => salesOps.wipeSeed(key)) }} disabled={!!busy}>Wipe demo</button>
           <button style={btn(C.green)} onClick={() => act('Requalify', () => salesOps.requalify(key, mode))} disabled={!!busy}>Requalify</button>
-          <button style={btn(C.cyan)} onClick={() => act('Build previews', () => salesOps.buildPreviews(key, mode))} disabled={!!busy}>{busy === 'Build previews' ? 'Building previews…' : '🖥 Build all previews'}</button>
+          <button style={btn(C.cyan)} onClick={() => act('Build previews', () => salesOps.buildPreviews(key, mode, true))} disabled={!!busy}>{busy === 'Build previews' ? 'Rebuilding…' : '🖥 Rebuild all previews'}</button>
           <a href="/leads" style={{ ...btn(C.faint), textDecoration: 'none' }}>Barber dashboard →</a>
           {busy && <span style={{ color: C.dim, fontFamily: mono, fontSize: 12 }}>{busy}…</span>}
         </div>

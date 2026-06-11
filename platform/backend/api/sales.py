@@ -121,12 +121,12 @@ def _agent_health(mode: str) -> list:
     return out
 
 
-@router.get("/board")
-async def ops_board(mode: str = "real", _=Depends(require_ops_key)):
+def _board_sync(mode: str) -> dict:
     """Board snapshot for Mission Control. Mode = real|demo (never mixed). Must NEVER
     raise an unhandled 500 (that would drop CORS and show as a generic "Network
     Error") — on any failure we return setup_needed so the key still works and the
-    UI can say what's actually wrong."""
+    UI can say what's actually wrong. SYNC on purpose: it makes a dozen blocking DB
+    calls, so the endpoint runs it in a threadpool to keep the event loop free."""
     db = get_db()
     mode = "demo" if mode == "demo" else "real"
     try:
@@ -197,6 +197,11 @@ async def ops_board(mode: str = "real", _=Depends(require_ops_key)):
         }
 
 
+@router.get("/board")
+async def ops_board(mode: str = "real", _=Depends(require_ops_key)):
+    return await run_in_threadpool(_board_sync, "demo" if mode == "demo" else "real")
+
+
 @router.get("/prospects")
 async def list_prospects(status: Optional[str] = None, founder: Optional[str] = None,
                          limit: int = 100, _=Depends(require_ops_key)):
@@ -210,32 +215,34 @@ async def list_prospects(status: Optional[str] = None, founder: Optional[str] = 
     return {"prospects": rows, "count": len(rows)}
 
 
-# ── The five agents over HTTP ──────────────────────────────────────────
+# ── The agents over HTTP — ALL heavy/Claude work runs in a threadpool so one
+#    slow call can never stall the event loop and cascade into "Network Error"s.
 @router.post("/scout")               # 1. LEAD SCOUT  (alias also at /api/agents/scout)
 async def run_scout(body: ScoutBody, _=Depends(require_ops_key)):
-    return trades.scout(entries=body.entries, pasted_text=body.pasted_text,
-                        town=body.town, trade=body.trade, source="ops_board")
+    return await run_in_threadpool(trades.scout, entries=body.entries,
+                                   pasted_text=body.pasted_text, town=body.town,
+                                   trade=body.trade, source="ops_board")
 
 
-@router.post("/prospects/{prospect_id}/prep")   # 2. SALES PREP
+@router.post("/prospects/{prospect_id}/prep")   # 2. SALES PREP (one Claude call)
 async def run_prep(prospect_id: str, _=Depends(require_ops_key)):
-    return trades.sales_prep(prospect_id=prospect_id)
+    return await run_in_threadpool(trades.sales_prep, prospect_id=prospect_id)
 
 
 @router.post("/dial-today")          # 3. DIAL MANAGER
 async def run_dial_today(post: bool = True, _=Depends(require_ops_key)):
-    return trades.dial_today(post_to_telegram=post)
+    return await run_in_threadpool(trades.dial_today, post_to_telegram=post)
 
 
-@router.post("/followup")            # 4. FOLLOW-UP (drafts only)
+@router.post("/followup")            # 4. FOLLOW-UP (drafts only; Claude per draft)
 async def run_followup(post: bool = True, _=Depends(require_ops_key)):
-    return trades.followup_run(post_to_telegram=post)
+    return await run_in_threadpool(trades.followup_run, post_to_telegram=post)
 
 
 @router.get("/report")               # 5. REVENUE REPORTER
 async def run_report(weekly: bool = False, _=Depends(require_ops_key)):
     try:
-        return trades.revenue_report(weekly=weekly)
+        return await run_in_threadpool(trades.revenue_report, weekly=weekly)
     except Exception as e:
         logger.error(f"[sales/report] {e}")
         return {"setup_needed": True, "error": "Run db/migrations.sql in Supabase."}
@@ -288,7 +295,7 @@ async def complete_task(task_id: str, _=Depends(require_ops_key)):
 async def wipe_seed(_=Depends(require_ops_key)):
     """Delete every demo/seed row so real calling isn't polluted. Real data untouched."""
     try:
-        return trades.wipe_seed()
+        return await run_in_threadpool(trades.wipe_seed)
     except Exception as e:
         logger.error(f"[sales/wipe-seed] {e}", exc_info=True)
         raise HTTPException(status_code=503, detail="Couldn't wipe — is the migration applied?")
@@ -310,10 +317,12 @@ async def log_call(prospect_id: str, body: LogBody, _=Depends(require_ops_key)):
         raise HTTPException(status_code=422,
             detail="A next action is required — pick when to follow up (the 2-tap picker).")
     outcome = body.outcome
-    if body.reason:
+    if body.reason and body.reason != body.outcome:
         outcome = f"{outcome} — {body.reason}".strip(" —")
-    return trades.log_call(prospect_id, outcome, body.new_status,
-                           next_action=body.next_action, next_action_date=body.next_action_date)
+    # threadpool: log_call auto-runs Sales Prep (a Claude call) on demo_booked.
+    return await run_in_threadpool(trades.log_call, prospect_id, outcome, body.new_status,
+                                   next_action=body.next_action,
+                                   next_action_date=body.next_action_date)
 
 
 @router.get("/needs-data")
@@ -353,13 +362,14 @@ async def score_override(prospect_id: str, body: OverrideBody, _=Depends(require
 async def import_prospects(body: ImportBody, _=Depends(require_ops_key)):
     """THE qualifier — paste a raw Google-Maps list (name, phone, town). Dedupes,
     scores, angles, qualifies, assigns D/L. Returns the % that reached queue-ready."""
-    return trades.scout(entries=body.entries, pasted_text=body.pasted_text,
-                        town=body.town, trade=body.trade, source="import", data_mode="real")
+    return await run_in_threadpool(trades.scout, entries=body.entries,
+                                   pasted_text=body.pasted_text, town=body.town,
+                                   trade=body.trade, source="import", data_mode="real")
 
 
 @router.post("/requalify")
 async def requalify(mode: str = "real", _=Depends(require_ops_key)):
-    return trades.requalify_all(mode="demo" if mode == "demo" else "real")
+    return await run_in_threadpool(trades.requalify_all, mode="demo" if mode == "demo" else "real")
 
 
 # ── Previews (on-demand per prospect) + QA gate ───────────────────────
@@ -370,12 +380,13 @@ async def build_preview(prospect_id: str, _=Depends(require_ops_key)):
 
 
 @router.post("/build-previews")
-async def build_previews(mode: str = "real", _=Depends(require_ops_key)):
-    """Bulk: build + QA a preview for every queue-ready prospect that lacks one."""
+async def build_previews(mode: str = "real", force: bool = False, _=Depends(require_ops_key)):
+    """Bulk: build + QA previews for queue-ready prospects. force=true REBUILDS
+    existing ones too (same URLs — already-sent links upgrade in place)."""
     from agents import preview_qa
     try:
         return await run_in_threadpool(preview_qa.build_all_ready,
-                                       "demo" if mode == "demo" else "real")
+                                       "demo" if mode == "demo" else "real", 25, force)
     except Exception as e:
         logger.error(f"[sales/build-previews] {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"build-previews failed: {type(e).__name__}: {e}")
@@ -388,7 +399,7 @@ async def rerun_qa(prospect_id: str, _=Depends(require_ops_key)):
     p = db.table("prospects").select("preview_id").eq("id", prospect_id).single().execute().data
     if not p or not p.get("preview_id"):
         raise HTTPException(status_code=404, detail="No preview built for this prospect yet.")
-    return preview_qa.qa_preview(p["preview_id"])
+    return await run_in_threadpool(preview_qa.qa_preview, p["preview_id"])
 
 
 @router.post("/prospects/{prospect_id}/preview/approve")
@@ -417,7 +428,8 @@ async def latest_briefing(mode: str = "real", _=Depends(require_ops_key)):
 @router.post("/brief")
 async def run_brief(post: bool = True, mode: str = "real", _=Depends(require_ops_key)):
     """'brief me' — run the CEO briefing now (delivers to OpenClaw if configured)."""
-    return trades.ceo_briefing(post=post, mode="demo" if mode == "demo" else "real")
+    return await run_in_threadpool(trades.ceo_briefing, post=post,
+                                   mode="demo" if mode == "demo" else "real")
 
 
 # ── Bundle: mark a client's one-off build fee as paid ─────────────────
@@ -436,7 +448,7 @@ async def mark_build_paid(client_id: str, _=Depends(require_ops_key)):
 @router.post("/wipe-demo")
 async def wipe_demo(_=Depends(require_ops_key)):
     try:
-        return trades.wipe_seed()
+        return await run_in_threadpool(trades.wipe_seed)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Couldn't wipe: {e}")
 
@@ -683,4 +695,4 @@ def seed_demo_data() -> dict:
 
 @router.post("/seed-demo")
 async def seed_demo(_=Depends(require_ops_key)):
-    return seed_demo_data()
+    return await run_in_threadpool(seed_demo_data)

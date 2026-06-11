@@ -12,6 +12,7 @@ import logging
 from datetime import date
 
 from fastapi import APIRouter, Header, Query, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from typing import Optional
 
 from config import settings
@@ -34,7 +35,7 @@ async def cron_morning(post: bool = True,
     """The daily run: all five agents + ONE founders' briefing to Telegram."""
     _auth(key, x_ops_key)
     try:
-        return trades.daily_briefing(post_to_telegram=post)
+        return await run_in_threadpool(trades.daily_briefing, post_to_telegram=post)
     except Exception as e:
         logger.error(f"[cron/morning] failed — migration not run? {e}", exc_info=True)
         raise HTTPException(status_code=503,
@@ -48,7 +49,7 @@ async def cron_evening(post: bool = True,
     """18:00 job: Follow-up agent drafts → Telegram (drafts only, never sends)."""
     _auth(key, x_ops_key)
     try:
-        r = trades.followup_run(post_to_telegram=post)
+        r = await run_in_threadpool(trades.followup_run, post_to_telegram=post)
         r["telegram"] = settings.telegram_enabled
         return r
     except Exception as e:

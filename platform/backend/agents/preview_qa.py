@@ -10,6 +10,7 @@ copy buttons). NO AI 0-10 scoring — every check is a hard, explainable rule.
 
 Nothing here contacts anyone. The preview is shown by the founder, on the call.
 """
+import json
 import logging
 import re
 import secrets
@@ -22,7 +23,7 @@ import httpx
 from config import settings
 from db.client import get_db
 from agents import trades
-from agents.places_photos import resolve_photo_uri
+from agents.places_photos import resolve_photo_uri, _names_match
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +51,49 @@ def _stock_photos(trade: str, n: int = 3) -> list:
     return [f"https://images.unsplash.com/photo-{i}?auto=format&fit=crop&w=1200&q=80" for i in ids[:n]]
 
 
-def _fetch_place_details(place_id: str, trade: str = "") -> dict:
+_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+
+
+def _find_place_id(name: str, town: str) -> str:
+    """Find a prospect's Google place_id by name+town when we never stored one
+    (the place_id column landed mid-run). Guarded by _names_match so we never pull
+    the WRONG business's photos/reviews. Returns '' when unsure."""
+    if not (settings.GOOGLE_PLACES_API_KEY and name):
+        return ""
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.post(_SEARCH_URL, headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
+                "X-Goog-FieldMask": "places.id,places.displayName",
+            }, json={"textQuery": f"{name} {town or ''} UK".strip(),
+                     "languageCode": "en-GB", "regionCode": "GB", "pageSize": 3})
+        if r.status_code != 200:
+            return ""
+        for p in r.json().get("places", []):
+            rn = (p.get("displayName") or {}).get("text", "")
+            if _names_match(name, rn):
+                return p.get("id") or ""
+    except Exception as e:
+        logger.warning(f"[preview_qa] place lookup failed for {name}: {e}")
+    return ""
+
+
+def _fetch_place_details(place_id: str, trade: str = "", name: str = None,
+                         town: str = None, prospect_id: str = None) -> dict:
     """Pull REAL photos (keyless CDN urls), Google reviews + rating for a place.
+    If place_id is missing, look it up by name+town and backfill the prospect row.
     Best-effort — on any failure we degrade to tasteful stock so the preview still
-    looks premium. Costs ~1 Place Details call + a few photo-media calls (build time)."""
+    looks premium. Costs ~1-2 Places calls + a few photo-media calls (build time)."""
     out = {"photos": [], "reviews": [], "rating": None, "review_count": None,
            "address": None, "real_photos": False}
+    if not place_id and name:
+        place_id = _find_place_id(name, town)
+        if place_id and prospect_id:
+            try:    # column may not exist on older DBs — best-effort backfill
+                get_db().table("prospects").update({"place_id": place_id}).eq("id", prospect_id).execute()
+            except Exception:
+                pass
     if place_id and settings.GOOGLE_PLACES_API_KEY:
         try:
             with httpx.Client(timeout=20.0) as client:
@@ -153,11 +191,35 @@ _IC = {
 }
 
 
+# Per-trade brand palette → every preview feels designed FOR that trade, not templated.
+_ACCENTS = {
+    "plumber":          ("#0284c7", "#075985"),
+    "heating engineer": ("#ea580c", "#9a3412"),
+    "gas engineer":     ("#d97706", "#92400e"),
+    "electrician":      ("#ca8a04", "#854d0e"),
+    "roofer":           ("#0f766e", "#134e4a"),
+    "drainage":         ("#0e7490", "#155e75"),
+}
+_ACCENT_DEFAULT = ("#e85d04", "#9d3c0a")
+
+
+def _hex_rgba(h: str, a: float) -> str:
+    h = h.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{a})"
+
+
+def _initials(name: str) -> str:
+    words = [w for w in re.split(r"\s+", (name or "").strip()) if w and w[0].isalnum()]
+    return "".join(w[0].upper() for w in words[:2]) or "A"
+
+
 def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
     """A premium, mobile-first demo site for a trade: real Google photos + reviews +
-    rating, a booking widget that captures the enquiry, trust signals and a sticky
-    call bar. Viewport + tel: + capture form (correct token) + business name; no
-    placeholder filler. Falls back to tasteful stock when a listing is sparse."""
+    rating, a 30-second booking widget that captures the enquiry, trust signals and
+    a sticky call bar. The hero uses LAYERED backgrounds (real photo → stock →
+    branded gradient) so a dead image URL can never make the page look broken.
+    Viewport + tel: + capture form (correct token) + business name; no filler."""
     details = details or {}
     biz = (prospect.get("business_name") or "Your Trade").strip()
     trade = (prospect.get("trade") or "tradesperson").strip()
@@ -166,50 +228,89 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
     phone = (prospect.get("phone") or "").strip()
     api = settings.BACKEND_BASE_URL.rstrip("/")
     tel = re.sub(r"[^\d+]", "", phone)
+    accent, accent_dk = _ACCENTS.get(trade.lower(), _ACCENT_DEFAULT)
     photos = details.get("photos") or _stock_photos(trade)
+    real = bool(details.get("real_photos"))
     hero = photos[0]
-    gallery = photos[1:4]
+    stock_fb = _stock_photos(trade)[0]
+    gallery = photos[1:4] if real else []
     rating = details.get("rating")
     rcount = details.get("review_count")
     reviews = details.get("reviews") or []
     nearby = _NEARBY.get(town.lower(), [])
     services = _SERVICES.get(trade.lower(), _SERVICES_DEFAULT)
 
-    # rating chip + line
-    rating_chip = (f'<span class="rchip">{_stars(rating)} <b>{rating:.1f}</b> · {rcount} Google reviews</span>'
-                   if rating else f'<span class="rchip">{_IC["pin"]} {_esc(town)} &amp; surrounding areas</span>')
-    # services
+    # Layered hero background — each layer is a fallback for the one above it, so a
+    # 404'd photo silently reveals the branded gradient instead of a broken page.
+    layers = ['linear-gradient(180deg,rgba(7,16,26,.52),rgba(7,16,26,.9))',
+              f'url("{hero}")']
+    if hero != stock_fb:
+        layers.append(f'url("{stock_fb}")')
+    layers += [f'radial-gradient(900px 420px at 88% -10%,{_hex_rgba(accent, .5)},transparent)',
+               'linear-gradient(160deg,#0e2438,#0a1626)']
+    hero_layers = ",".join(layers)
+
+    # Inline SVG favicon — branded tab icon, zero extra requests.
+    fav = ("data:image/svg+xml," +
+           f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
+           f"<rect width='64' height='64' rx='14' fill='{accent}'/>"
+           f"<text x='32' y='43' font-family='Arial' font-size='32' font-weight='800' "
+           f"fill='white' text-anchor='middle'>{_esc(_initials(biz)[:1])}</text></svg>").replace("#", "%23").replace('"', "'")
+
+    # Honest JSON-LD (only fields we actually know).
+    ld = {"@context": "https://schema.org", "@type": "LocalBusiness",
+          "name": biz, "telephone": phone or None,
+          "address": {"@type": "PostalAddress", "addressLocality": town, "addressCountry": "GB"},
+          "description": f"{trade_t} in {town}"}
+    if rating and rcount:
+        ld["aggregateRating"] = {"@type": "AggregateRating", "ratingValue": rating, "reviewCount": rcount}
+    jsonld = json.dumps({k: v for k, v in ld.items() if v is not None})
+
+    # Hero chips: live Google rating when we have it, locality otherwise.
+    chips = []
+    if rating:
+        chips.append(f'<span class="hchip"><span class="hstars">{_stars(rating)}</span> '
+                     f'<b>{rating:.1f}</b>&nbsp;· {rcount} Google reviews</span>')
+    chips.append(f'<span class="hchip">{_IC["pin"]} Serving {_esc(town)} &amp; nearby</span>')
+    chips.append(f'<span class="hchip">{_IC["clock"]} Fast response</span>')
+    rating_chip = "".join(chips)
+
     svc_html = "".join(
-        f'<div class="svc">{_IC["check"]}<div><h3>{_esc(t)}</h3><p>{_esc(d)}</p></div></div>'
+        f'<div class="svc fx"><span class="sic">{_IC["check"]}</span>'
+        f'<div><h3>{_esc(t)}</h3><p>{_esc(d)}</p></div></div>'
         for t, d in services)
-    # gallery
+
     gallery_html = ""
-    if details.get("real_photos") and gallery:
+    if gallery:
         gallery_html = ('<section class="sec"><div class="wrap"><div class="eyebrow">Our work</div>'
                         '<h2>Recent jobs &amp; premises</h2><div class="gal">'
-                        + "".join(f'<div class="gi" style="background-image:url(&quot;{g}&quot;)"></div>' for g in gallery)
+                        + "".join(f'<img class="gi fx" loading="lazy" alt="{_esc(biz)} — work photo" src="{g}">'
+                                  for g in gallery)
                         + '</div></div></section>')
-    # reviews (REAL google reviews only — never fabricated)
+
+    # Reviews — REAL Google reviews only, never fabricated. Sparse listing → honest trust block.
     if reviews:
         cards = "".join(
-            f'<div class="rev"><div class="rs">{_stars(rv["rating"])}</div>'
-            f'<p>"{_esc(rv["text"])}"</p><div class="who">— {_esc(rv["author"])}'
-            + (f' · {_esc(rv["when"])}' if rv.get("when") else '') + '</div></div>'
+            f'<div class="rev fx"><div class="rtop"><span class="rav">{_esc(_initials(rv["author"]))}</span>'
+            f'<div><div class="rname">{_esc(rv["author"])}</div>'
+            f'<div class="rmeta">{_esc(rv.get("when", ""))} · <span class="gtag">Google review</span></div></div></div>'
+            f'<div class="rs">{_stars(rv["rating"])}</div>'
+            f'<p>“{_esc(rv["text"])}”</p></div>'
             for rv in reviews[:6])
-        rhead = (f'<p class="rlead">Rated <b>{rating:.1f}</b> {_stars(rating)} from {rcount} Google reviews</p>'
-                 if rating else '')
+        rhead = (f'<p class="rlead">Rated <b>{rating:.1f}</b> <span class="hstars">{_stars(rating)}</span> '
+                 f'from {rcount} Google reviews</p>' if rating else '')
         reviews_html = (f'<section id="reviews" class="sec alt"><div class="wrap"><div class="eyebrow">Reviews</div>'
-                        f'<h2>What local customers say</h2>{rhead}<div class="revs">{cards}</div></div></section>')
+                        f'<h2>What {_esc(town)} customers say</h2>{rhead}<div class="revs">{cards}</div></div></section>')
     else:
         reviews_html = (
-            '<section class="sec alt"><div class="wrap"><div class="eyebrow">Why choose us</div>'
+            '<section id="reviews" class="sec alt"><div class="wrap"><div class="eyebrow">Why choose us</div>'
             f'<h2>Trusted across {_esc(town)}</h2><div class="trust">'
-            f'<div class="ti">{_IC["shield"]}<b>Fully insured</b><span>Every job covered</span></div>'
-            f'<div class="ti">{_IC["clock"]}<b>On time</b><span>We turn up when we say</span></div>'
-            f'<div class="ti">{_IC["check"]}<b>Free quotes</b><span>No surprises on price</span></div>'
-            f'<div class="ti">{_IC["pin"]}<b>Local</b><span>Based right here in {_esc(town)}</span></div>'
+            f'<div class="ti fx">{_IC["shield"]}<b>Fully insured</b><span>Every job covered</span></div>'
+            f'<div class="ti fx">{_IC["clock"]}<b>On time</b><span>We turn up when we say</span></div>'
+            f'<div class="ti fx">{_IC["check"]}<b>Free quotes</b><span>No surprises on price</span></div>'
+            f'<div class="ti fx">{_IC["pin"]}<b>Local</b><span>Based in {_esc(town)}</span></div>'
             '</div></div></section>')
-    # nearby chips
+
     nearby_html = ("".join(f'<span class="chip">{_esc(n)}</span>' for n in nearby)
                    if nearby else f'<span class="chip">{_esc(town)} &amp; surrounding areas</span>')
     service_opts = "".join(f'<option>{_esc(t)}</option>' for t, _ in services) + '<option>Something else</option>'
@@ -220,107 +321,158 @@ def _site_html(prospect: dict, capture_token: str, details: dict = None) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@@BIZ@@ — @@TRADE@@ in @@TOWN@@</title>
-<meta name="description" content="@@BIZ@@ — trusted @@TRADE_L@@ in @@TOWN@@. Book online or call now for fast, fully-insured local service.">
+<meta name="description" content="@@BIZ@@ — trusted @@TRADE_L@@ in @@TOWN@@. Book online in 30 seconds or call now. Fast, fully-insured local service.">
+<meta property="og:title" content="@@BIZ@@ — @@TRADE@@ in @@TOWN@@">
+<meta property="og:description" content="Book online in 30 seconds or call now. Fast, fully-insured local @@TRADE_L@@.">
+<meta property="og:image" content="@@OGIMG@@">
+<meta property="og:type" content="website">
+<link rel="icon" href="@@FAVICON@@">
+<script type="application/ld+json">@@JSONLD@@</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0b1b2b;--ink2:#1b3650;--accent:#ff7a00;--accent2:#13a36b;--bg:#f6f8fb;--card:#fff;--line:#e7edf3;--muted:#5b6b7b}
+:root{--ink:#0b1b2b;--ink2:#13283e;--accent:@@ACCENT@@;--accentdk:@@ACCENT_DK@@;--ok:#13a36b;
+  --bg:#f5f7fa;--card:#fff;--line:#e6ebf1;--muted:#5b6b7b;--shadow:0 8px 30px rgba(11,27,43,.07)}
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:#fff}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
 a{color:inherit}
+img{display:block;max-width:100%}
+/* reveal-on-scroll */
+.fx{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s ease}
+.fx.vis{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.fx{opacity:1;transform:none;transition:none}}
 /* top bar */
-.bar{position:sticky;top:0;z-index:40;background:rgba(11,27,43,.92);backdrop-filter:blur(8px);color:#fff}
-.bar .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
-.brand{font-weight:800;font-size:18px;letter-spacing:.2px}
-.brand span{color:var(--accent)}
+.bar{position:sticky;top:0;z-index:40;background:rgba(9,20,32,.88);backdrop-filter:blur(10px);color:#fff;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.bar .wrap{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:17px;letter-spacing:.2px;min-width:0}
+.bmark{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accentdk));
+  display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;flex:none;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.bname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.navl{display:flex;gap:26px;font-size:14px;font-weight:600;opacity:.85}
+.navl a{text-decoration:none}.navl a:hover{color:var(--accent)}
 .callbtn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;font-weight:800;
-  padding:10px 18px;border-radius:100px;text-decoration:none;font-size:15px}
-.callbtn svg{width:17px;height:17px}
-/* hero */
-.hero{position:relative;color:#fff;background:#0b1b2b}
-.hero .bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:saturate(1.05)}
-.hero .ov{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,27,43,.62),rgba(11,27,43,.86))}
-.hero .wrap{position:relative;padding:74px 20px 84px}
-.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:800;color:var(--accent)}
-.hero h1{font-size:clamp(32px,6vw,56px);font-weight:800;line-height:1.05;margin:12px 0 10px;max-width:14ch}
-.hero .sub{font-size:clamp(16px,2.4vw,20px);opacity:.92;max-width:46ch}
-.rchip{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.22);padding:8px 14px;border-radius:100px;font-size:14px;font-weight:600}
-.rchip b{color:#ffd479}.rchip svg{width:15px;height:15px}
-.cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
-.btn{display:inline-flex;align-items:center;gap:9px;font-weight:800;padding:15px 26px;border-radius:100px;
-  text-decoration:none;font-size:16px;border:0;cursor:pointer}
-.btn-a{background:var(--accent);color:#fff;box-shadow:0 10px 26px rgba(255,122,0,.36)}
-.btn-b{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.34)}
+  padding:11px 19px;border-radius:100px;text-decoration:none;font-size:15px;white-space:nowrap;
+  box-shadow:0 6px 18px rgba(0,0,0,.25);transition:transform .15s ease}
+.callbtn:hover{transform:translateY(-1px)}
+.callbtn svg{width:16px;height:16px}
+/* hero — layered bg, can never look broken */
+.hero{position:relative;color:#fff;overflow:hidden}
+.hero .bg{position:absolute;inset:0;background-image:@@HEROLAYERS@@;background-size:cover;background-position:center}
+.hero .grid{position:absolute;inset:0;opacity:.05;background-image:
+  linear-gradient(rgba(255,255,255,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.6) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none}
+.hero .wrap{position:relative;padding:88px 22px 96px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;
+  font-weight:800;color:#fff;background:@@ACCENT_SOFT@@;border:1px solid @@ACCENT_BORD@@;padding:7px 14px;border-radius:100px}
+.hero h1{font-size:clamp(34px,6.4vw,62px);font-weight:800;line-height:1.04;margin:20px 0 14px;max-width:16ch;
+  text-shadow:0 2px 24px rgba(0,0,0,.35)}
+.hero .sub{font-size:clamp(16px,2.4vw,20px);opacity:.93;max-width:50ch;font-weight:500}
+.hchips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.hchip{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.2);padding:9px 15px;border-radius:100px;font-size:13.5px;font-weight:600}
+.hchip b{color:#ffd479}.hchip svg{width:15px;height:15px;color:var(--accent)}
+.hstars{color:#ffb400;letter-spacing:1px}
+.cta-row{display:flex;gap:13px;flex-wrap:wrap;margin-top:30px}
+.btn{display:inline-flex;align-items:center;gap:9px;font-weight:800;padding:16px 30px;border-radius:100px;
+  text-decoration:none;font-size:16.5px;border:0;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px)}
+.btn-a{background:var(--accent);color:#fff;box-shadow:0 12px 30px @@ACCENT_GLOW@@}
+.btn-b{background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.35);backdrop-filter:blur(6px)}
 .btn svg{width:18px;height:18px}
 /* trust strip */
-.strip{background:var(--ink2);color:#fff}
-.strip .wrap{display:flex;flex-wrap:wrap;gap:10px 28px;justify-content:center;padding:16px 20px;font-size:14px;font-weight:600}
-.strip .it{display:inline-flex;align-items:center;gap:8px;opacity:.95}
-.strip svg{width:17px;height:17px;color:var(--accent2)}
+.strip{background:var(--ink2);color:#fff;border-top:1px solid rgba(255,255,255,.05)}
+.strip .wrap{display:flex;flex-wrap:wrap;gap:12px 34px;justify-content:center;padding:17px 22px;font-size:14px;font-weight:700}
+.strip .it{display:inline-flex;align-items:center;gap:9px;opacity:.95}
+.strip svg{width:17px;height:17px;color:var(--ok)}
 /* sections */
-.sec{padding:64px 0}.sec.alt{background:#fff}
-.sec h2{font-size:clamp(24px,3.4vw,34px);font-weight:800;margin:8px 0 6px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:28px}
-.svc{display:flex;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
-  box-shadow:0 6px 22px rgba(11,27,43,.05)}
-.svc svg{width:26px;height:26px;color:var(--accent2);flex:none;margin-top:2px}
-.svc h3{font-size:18px;font-weight:800;margin-bottom:4px}.svc p{color:var(--muted);font-size:15px}
-.gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:24px}
-.gi{height:200px;border-radius:16px;background-size:cover;background-position:center;border:1px solid var(--line)}
-.rlead,.rolead{color:var(--muted);font-size:16px;margin-top:4px}
-.revs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px;margin-top:26px}
-.rev{background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:22px}
-.rev .rs{color:#ffb400;letter-spacing:2px;font-size:16px}.rev p{margin:10px 0;font-size:15.5px}
-.rev .who{color:var(--muted);font-weight:700;font-size:14px}
-.trust{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:26px}
-.ti{background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:20px;text-align:center}
-.ti svg{width:28px;height:28px;color:var(--accent2)}.ti b{display:block;margin:10px 0 2px;font-size:17px}
+.sec{padding:74px 0}.sec.alt{background:#fff}
+.sec .eyebrow{color:var(--accentdk);background:transparent;border:0;padding:0;letter-spacing:.16em}
+.sec h2{font-size:clamp(26px,3.6vw,38px);font-weight:800;margin:10px 0 6px;letter-spacing:-.01em}
+.sec h2:after{content:"";display:block;width:52px;height:4px;border-radius:4px;background:var(--accent);margin-top:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:20px;margin-top:32px}
+.svc{display:flex;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;
+  box-shadow:var(--shadow);transition:transform .2s ease,box-shadow .2s ease}
+.svc:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(11,27,43,.11)}
+.sic{width:46px;height:46px;border-radius:13px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--accent),var(--accentdk));color:#fff}
+.sic svg{width:22px;height:22px}
+.svc h3{font-size:18px;font-weight:800;margin-bottom:5px}.svc p{color:var(--muted);font-size:15px}
+.gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:32px}
+.gi{height:230px;width:100%;object-fit:cover;border-radius:18px;border:1px solid var(--line);
+  box-shadow:var(--shadow);transition:transform .25s ease}
+.gi:hover{transform:scale(1.02)}
+.rlead{color:var(--muted);font-size:16.5px;margin-top:14px}
+.revs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-top:32px}
+.rev{background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:var(--shadow)}
+.rtop{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.rav{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accentdk));
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:none}
+.rname{font-weight:800;font-size:15px}
+.rmeta{color:var(--muted);font-size:12.5px}
+.gtag{color:#1a73e8;font-weight:700}
+.rev .rs{color:#ffb400;letter-spacing:2px;font-size:15px;margin-bottom:6px}
+.rev p{font-size:15px;color:#2b3a49}
+.trust{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;margin-top:32px}
+.ti{background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:24px;text-align:center;box-shadow:var(--shadow)}
+.ti svg{width:30px;height:30px;color:var(--accent)}.ti b{display:block;margin:11px 0 3px;font-size:17px}
 .ti span{color:var(--muted);font-size:14px}
 /* booking */
-.book{background:linear-gradient(160deg,#0b1b2b,#173651);color:#fff}
-.book .card{background:#fff;color:var(--ink);border-radius:22px;padding:30px;max-width:620px;margin:30px auto 0;
-  box-shadow:0 30px 70px rgba(0,0,0,.35)}
-.lbl{display:block;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 8px}
-.pills{display:flex;flex-wrap:wrap;gap:8px}
-.pill{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:10px 15px;font-size:14px;font-weight:700;
-  cursor:pointer;font-family:inherit;color:var(--ink)}
-.pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1.5px solid var(--line);
-  border-radius:12px;background:#fff;color:var(--ink);margin-top:8px}
-.bsubmit{width:100%;margin-top:22px;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:17px;
-  font-size:17px;font-weight:800;cursor:pointer;font-family:inherit}
-.booked{display:none;text-align:center;padding:18px}
-.booked .big{font-size:40px}.booked h3{font-size:22px;margin:8px 0}
-.foot{background:var(--ink);color:#cdd9e6;text-align:center;padding:38px 20px;font-size:14px}
-.foot .fb{font-weight:800;color:#fff;font-size:18px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
-.chip{background:var(--bg);border:1px solid var(--line);border-radius:100px;padding:8px 14px;font-size:14px;font-weight:600}
+.book{position:relative;background:linear-gradient(165deg,#0c1f33,#102c47);color:#fff;overflow:hidden}
+.book:before{content:"";position:absolute;inset:0;background:radial-gradient(700px 360px at 85% 0%,@@ACCENT_SOFT@@,transparent)}
+.book .wrap{position:relative}
+.book .card{background:#fff;color:var(--ink);border-radius:24px;padding:34px;max-width:640px;margin:34px auto 0;
+  box-shadow:0 36px 90px rgba(0,0,0,.4)}
+.lbl{display:block;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 9px}
+.pills{display:flex;flex-wrap:wrap;gap:9px}
+.pill{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:11px 16px;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:inherit;color:var(--ink);transition:all .14s ease}
+.pill:hover{border-color:var(--accent)}
+.pill.on{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 5px 14px @@ACCENT_GLOW@@}
+select,input{width:100%;font-family:inherit;font-size:16px;padding:14px 15px;border:1.5px solid var(--line);
+  border-radius:13px;background:#fff;color:var(--ink);margin-top:9px;outline:none;transition:border .14s ease}
+select:focus,input:focus{border-color:var(--accent)}
+.bsubmit{width:100%;margin-top:24px;background:var(--accent);color:#fff;border:0;border-radius:13px;padding:18px;
+  font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 12px 28px @@ACCENT_GLOW@@;
+  transition:transform .15s ease}
+.bsubmit:hover{transform:translateY(-1px)}
+.booked{display:none;text-align:center;padding:20px 6px}
+.booked .big{font-size:46px}.booked h3{font-size:23px;margin:10px 0 6px}
+.booked .btn{margin-top:18px}
+.foot{background:#091420;color:#cdd9e6;text-align:center;padding:42px 22px;font-size:14px}
+.foot .fb{font-weight:800;color:#fff;font-size:19px}
+.chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:100px;padding:9px 16px;font-size:14px;font-weight:600;box-shadow:var(--shadow)}
 /* sticky mobile call */
-.mcall{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;background:var(--accent);color:#fff;
-  text-align:center;padding:15px;font-weight:800;text-decoration:none;font-size:16px}
-@media(max-width:720px){.mcall{display:block}.book{padding-bottom:90px}.callbtn span{display:none}}
+.mcall{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;align-items:center;justify-content:center;gap:9px;
+  background:var(--accent);color:#fff;text-align:center;padding:16px;font-weight:800;text-decoration:none;font-size:16px;
+  box-shadow:0 -8px 24px rgba(0,0,0,.2)}
+.mcall svg{width:17px;height:17px}
+@media(max-width:760px){.mcall{display:flex}.book{padding-bottom:92px}.callbtn span{display:none}.navl{display:none}
+  .hero .wrap{padding:64px 22px 72px}}
 </style>
 </head>
 <body>
 
 <header class="bar"><div class="wrap">
-  <div class="brand">@@BIZ@@</div>
+  <div class="brand"><span class="bmark">@@INITIALS@@</span><span class="bname">@@BIZ@@</span></div>
+  <nav class="navl"><a href="#services">Services</a><a href="#reviews">Reviews</a><a href="#book">Book online</a></nav>
   <a class="callbtn" href="tel:@@TEL@@">@@IC_PHONE@@<span>@@PHONE@@</span></a>
 </div></header>
 
 <section class="hero">
-  <div class="bg" style="background-image:url(&quot;@@HERO@@&quot;)"></div><div class="ov"></div>
+  <div class="bg"></div><div class="grid"></div>
   <div class="wrap">
-    <div class="eyebrow">@@TRADE@@ · @@TOWN@@</div>
+    <span class="eyebrow">@@IC_SHIELD@@ @@TRADE@@ · @@TOWN@@</span>
     <h1>@@BIZ@@</h1>
-    <p class="sub">Fast, reliable @@TRADE_L@@ work across @@TOWN@@ — done properly, fully insured, and priced up front.</p>
-    @@RATINGCHIP@@
+    <p class="sub">@@TRADE@@ work across @@TOWN@@ done properly — fully insured, priced up front, and there when you need us.</p>
+    <div class="hchips">@@RATINGCHIP@@</div>
     <div class="cta-row">
-      <a class="btn btn-a" href="#book">Book online</a>
-      <a class="btn btn-b" href="tel:@@TEL@@">@@IC_PHONE@@ Call now</a>
+      <a class="btn btn-a" href="#book">Book online — 30 seconds</a>
+      <a class="btn btn-b" href="tel:@@TEL@@">@@IC_PHONE@@ @@PHONE@@</a>
     </div>
   </div>
 </section>
@@ -332,10 +484,10 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
   <span class="it">@@IC_STAR@@ Trusted in @@TOWN@@</span>
 </div></div>
 
-<section class="sec"><div class="wrap">
+<section id="services" class="sec"><div class="wrap">
   <div class="eyebrow">What we do</div>
   <h2>@@TRADE@@ services in @@TOWN@@</h2>
-  <div class="grid">@@SERVICES@@</div>
+  <div class="grid3">@@SERVICES@@</div>
 </div></section>
 
 @@GALLERY@@
@@ -343,9 +495,9 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
 
 <section id="book" class="sec book"><div class="wrap">
   <div style="text-align:center">
-    <div class="eyebrow" style="color:#ffb98a">Book in 30 seconds</div>
-    <h2>Book @@BIZ@@</h2>
-    <p class="rolead" style="color:#cdd9e6">Pick a day and time — we'll confirm by phone. No account, no faff.</p>
+    <span class="eyebrow" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff">Book in 30 seconds</span>
+    <h2 style="margin-top:18px">Book @@BIZ@@</h2>
+    <p style="color:#b9c9d8;font-weight:500">Pick a day and time — we'll ring you to confirm. No account, no faff.</p>
   </div>
   <div class="card">
     <form id="bform" data-token="@@TOKEN@@">
@@ -358,17 +510,20 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
         <button type="button" class="pill" data-val="Morning">Morning</button>
         <button type="button" class="pill" data-val="Afternoon">Afternoon</button>
         <button type="button" class="pill" data-val="Evening">Evening</button>
-        <button type="button" class="pill" data-val="ASAP / emergency">ASAP</button>
+        <button type="button" class="pill" data-val="ASAP / emergency">ASAP 🚨</button>
       </div>
       <label class="lbl">Your name</label>
       <input name="name" autocomplete="name">
       <label class="lbl">Mobile number</label>
       <input name="phone" inputmode="tel" autocomplete="tel" required>
       <button class="bsubmit" type="submit">Request this booking →</button>
+      <p style="text-align:center;color:var(--muted);font-size:12.5px;margin-top:14px">
+        No spam — your details go straight to @@BIZ@@.</p>
     </form>
     <div class="booked" id="booked">
       <div class="big">✅</div><h3>Booking sent!</h3>
-      <p style="color:var(--muted)">@@BIZ@@ has your request and will call to confirm shortly.</p>
+      <p style="color:var(--muted)">@@BIZ@@ has your request and will ring you to confirm shortly.</p>
+      <a class="btn btn-a" href="tel:@@TEL@@">@@IC_PHONE@@ Or call now</a>
     </div>
   </div>
 </div></section>
@@ -381,11 +536,11 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
 
 <footer class="foot">
   <div class="fb">@@BIZ@@</div>
-  <p style="margin:8px 0">@@TRADE@@ · @@TOWN@@ · <a href="tel:@@TEL@@" style="color:#fff">@@PHONE@@</a></p>
-  <p style="opacity:.6;margin-top:10px">Website by L&amp;D Designs</p>
+  <p style="margin:9px 0">@@TRADE@@ · @@TOWN@@ · <a href="tel:@@TEL@@" style="color:#fff;font-weight:700">@@PHONE@@</a></p>
+  <p style="opacity:.55;margin-top:12px">Website by L&amp;D Designs</p>
 </footer>
 
-<a class="mcall" href="tel:@@TEL@@">@@IC_PHONE@@ Call @@BIZ@@</a>
+<a class="mcall" href="tel:@@TEL@@">@@IC_PHONE@@ Call @@BIZ@@ now</a>
 
 <script>
 (function(){
@@ -401,7 +556,6 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
     });
   }
   group('times','time');
-  // build the next 7 days
   var dd=document.getElementById('dates'); var names=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var today=new Date();
   for(var i=0;i<7;i++){
@@ -422,6 +576,14 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
       .then(function(r){return r.json();}).then(done).catch(done);
     function done(){f.style.display='none';document.getElementById('booked').style.display='block';}
   });
+  // reveal-on-scroll
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(en){
+      if(en.isIntersecting){en.target.classList.add('vis');io.unobserve(en.target);}});},{threshold:.12});
+    [].forEach.call(document.querySelectorAll('.fx'),function(el){io.observe(el);});
+  } else {
+    [].forEach.call(document.querySelectorAll('.fx'),function(el){el.classList.add('vis');});
+  }
 })();
 </script>
 </body>
@@ -430,7 +592,12 @@ select,input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:1
     repl = {
         "@@BIZ@@": _esc(biz), "@@TRADE@@": _esc(trade_t), "@@TRADE_L@@": _esc(trade),
         "@@TOWN@@": _esc(town), "@@PHONE@@": _esc(phone or "Call us"), "@@TEL@@": tel or "",
-        "@@API@@": api, "@@TOKEN@@": capture_token, "@@HERO@@": hero,
+        "@@API@@": api, "@@TOKEN@@": capture_token,
+        "@@INITIALS@@": _esc(_initials(biz)), "@@OGIMG@@": hero, "@@FAVICON@@": fav,
+        "@@JSONLD@@": jsonld, "@@HEROLAYERS@@": hero_layers,
+        "@@ACCENT@@": accent, "@@ACCENT_DK@@": accent_dk,
+        "@@ACCENT_SOFT@@": _hex_rgba(accent, .28), "@@ACCENT_BORD@@": _hex_rgba(accent, .5),
+        "@@ACCENT_GLOW@@": _hex_rgba(accent, .38),
         "@@RATINGCHIP@@": rating_chip, "@@SERVICES@@": svc_html, "@@SERVICEOPTS@@": service_opts,
         "@@GALLERY@@": gallery_html, "@@REVIEWS@@": reviews_html, "@@NEARBY@@": nearby_html,
         "@@IC_PHONE@@": _IC["phone"], "@@IC_SHIELD@@": _IC["shield"], "@@IC_CHECK@@": _IC["check"],
@@ -455,18 +622,35 @@ def build_for_prospect(name_or_id: str, verify_live: bool = True) -> dict:
     if not p.get("capture_token"):
         db.table("prospects").update({"capture_token": token}).eq("id", p["id"]).execute()
 
-    # Pull REAL Google photos + reviews + rating for this exact place (best-effort).
-    details = _fetch_place_details(p.get("place_id"), p.get("trade"))
+    # Pull REAL Google photos + reviews + rating for this exact place. If we never
+    # stored a place_id, look it up by name+town (guarded) and backfill it.
+    details = _fetch_place_details(p.get("place_id"), p.get("trade"),
+                                   name=p.get("business_name"), town=p.get("town"),
+                                   prospect_id=p["id"])
     html = _site_html({**p, "capture_token": token}, token, details)
-    preview_url = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"  # + id after insert
-    rec = {"html_content": html, "prospect_id": p["id"], "qa_status": "pending"}
-    try:
-        res = db.table("previews").insert(rec).execute()
-        pid = res.data[0]["id"] if res.data else None
-    except Exception as e:
-        return {"ok": False, "message": f"Couldn't store preview (is the previews table present?): {e}"}
+    base_url = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"
+
+    # Rebuilds UPDATE the existing preview row — the URL stays stable, so a link
+    # already WhatsApped to a prospect silently upgrades instead of 404ing.
+    pid = p.get("preview_id")
     if pid:
-        db.table("previews").update({"preview_url": preview_url + pid}).eq("id", pid).execute()
+        try:
+            db.table("previews").update({
+                "html_content": html, "prospect_id": p["id"],
+                "qa_status": "pending", "qa_reasons": [],
+            }).eq("id", pid).execute()
+        except Exception:
+            pid = None                      # row vanished → insert a fresh one below
+    if not pid:
+        rec = {"html_content": html, "prospect_id": p["id"], "qa_status": "pending"}
+        try:
+            res = db.table("previews").insert(rec).execute()
+            pid = res.data[0]["id"] if res.data else None
+        except Exception as e:
+            return {"ok": False, "message": f"Couldn't store preview (is the previews table present?): {e}"}
+        if pid:
+            db.table("previews").update({"preview_url": base_url + pid}).eq("id", pid).execute()
+    if pid:
         db.table("prospects").update({"preview_id": pid, "preview_status": "draft",
                                       "updated_at": _now_iso()}).eq("id", p["id"]).execute()
     trades.log_event("preview_qa", f"built preview for {p.get('business_name')}", "info",
@@ -589,29 +773,37 @@ def approve_preview(name_or_id: str = None, preview_id: str = None) -> dict:
     return {"ok": True, "message": f"Preview for {biz} is READY — share it on the call."}
 
 
-def build_all_ready(mode: str = "real", limit: int = 25) -> dict:
-    """Build (+QA) a preview for every queue-ready prospect that doesn't have one yet.
-    Capped so a single click can't run away. Returns counts + a short summary."""
+def build_all_ready(mode: str = "real", limit: int = 25, force: bool = False) -> dict:
+    """Build (+QA) a preview for every queue-ready prospect. force=True REBUILDS
+    existing previews too (same URLs — already-sent links upgrade in place).
+    Runs 5 builds in parallel so a full queue finishes inside the UI timeout.
+    Capped so a single click can't run away."""
     db = get_db()
     try:
         pros = (db.table("prospects").select("id,business_name,preview_id,queue_ready,data_mode")
                 .eq("data_mode", mode).limit(2000).execute().data or [])
     except Exception as e:
         return {"ok": False, "built": 0, "message": f"Couldn't read prospects: {e}"}
-    todo = [p for p in pros if p.get("queue_ready") and not p.get("preview_id")][:limit]
+    ready = [p for p in pros if p.get("queue_ready")]
+    todo = (ready if force else [p for p in ready if not p.get("preview_id")])[:limit]
     if not todo:
         return {"ok": True, "built": 0, "qa_passed": 0, "qa_failed": 0,
-                "message": "Every queue-ready prospect already has a preview. ✓"}
-    built = passed = failed = 0
-    for p in todo:
+                "message": "Every queue-ready prospect already has a preview. ✓ (Use force to rebuild.)"}
+
+    def _one(p):
         try:
-            r = build_for_prospect(p["id"], verify_live=False)
+            return build_for_prospect(p["id"], verify_live=False)
+        except Exception as e:
+            logger.warning(f"[preview_qa] build failed for {p.get('business_name')}: {e}")
+            return {"ok": False}
+
+    built = passed = failed = 0
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        for r in ex.map(_one, todo):
             if r.get("ok"):
                 built += 1
                 passed += 1 if r.get("passed") else 0
                 failed += 0 if r.get("passed") else 1
-        except Exception as e:
-            logger.warning(f"[preview_qa] build failed for {p.get('business_name')}: {e}")
     trades.log_event("preview_qa", f"built {built} preview(s) — {passed} passed QA, {failed} failed",
                      "success" if failed == 0 else "warn",
                      {"metric_ok": failed == 0, "built": built, "passed": passed})
