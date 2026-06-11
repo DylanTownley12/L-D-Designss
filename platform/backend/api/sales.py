@@ -8,6 +8,7 @@ as ?key=… or the X-Ops-Key header. Nothing here contacts a prospect or client.
 import logging
 
 from fastapi import APIRouter, Depends, Header, Query, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Optional
 
@@ -252,11 +253,14 @@ async def run_agent(agent: str = Query(...), post: bool = True, mode: str = "rea
     """Fire one agent on demand (Lead Prioritiser / Qualifier / Preview QA / Follow-Up
     / Revenue Analyst / CEO)."""
     try:
-        return trades.run_agent(agent, post_to_telegram=post,
-                                mode="demo" if mode == "demo" else "real")
+        # Off the event loop — Lead Finder makes ~20 Places calls and would block.
+        return await run_in_threadpool(
+            trades.run_agent, agent, post, "demo" if mode == "demo" else "real")
     except Exception as e:
         logger.error(f"[sales/run-agent {agent}] {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail=f"Couldn't run {agent} — is the migration applied?")
+        # Surface the REAL error (internal founder tool) instead of a misleading guess.
+        raise HTTPException(status_code=500,
+                            detail=f"{agent} failed: {type(e).__name__}: {str(e)[:400]}")
 
 
 # ── Tasks (tick-to-done panel) ────────────────────────────────────────

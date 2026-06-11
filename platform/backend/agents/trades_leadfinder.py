@@ -95,26 +95,30 @@ def find_leads(cap: int = 20) -> dict:
                 if len(entries) >= cap:
                     break
                 scanned += 1
-                pid = place.get("id")
-                name = (place.get("displayName", {}) or {}).get("text", "").strip()
-                if not name:
+                try:
+                    pid = place.get("id")
+                    name = (place.get("displayName", {}) or {}).get("text", "").strip()
+                    if not name:
+                        continue
+                    if _has_real_website(place.get("websiteUri", "")):
+                        continue                               # has a site → not a prospect
+                    no_website += 1
+                    phone = clean_phone(place.get("nationalPhoneNumber", "") or "")
+                    pnorm = trades.normalize_phone(phone)
+                    if (pid and pid in seen_ids) or (pnorm and pnorm in seen_phones):
+                        dupes += 1
+                        continue
+                    if pid:
+                        seen_ids.add(pid)
+                    if pnorm:
+                        seen_phones.add(pnorm)
+                    entries.append({
+                        "business_name": name, "phone": phone, "town": town, "trade": trade,
+                        "website_status": "none", "place_id": pid,
+                    })
+                except Exception as e:
+                    logger.warning(f"[lead_finder] skipped a listing: {e}")
                     continue
-                if _has_real_website(place.get("websiteUri", "")):
-                    continue                                   # has a site → not a prospect
-                no_website += 1
-                phone = clean_phone(place.get("nationalPhoneNumber", "") or "")
-                pnorm = trades.normalize_phone(phone)
-                if (pid and pid in seen_ids) or (pnorm and pnorm in seen_phones):
-                    dupes += 1
-                    continue
-                if pid:
-                    seen_ids.add(pid)
-                if pnorm:
-                    seen_phones.add(pnorm)
-                entries.append({
-                    "business_name": name, "phone": phone, "town": town, "trade": trade,
-                    "website_status": "none", "place_id": pid,
-                })
             time.sleep(0.4)                                    # be polite to the API
 
     if not entries:
@@ -126,10 +130,20 @@ def find_leads(cap: int = 20) -> dict:
                 "message": (f"Scanned {scanned} listings — {no_website} had no website but all "
                             f"{dupes} were already in your list. No new prospects this run.")}
 
-    # Write via Scout (dedupes on phone, ranks, assigns D/L, stamps data_mode='real').
-    res = trades.scout(entries=entries, source="google_places", data_mode="real")
-    # Score + angle + queue them (the Qualifier).
-    trades.requalify_all(mode="real")
+    # Write via Scout (dedupes on phone, ranks, assigns D/L, stamps data_mode='real'),
+    # then score + angle + queue them (the Qualifier). If this throws it's a REAL error
+    # (e.g. a genuinely missing column) — surface it, don't hide it behind "migration?".
+    try:
+        res = trades.scout(entries=entries, source="google_places", data_mode="real")
+        trades.requalify_all(mode="real")
+    except Exception as e:
+        logger.error(f"[lead_finder] write/qualify failed: {e}", exc_info=True)
+        trades.log_event("lead_finder", f"write failed: {type(e).__name__}: {e}", "error",
+                         {"metric_ok": False})
+        return {"ok": False, "written": 0, "rows": [], "scanned": scanned,
+                "no_website": no_website, "duplicates": dupes,
+                "message": (f"Found {len(entries)} no-website prospect(s) but couldn't save them — "
+                            f"{type(e).__name__}: {e}")}
 
     # Read the rows back so the founder sees real tradesmen.
     rows = []
