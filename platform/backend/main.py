@@ -117,7 +117,8 @@ async def serve_preview_direct(preview_id: str):
     else:
         html = html + beacon
 
-    return HTMLResponse(content=html)
+    # no-store: rebuilt previews must show fresh immediately (demos depend on it).
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
 
 
 def _holding_page(msg: str) -> str:
@@ -144,7 +145,7 @@ async def root():
     return {
         "name": "L&D Designs Platform",
         "status": "running",
-        "build": "audit-proof-v3",  # deploy marker — bump to confirm a deploy landed
+        "build": "preview-v2-force",  # deploy marker — bump to confirm a deploy landed
         "docs": "/docs",
     }
 

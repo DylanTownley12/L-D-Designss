@@ -380,9 +380,10 @@ async def build_preview(prospect_id: str, _=Depends(require_ops_key)):
 
 
 @router.post("/build-previews")
-async def build_previews(mode: str = "real", force: bool = False, _=Depends(require_ops_key)):
-    """Bulk: build + QA previews for queue-ready prospects. force=true REBUILDS
-    existing ones too (same URLs — already-sent links upgrade in place)."""
+async def build_previews(mode: str = "real", force: bool = True, _=Depends(require_ops_key)):
+    """Bulk: build + QA previews for queue-ready prospects. Defaults to REBUILDING
+    existing ones (same URLs — sent links upgrade in place; a stale frontend that
+    omits ?force can never silently skip). Pass force=false for only-missing."""
     from agents import preview_qa
     try:
         return await run_in_threadpool(preview_qa.build_all_ready,
