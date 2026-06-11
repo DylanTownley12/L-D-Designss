@@ -83,7 +83,11 @@ export default function Jarvis() {
         { role: 'sys', text: `Authenticated as founder ${founder}. Type a command or tap a chip.` },
       ])
     } catch (e) {
-      setAuthErr(e.message || 'Authentication failed'); setAuthed(false)
+      const m = e.message || ''
+      setAuthErr(/network/i.test(m) || !m
+        ? 'Reached JARVIS but the API call failed — the backend may be restarting, or the Supabase migration isn’t run yet. Wait ~20s and retry.'
+        : m)
+      setAuthed(false)
     } finally { setAuthBusy(false) }
   }
 
@@ -187,7 +191,8 @@ export default function Jarvis() {
   const calls = board?.calls || { D: [], L: [] }
   const trials = r.trial_details || []
   const leads = board?.recent_leads || []
-  const empty = !Object.values(pipe).some(v => v > 0) && !(calls.D?.length || calls.L?.length)
+  const setupNeeded = !!board?.setup_needed
+  const empty = !setupNeeded && !Object.values(pipe).some(v => v > 0) && !(calls.D?.length || calls.L?.length)
 
   return (
     <div style={shell}>
@@ -224,6 +229,16 @@ export default function Jarvis() {
           </div>
         </div>
 
+        {setupNeeded && (
+          <div style={{ ...panel, borderColor: C.red, marginBottom: 16 }}>
+            <div style={{ color: C.red, fontFamily: mono, fontSize: 13, fontWeight: 700 }}>⚠ DATABASE NOT INITIALISED</div>
+            <div style={{ color: C.text, fontSize: 13, marginTop: 6 }}>
+              Your key works — but the trades tables don’t exist yet. Open <b>Supabase → SQL Editor</b> and run
+              <code style={{ color: C.cyan }}> platform/backend/db/migrations.sql</code> (it’s safe to re-run), then hit ↻ Refresh.
+              Until then JARVIS has no data to read.
+            </div>
+          </div>
+        )}
         {empty && (
           <div style={{ ...panel, borderColor: C.amber, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <span style={{ color: C.amber, fontFamily: mono, fontSize: 13 }}>⚠ No pipeline data. Initialise the demo dataset to populate 30 local prospects + a live demo client.</span>

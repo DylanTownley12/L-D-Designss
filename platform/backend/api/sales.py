@@ -68,33 +68,47 @@ class ClientBody(BaseModel):
 # ── Ops board snapshot ─────────────────────────────────────────────────
 @router.get("/board")
 async def ops_board(_=Depends(require_ops_key)):
+    """Board snapshot for the Ops + JARVIS pages. Must NEVER raise an unhandled
+    500: an exception here (e.g. the trades migration hasn't been run, so the
+    `prospects` table is missing) would come back without CORS headers and the
+    browser would report it as a generic "Network Error". Instead we catch it
+    and return setup_needed so the key still works and the UI can say what's
+    actually wrong."""
     db = get_db()
-    ctx_pipeline = {
-        s: (db.table("prospects").select("id", count="exact").eq("status", s).execute().count or 0)
-        for s in ("to_call", "called", "interested", "demo_booked", "won", "not_interested", "lost")
-    }
-    report = trades.revenue_report(weekly=False)
+    try:
+        ctx_pipeline = {
+            s: (db.table("prospects").select("id", count="exact").eq("status", s).execute().count or 0)
+            for s in ("to_call", "called", "interested", "demo_booked", "won", "not_interested", "lost")
+        }
+        report = trades.revenue_report(weekly=False)
 
-    # Recent captured leads with their client name for the board feed.
-    recent = (db.table("captured_leads").select("*")
-              .order("created_at", desc=True).limit(25).execute().data or [])
-    client_names = {}
-    for lead in recent:
-        cid = lead.get("client_id")
-        if cid and cid not in client_names:
-            try:
-                cn = db.table("textback_clients").select("business_name").eq("id", cid).single().execute().data
-                client_names[cid] = (cn or {}).get("business_name")
-            except Exception:
-                client_names[cid] = None
-        lead["client_name"] = client_names.get(cid)
+        # Recent captured leads with their client name for the board feed.
+        recent = (db.table("captured_leads").select("*")
+                  .order("created_at", desc=True).limit(25).execute().data or [])
+        client_names = {}
+        for lead in recent:
+            cid = lead.get("client_id")
+            if cid and cid not in client_names:
+                try:
+                    cn = db.table("textback_clients").select("business_name").eq("id", cid).single().execute().data
+                    client_names[cid] = (cn or {}).get("business_name")
+                except Exception:
+                    client_names[cid] = None
+            lead["client_name"] = client_names.get(cid)
 
-    return {
-        "pipeline": ctx_pipeline,
-        "calls": {"D": trades.build_call_list("D"), "L": trades.build_call_list("L")},
-        "report": report,
-        "recent_leads": recent,
-    }
+        return {
+            "pipeline": ctx_pipeline,
+            "calls": {"D": trades.build_call_list("D"), "L": trades.build_call_list("L")},
+            "report": report,
+            "recent_leads": recent,
+        }
+    except Exception as e:
+        logger.error(f"[sales/board] data load failed — migration not run? {e}", exc_info=True)
+        return {
+            "pipeline": {}, "calls": {"D": [], "L": []}, "report": {}, "recent_leads": [],
+            "setup_needed": True,
+            "error": "Couldn't read the trades tables. Run db/migrations.sql in Supabase, then reload.",
+        }
 
 
 @router.get("/prospects")
@@ -230,7 +244,12 @@ async def seed_demo(_=Depends(require_ops_key)):
     from datetime import date, timedelta
     db = get_db()
 
-    scout_res = trades.scout(entries=[dict(p) for p in _DEMO_PROSPECTS], source="seed_demo")
+    try:
+        scout_res = trades.scout(entries=[dict(p) for p in _DEMO_PROSPECTS], source="seed_demo")
+    except Exception as e:
+        logger.error(f"[sales/seed-demo] scout failed — migration not run? {e}", exc_info=True)
+        raise HTTPException(status_code=503,
+                            detail="Couldn't seed: run db/migrations.sql in Supabase first, then try again.")
 
     # Demo client — reuse if present so repeat seeds don't pile up duplicates.
     existing = (db.table("textback_clients").select("*")
