@@ -17,6 +17,7 @@ HARD RULES enforced here:
   • Telegram sends in this file go to FOUNDERS only (internal).
 """
 import logging
+import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
