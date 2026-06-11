@@ -57,10 +57,39 @@ def _ai_triage(client: dict, lead: dict):
     return summary, reply
 
 
+def enrich_and_notify(lead_id: str) -> None:
+    """Background half of capture: AI triage + founder/client notification AFTER the
+    homeowner already got their instant 'Booking sent!'. Never raises."""
+    db = get_db()
+    try:
+        lead = db.table("captured_leads").select("*").eq("id", lead_id).single().execute().data
+        if not lead:
+            return
+        client = None
+        if lead.get("client_id"):
+            client = db.table("textback_clients").select("*").eq("id", lead["client_id"]).single().execute().data
+        elif lead.get("prospect_id"):
+            p = db.table("prospects").select("*").eq("id", lead["prospect_id"]).single().execute().data or {}
+            client = {"business_name": p.get("business_name"), "trade": p.get("trade"),
+                      "town": p.get("town"), "dashboard_token": None, "telegram_chat_id": None}
+        if not client:
+            return
+        summary, suggested = _ai_triage(client, lead)
+        db.table("captured_leads").update({"ai_summary": summary,
+                                           "suggested_reply": suggested}).eq("id", lead_id).execute()
+        lead["ai_summary"], lead["suggested_reply"] = summary, suggested
+        if _notify_founders(client, lead, lead.get("source") or "web_form"):
+            db.table("captured_leads").update({"notified": True}).eq("id", lead_id).execute()
+        _notify_client(client, lead)
+    except Exception as e:
+        logger.error(f"[lead_capture] enrich_and_notify failed for {lead_id}: {e}")
+
+
 def record_lead(client_id: str = None, phone: str = None, name: str = None, postcode: str = None,
                 job_description: str = None, source: str = "web_form",
                 job_type: str = None, urgency: str = None, photo_urls=None,
-                notify_founders: bool = True, prospect_id: str = None) -> dict:
+                notify_founders: bool = True, prospect_id: str = None,
+                defer_heavy: bool = False) -> dict:
     """Insert a captured_lead (with AI summary + suggested reply), ping founders
     ALWAYS, optionally the client. Works for a real client OR a prospect's on-demand
     preview (client_id None + prospect_id set) — the demo form captures a real lead."""
@@ -104,9 +133,14 @@ def record_lead(client_id: str = None, phone: str = None, name: str = None, post
         "notified": False,
         "data_mode": data_mode,
     }
-    summary, suggested = _ai_triage(client, lead_row)
-    lead_row["ai_summary"] = summary
-    lead_row["suggested_reply"] = suggested
+    if defer_heavy:
+        # Fast path (the live booking widget): write the row NOW, respond instantly;
+        # enrich_and_notify() runs in the background and fills triage + sends pings.
+        pass
+    else:
+        summary, suggested = _ai_triage(client, lead_row)
+        lead_row["ai_summary"] = summary
+        lead_row["suggested_reply"] = suggested
     try:
         lead_row = validate_clean("captured_leads", lead_row)
     except ValidationError as ve:
@@ -124,7 +158,7 @@ def record_lead(client_id: str = None, phone: str = None, name: str = None, post
         pass
 
     notified = False
-    if notify_founders:
+    if notify_founders and not defer_heavy:
         notified = _notify_founders(client, lead, source)   # founders ALWAYS
         _notify_client(client, lead)                        # client if chat id set
         if notified and lead.get("id"):

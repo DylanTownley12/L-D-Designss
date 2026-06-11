@@ -5,7 +5,7 @@ shows on the client's dashboard.
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Optional, List
@@ -83,7 +83,10 @@ async def capture_photo(capture_token: str, file: UploadFile = File(...)):
 
 
 @router.post("/{capture_token}")
-async def capture_submit(capture_token: str, data: CaptureSubmit):
+async def capture_submit(capture_token: str, data: CaptureSubmit, background: BackgroundTasks):
+    """The live demo moment: the row is WRITTEN before we respond (~1s), then AI
+    triage + the founder notification run in the background — the homeowner gets an
+    instant 'Booking sent!' and the founder still gets the ping seconds later."""
     kind, row = _resolve_capture(capture_token)
     phone = (data.phone or "").strip()
     if len(phone) < 7:
@@ -92,14 +95,16 @@ async def capture_submit(capture_token: str, data: CaptureSubmit):
     kwargs = dict(phone=phone, name=data.name, postcode=data.postcode,
                   job_type=data.job_type, urgency=data.urgency,
                   job_description=data.job_description, photo_urls=data.photo_urls,
-                  source="web_form")
-    # threadpool: record_lead runs an AI triage (Claude) + notify — must not block the loop.
+                  source="web_form", defer_heavy=True)
     if kind == "client":
         result = await run_in_threadpool(lead_capture.record_lead, client_id=row["id"], **kwargs)
     else:
         result = await run_in_threadpool(lead_capture.record_lead, prospect_id=row["id"], **kwargs)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Could not save enquiry"))
+    lead_id = (result.get("lead") or {}).get("id")
+    if lead_id:
+        background.add_task(lead_capture.enrich_and_notify, lead_id)
     return {
         "ok": True,
         "message": f"Thanks! {row.get('business_name','The team')} has your details and will be in touch shortly.",
