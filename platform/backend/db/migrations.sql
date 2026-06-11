@@ -430,3 +430,15 @@ CREATE TABLE IF NOT EXISTS jarvis_log (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_jarvis_log_chat ON jarvis_log(chat_id, created_at DESC);
+
+-- ── agent_events: live activity feed from every trades agent ──────────
+CREATE TABLE IF NOT EXISTS agent_events (
+    id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    agent       TEXT NOT NULL,           -- scout|sales_prep|dial_manager|followup|reporter|lead_capture|jarvis
+    level       TEXT DEFAULT 'info'      CHECK (level IN ('info','success','warn','error')),
+    message     TEXT NOT NULL,
+    data        JSONB,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_agent_events_recent ON agent_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_events_agent  ON agent_events(agent, created_at DESC);

@@ -47,6 +47,15 @@ def record_lead(client_id: str, phone: str, name: str = None, postcode: str = No
     res = db.table("captured_leads").insert(lead_row).execute()
     lead = res.data[0] if res.data else lead_row
 
+    try:
+        from agents import trades as _tr
+        _tr.log_event("lead_capture",
+                      f"📥 new lead for {client.get('business_name','client')} ({source}) "
+                      f"— {(lead.get('name') or '').strip()} {lead.get('phone','')}".strip(),
+                      "success", {"client_id": client_id, "source": source, "lead_id": lead.get("id")})
+    except Exception:
+        pass
+
     notified = False
     if notify:
         notified = _notify_founders(client, lead, source)

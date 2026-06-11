@@ -148,7 +148,27 @@ async def run_followup(post: bool = True, _=Depends(require_ops_key)):
 
 @router.get("/report")               # 5. REVENUE REPORTER
 async def run_report(weekly: bool = False, _=Depends(require_ops_key)):
-    return trades.revenue_report(weekly=weekly)
+    try:
+        return trades.revenue_report(weekly=weekly)
+    except Exception as e:
+        logger.error(f"[sales/report] {e}")
+        return {"setup_needed": True, "error": "Run db/migrations.sql in Supabase."}
+
+
+# ── Live AGENT OPS feed + RUN NOW ─────────────────────────────────────
+@router.get("/agent-events")
+async def agent_events(limit: int = 40, agent: Optional[str] = None, _=Depends(require_ops_key)):
+    return {"events": trades.get_agent_events(limit=limit, agent=agent)}
+
+
+@router.post("/run-agent")
+async def run_agent(agent: str = Query(...), post: bool = True, _=Depends(require_ops_key)):
+    """Fire one no-arg agent on demand (Dial Manager / Follow-up / Reporter)."""
+    try:
+        return trades.run_agent(agent, post_to_telegram=post)
+    except Exception as e:
+        logger.error(f"[sales/run-agent {agent}] {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Couldn't run {agent} — is the migration applied?")
 
 
 # ── Prospect controls used by the board ───────────────────────────────
@@ -233,9 +253,72 @@ _DEMO_PROSPECTS = [
 ]
 _DEMO_CLIENT_NAME = "Wigan Rapid Plumbing (DEMO)"
 
+# A few prospects get realistic state so the queues, notes and follow-up agent
+# all have something to chew on. (status, call_notes, due-today next action?)
+_DEMO_NOTES = {
+    "Wigan Rapid Plumbing":      ("interested", "Spoke to owner Dave — keen, reckons he loses 2-3 calls/week when he's under a sink. Wants to see it working. Ring back, push the free trial.", True),
+    "Standish Heating Solutions":("called", "Gatekeeper — wife takes the calls, owner Mark's on the tools till 4. Try again after teatime.", True),
+    "Leigh Gas Services":        ("demo_booked", "Booked a demo Friday 10am. Misses loads of calls while servicing boilers. Have the £49 trial ready.", False),
+    "Bolton Boiler Doctor":      ("interested", "One-man band, sounded interested — 'go on then, send us something'. Follow up with a WhatsApp + a call.", True),
+    "St Helens 24hr Plumbing":   ("called", "No answer x2, didn't leave VM. 24hr emergency plumber so the phone never stops — ideal fit. Retry tomorrow AM.", True),
+}
 
-@router.post("/seed-demo")
-async def seed_demo(_=Depends(require_ops_key)):
+
+def _seed_enrichment(db, demo_client_id) -> dict:
+    """Give a handful of prospects real state + add 3 sample captured leads on the
+    demo client. Idempotent: only fills gaps, never clobbers real data."""
+    from datetime import datetime, timezone, timedelta, date
+    now = datetime.now(timezone.utc)
+    today = date.today().isoformat()
+    out = {"notes": 0, "next_actions": 0, "captured_leads": 0}
+
+    for name, (status, note, due_today) in _DEMO_NOTES.items():
+        rows = db.table("prospects").select("*").eq("business_name", name).limit(1).execute().data or []
+        if not rows:
+            continue
+        p = rows[0]
+        if not (p.get("call_notes") or "").strip():          # don't overwrite real notes
+            db.table("prospects").update({
+                "status": status, "call_notes": note,
+                "last_called_at": now.isoformat(), "updated_at": now.isoformat(),
+            }).eq("id", p["id"]).execute()
+            out["notes"] += 1
+        if due_today:
+            open_act = (db.table("next_actions").select("id").eq("prospect_id", p["id"])
+                        .eq("done", False).limit(1).execute().data or [])
+            if not open_act:
+                db.table("next_actions").insert({
+                    "prospect_id": p["id"], "action": "Call back — follow up on first contact",
+                    "due_date": today, "done": False, "created_by": "seed",
+                }).execute()
+                out["next_actions"] += 1
+
+    # Sample captured leads (only if the demo client has none yet).
+    if demo_client_id:
+        have = (db.table("captured_leads").select("id", count="exact")
+                .eq("client_id", demo_client_id).execute().count or 0)
+        if have < 3:
+            samples = [
+                {"name": "Sarah Whitfield", "phone": "07700 900512", "postcode": "WN1 2AB",
+                 "job_description": "Boiler banging and no hot water since this morning", "source": "missed_call",
+                 "status": "new", "created_at": (now - timedelta(hours=2)).isoformat()},
+                {"name": "Tom Halliwell", "phone": "07700 900643", "postcode": "WN3 5RT",
+                 "job_description": "Quote to replace a dripping outside tap", "source": "form",
+                 "status": "contacted", "created_at": (now - timedelta(hours=20)).isoformat()},
+                {"name": "Priya Nair", "phone": "07700 900788", "postcode": "WN5 8LP",
+                 "job_description": "Radiator leaking downstairs, water coming through the ceiling", "source": "form",
+                 "status": "new", "created_at": (now - timedelta(hours=30)).isoformat()},
+            ]
+            for s in samples:
+                try:
+                    db.table("captured_leads").insert({"client_id": demo_client_id, "notified": True, **s}).execute()
+                    out["captured_leads"] += 1
+                except Exception as e:
+                    logger.warning(f"[seed] captured_lead failed: {e}")
+    return out
+
+
+def seed_demo_data() -> dict:
     """Populate the dial list with 30 realistic local prospects (deduped, ranked,
     split D/L by the real Scout) and provision one demo client with a live capture
     token — so the board + a sales demo are ready instantly. Safe to run twice:
@@ -275,10 +358,15 @@ async def seed_demo(_=Depends(require_ops_key)):
         res = db.table("textback_clients").insert(rec).execute()
         cid = res.data[0]["id"] if res.data else None
 
+    enrichment = _seed_enrichment(db, cid)
+    trades.log_event("scout", "🌱 demo dataset seeded — 30 prospects, notes, follow-ups + sample leads",
+                     "success", {"enrichment": enrichment})
+
     base = settings.FRONTEND_BASE_URL.rstrip("/")
     return {
         "ok": True,
         "prospects": scout_res,
+        "enrichment": enrichment,
         "demo_client": {
             "client_id": cid, "business_name": _DEMO_CLIENT_NAME,
             "capture_url": f"{base}/capture/{cap}",
@@ -286,3 +374,8 @@ async def seed_demo(_=Depends(require_ops_key)):
             "missed_call_webhook": f"https://l-d-designss-production.up.railway.app/api/textback/webhook/missed-call/{cid}",
         },
     }
+
+
+@router.post("/seed-demo")
+async def seed_demo(_=Depends(require_ops_key)):
+    return seed_demo_data()

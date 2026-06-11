@@ -33,11 +33,17 @@ async def cron_morning(post: bool = True,
                        x_ops_key: Optional[str] = Header(default=None)):
     """08:00 job: Dial Manager call lists + Revenue Reporter → Telegram."""
     _auth(key, x_ops_key)
-    dial = trades.dial_today(post_to_telegram=post)
-    report = trades.revenue_report_text(weekly=(date.today().weekday() == 0))
-    if post:
-        telegram.broadcast_founders(report)
-    return {"ok": True, "dial": dial, "report": report}
+    try:
+        dial = trades.dial_today(post_to_telegram=post)
+        report = trades.revenue_report_text(weekly=(date.today().weekday() == 0))
+        if post:
+            telegram.broadcast_founders(report)
+        return {"ok": True, "dial": dial, "report": report,
+                "telegram": settings.telegram_enabled}
+    except Exception as e:
+        logger.error(f"[cron/morning] failed — migration not run? {e}", exc_info=True)
+        raise HTTPException(status_code=503,
+                            detail="Morning job couldn't run — run db/migrations.sql in Supabase first.")
 
 
 @router.post("/evening")
@@ -46,4 +52,11 @@ async def cron_evening(post: bool = True,
                        x_ops_key: Optional[str] = Header(default=None)):
     """18:00 job: Follow-up agent drafts → Telegram (drafts only, never sends)."""
     _auth(key, x_ops_key)
-    return trades.followup_run(post_to_telegram=post)
+    try:
+        r = trades.followup_run(post_to_telegram=post)
+        r["telegram"] = settings.telegram_enabled
+        return r
+    except Exception as e:
+        logger.error(f"[cron/evening] failed — migration not run? {e}", exc_info=True)
+        raise HTTPException(status_code=503,
+                            detail="Evening job couldn't run — run db/migrations.sql in Supabase first.")

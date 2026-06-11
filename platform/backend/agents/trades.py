@@ -128,6 +128,28 @@ def _leads_captured(client_id: str, since=None) -> int:
     return q.execute().count or 0
 
 
+def log_event(agent: str, message: str, level: str = "info", data: dict = None) -> None:
+    """Write one line to the live AGENT OPS feed. Best-effort — never throws,
+    never blocks the agent's real work (e.g. if the table isn't migrated yet)."""
+    try:
+        get_db().table("agent_events").insert({
+            "agent": agent, "level": level, "message": message, "data": data or {},
+        }).execute()
+    except Exception as e:
+        logger.debug(f"[log_event] skipped ({agent}): {e}")
+
+
+def get_agent_events(limit: int = 40, agent: str = None) -> list:
+    """Most-recent agent events for the live feed."""
+    try:
+        q = get_db().table("agent_events").select("*")
+        if agent:
+            q = q.eq("agent", agent)
+        return q.order("created_at", desc=True).limit(min(limit, 200)).execute().data or []
+    except Exception:
+        return []
+
+
 # ════════════════════════════════════════════════════════════════════
 # 1. LEAD SCOUT — build the list. NEVER contacts anyone.
 # ════════════════════════════════════════════════════════════════════
@@ -191,6 +213,9 @@ def scout(entries=None, pasted_text: str = None, town: str = None,
     inserted.sort(key=lambda r: r["rank_score"], reverse=True)
     added_by = {"D": sum(1 for r in inserted if r["assigned_to"] == "D"),
                 "L": sum(1 for r in inserted if r["assigned_to"] == "L")}
+    log_event("scout", f"built list → +{len(inserted)} prospects (D:{added_by['D']}/L:{added_by['L']}), "
+              f"{dropped} dupes skipped", "success",
+              {"added": len(inserted), "duplicates": dropped, "assigned": added_by, "source": source})
     return {
         "added": len(inserted),
         "duplicates": dropped,
@@ -249,6 +274,8 @@ def sales_prep(prospect_id: str = None, name: str = None) -> dict:
 
     before = {"call_notes": p.get("call_notes")}
     db.table("prospects").update({"call_notes": notes, "updated_at": _now_iso()}).eq("id", p["id"]).execute()
+    log_event("sales_prep", f"wrote call notes for {biz}", "success",
+              {"prospect_id": p["id"], "ai": bool(settings.ANTHROPIC_API_KEY)})
     return {
         "ok": True, "prospect": biz, "prospect_id": p["id"], "call_notes": notes,
         "_undo": {"op": "update", "table": "prospects", "id": p["id"], "before": before},
@@ -355,7 +382,11 @@ def dial_today(post_to_telegram: bool = True) -> dict:
         out[founder] = len(items)
         if post_to_telegram:
             telegram.send_to_founder_code(founder, format_call_list(founder, items))
-    return {"ok": True, "counts": out, "message": f"Call lists posted — D:{out['D']} / L:{out['L']}."}
+    overdue = {f: sum(1 for p in build_call_list(f) if p.get("priority") == 0) for f in ("D", "L")}
+    log_event("dial_manager", f"built call lists → D:{out['D']} ({overdue['D']} overdue) / "
+              f"L:{out['L']} ({overdue['L']} overdue)", "success", {"counts": out, "overdue": overdue})
+    return {"ok": True, "counts": out, "overdue": overdue,
+            "message": f"Call lists posted — D:{out['D']} / L:{out['L']}."}
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -446,6 +477,8 @@ def followup_run(post_to_telegram: bool = True, limit: int = 40) -> dict:
 
     if post_to_telegram and drafts:
         telegram.broadcast_founders(format_followups(drafts))
+    log_event("followup", f"drafted {len(drafts)} follow-up(s) (drafts only — never auto-sent)", "success",
+              {"count": len(drafts)})
     return {"ok": True, "count": len(drafts), "drafts": drafts,
             "message": f"{len(drafts)} follow-up draft(s) ready (drafts only — copy & send yourself)."}
 
@@ -642,10 +675,12 @@ def _recommend_next_action(status: str, demo_at=None):
     return None, None
 
 
-def log_call(name_or_id: str, outcome: str, new_status: str = None, founder: str = None) -> dict:
+def log_call(name_or_id: str, outcome: str, new_status: str = None, founder: str = None,
+             next_action: str = None, next_action_date: str = None) -> dict:
     """Log a call outcome on a prospect: update status, stamp last_called_at,
     append the outcome to call_notes, recommend & create the next action, and
-    (on demo_booked) auto-run Sales Prep. Returns an echo + undo envelope."""
+    (on demo_booked) auto-run Sales Prep. Returns an echo + undo envelope.
+    An explicit next_action (+ optional date) overrides the recommended one."""
     db = get_db()
     p = find_prospect(name_or_id)
     if not p:
@@ -665,8 +700,10 @@ def log_call(name_or_id: str, outcome: str, new_status: str = None, founder: str
 
     undo_ops = [{"op": "update", "table": "prospects", "id": p["id"], "before": before}]
 
-    # Recommend + persist the next action.
+    # Recommend + persist the next action (explicit overrides the recommendation).
     action, due = _recommend_next_action(status, p.get("demo_at"))
+    if next_action:
+        action, due = next_action, (next_action_date or due or _today().isoformat())
     rec_msg = ""
     if action:
         try:
@@ -686,6 +723,9 @@ def log_call(name_or_id: str, outcome: str, new_status: str = None, founder: str
         if prep.get("ok"):
             extra = " 📝 Prep notes generated."
 
+    log_event("dial_manager", f"logged {p.get('business_name')} → {status}"
+              + (f" · {outcome[:60]}" if outcome else ""), "success",
+              {"prospect_id": p["id"], "status": status})
     return {
         "ok": True, "prospect": p.get("business_name"), "prospect_id": p["id"],
         "status": status,
@@ -716,6 +756,8 @@ def convert_prospect_to_client(name_or_id: str, monthly_fee: float = 49.0) -> di
     if cid:
         db.table("prospects").update({"status": "won", "converted_client_id": cid,
                                       "updated_at": _now_iso()}).eq("id", p["id"]).execute()
+    log_event("reporter", f"💷 WON — {p.get('business_name')} converted to a 14-day trial client "
+              f"(£{monthly_fee:.0f}/mo)", "success", {"client_id": cid, "prospect_id": p["id"]})
     base = settings.FRONTEND_BASE_URL.rstrip("/")
     return {
         "ok": True, "client_id": cid,
@@ -794,3 +836,59 @@ def live_context() -> dict:
                     .order("created_at", desc=True).limit(10).execute().data or [])
     ctx["recent_captured_leads"] = recent_leads
     return ctx
+
+
+# ════════════════════════════════════════════════════════════════════
+# Extra JARVIS actions (thin, all echo a result + undo where they write)
+# ════════════════════════════════════════════════════════════════════
+def mark_won(name_or_id: str) -> dict:
+    return log_call(name_or_id, "marked WON", new_status="won")
+
+
+def mark_lost(name_or_id: str, reason: str = "") -> dict:
+    return log_call(name_or_id, f"marked LOST{(' — ' + reason) if reason else ''}", new_status="lost")
+
+
+def search_prospect(query: str) -> dict:
+    """Fuzzy-find a prospect and return a compact card (read-only)."""
+    p = find_prospect(query)
+    if not p:
+        return {"ok": False, "message": f"No prospect matches '{query}'."}
+    return {"ok": True, "prospect": {
+        "id": p["id"], "business_name": p.get("business_name"), "phone": p.get("phone"),
+        "town": p.get("town"), "trade": p.get("trade"), "status": p.get("status"),
+        "assigned_to": p.get("assigned_to"), "rank_score": p.get("rank_score"),
+        "call_notes": p.get("call_notes"),
+    }, "message": _format_prospect_line(p)}
+
+
+# RUN NOW dispatch — only the no-argument agents (Scout/Prep need input).
+_RUN_AGENT_ALIASES = {
+    "dial": "dial_manager", "dial_manager": "dial_manager", "dials": "dial_manager",
+    "today": "dial_manager", "call_list": "dial_manager",
+    "followup": "followup", "follow_up": "followup", "follow-up": "followup", "chase": "followup",
+    "reporter": "reporter", "revenue": "reporter", "report": "reporter", "status": "reporter",
+}
+
+
+def run_agent(name: str, post_to_telegram: bool = True) -> dict:
+    """Fire one agent on demand (for the UI RUN NOW buttons + JARVIS run_agent)."""
+    canon = _RUN_AGENT_ALIASES.get((name or "").strip().lower())
+    if canon == "dial_manager":
+        return trades_result("dial_manager", dial_today(post_to_telegram=post_to_telegram))
+    if canon == "followup":
+        return trades_result("followup", followup_run(post_to_telegram=post_to_telegram))
+    if canon == "reporter":
+        txt = revenue_report_text(weekly=(date.today().weekday() == 0))
+        if post_to_telegram:
+            telegram.broadcast_founders(txt)
+        log_event("reporter", "ran revenue report", "success")
+        return {"ok": True, "agent": "reporter", "message": txt}
+    return {"ok": False, "message": f"Can't run '{name}' on its own — "
+            "Scout needs a pasted list and Sales Prep needs a prospect name."}
+
+
+def trades_result(agent: str, r: dict) -> dict:
+    r = dict(r or {})
+    r.setdefault("agent", agent)
+    return r

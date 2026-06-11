@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 
 from api import leads, outreach, previews, dashboard, agents, webhooks, textback, payments, strategy, ops, n8n, team, calls
 # Trades lead-capture product + JARVIS operator
-from api import capture, portal, sales, jarvis, cron, admin
+from api import capture, portal, sales, jarvis, cron
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -71,7 +71,6 @@ app.include_router(portal.router,    prefix="/api")   # client dashboard (token-
 app.include_router(sales.router,     prefix="/api")   # ops board + 5 sales agents (founder key)
 app.include_router(jarvis.router,    prefix="/api")   # POST /api/telegram + JARVIS
 app.include_router(cron.router,      prefix="/api")   # /api/cron/morning + /evening
-app.include_router(admin.router,     prefix="/api")   # TEMP bootstrap/diagnostics — remove after go-live
 
 
 @app.get("/previews/serve/{preview_id}", response_class=HTMLResponse, include_in_schema=False)

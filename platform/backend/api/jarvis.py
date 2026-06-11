@@ -20,6 +20,7 @@ Design rules (from the brief):
 """
 import json
 import logging
+import re
 
 from fastapi import APIRouter, Request, Header, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
@@ -39,79 +40,73 @@ _SEEN_MSG_IDS: set = set()
 
 
 # ── Tool schemas (Anthropic tool-use) ─────────────────────────────────
+# Read tools return a ready-formatted answer that is shown to the founder
+# directly (no second reasoning pass). Write tools echo what changed + an undo.
+_STATUSES = ["to_call", "called", "interested", "demo_booked", "won", "lost", "not_interested"]
 TOOLS = [
-    {
-        "name": "log_call",
-        "description": "Log the outcome of a sales call on a prospect. Updates their status, "
-                       "appends the note, stamps the call time, recommends the next action, and "
-                       "auto-generates demo prep if they booked a demo.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "prospect": {"type": "string", "description": "Business name (or id) of the prospect"},
-                "outcome": {"type": "string", "description": "What happened on the call, in your words"},
-                "new_status": {"type": "string",
-                               "enum": ["to_call", "called", "interested", "demo_booked",
-                                        "won", "lost", "not_interested"],
-                               "description": "Optional explicit new status; inferred from outcome if omitted"},
-            },
-            "required": ["prospect", "outcome"],
-        },
-    },
-    {
-        "name": "add_prospect",
-        "description": "Add a single new trade business to the call list (status to_call). "
-                       "Auto-ranks and assigns to a founder. Contacts no one.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "business_name": {"type": "string"},
-                "phone": {"type": "string"},
-                "town": {"type": "string"},
-                "trade": {"type": "string", "description": "e.g. plumber, electrician"},
-                "founder": {"type": "string", "enum": ["D", "L"]},
-            },
-            "required": ["business_name"],
-        },
-    },
-    {
-        "name": "scout",
-        "description": "Run the Lead Scout on a pasted list of leads (one per line: name, phone, town). "
-                       "Dedupes, ranks by mobile/emergency-trade/proximity, inserts as to_call, "
-                       "splits across founders D and L. Contacts no one — only builds the list.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "pasted_text": {"type": "string", "description": "The raw pasted list of leads"},
-                "town": {"type": "string", "description": "Default town if rows omit it"},
-                "trade": {"type": "string", "description": "Default trade if rows omit it"},
-            },
-            "required": ["pasted_text"],
-        },
-    },
-    {
-        "name": "run_sales_prep",
-        "description": "Generate Claude call notes (pain points, objections, demo script) for a "
-                       "prospect and save them. Use when asked to 'prep <name>'.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"prospect": {"type": "string"}},
-            "required": ["prospect"],
-        },
-    },
-    {
-        "name": "convert_to_client",
-        "description": "Convert a won prospect into a live 14-day-trial client and provision their "
-                       "capture form + dashboard links. Use when a prospect has paid / signed up.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "prospect": {"type": "string"},
-                "monthly_fee": {"type": "number"},
-            },
-            "required": ["prospect"],
-        },
-    },
+    # ---- reads ----
+    {"name": "get_status", "description": "The revenue/status report: dials yesterday, pipeline, "
+        "trials, paying, MRR, churn risk. Use for 'status', 'report', 'how are we doing'.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "get_pipeline", "description": "Just the pipeline counts by stage (to_call, called, "
+        "interested, demo_booked, won, lost, not_interested).",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "whos_next", "description": "The single top prospect a founder should call next, with "
+        "phone + notes + reason.",
+     "input_schema": {"type": "object", "properties": {"founder": {"type": "string", "enum": ["D", "L"]}}}},
+    {"name": "get_today", "description": "A founder's full ordered call list for today (overdue actions "
+        "pinned first, then highest-ranked uncalled).",
+     "input_schema": {"type": "object", "properties": {"founder": {"type": "string", "enum": ["D", "L"]}}}},
+    {"name": "search_prospect", "description": "Find a prospect by (fuzzy) name and show their card.",
+     "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "trial_check", "description": "Live trials: days left, leads captured each, churn-risk flags.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "get_agent_events", "description": "Recent activity from the agents (the ops feed).",
+     "input_schema": {"type": "object", "properties": {"limit": {"type": "integer"}}}},
+    # ---- writes (each echoes the change + supports undo) ----
+    {"name": "log_call", "description": "Log a call outcome on a prospect. Fuzzy-matches the name, "
+        "updates status, appends the note, stamps the time, sets the next action, and auto-preps a "
+        "booked demo. e.g. 'log called northern heating, gatekeeper, try after 4'.",
+     "input_schema": {"type": "object", "properties": {
+         "prospect": {"type": "string", "description": "Business name (fuzzy ok) or id"},
+         "outcome": {"type": "string", "description": "What happened, in your words"},
+         "note": {"type": "string", "description": "Any extra note to append"},
+         "new_status": {"type": "string", "enum": _STATUSES,
+                        "description": "Explicit status; inferred from outcome if omitted"},
+         "next_action": {"type": "string", "description": "What to do next (overrides the default)"},
+         "next_action_date": {"type": "string", "description": "ISO date YYYY-MM-DD for the next action"},
+     }, "required": ["prospect", "outcome"]}},
+    {"name": "add_prospect", "description": "Add one trade business to the call list (to_call). "
+        "Auto-ranks + assigns a founder. Contacts no one.",
+     "input_schema": {"type": "object", "properties": {
+         "business_name": {"type": "string"}, "phone": {"type": "string"}, "town": {"type": "string"},
+         "trade": {"type": "string"}, "founder": {"type": "string", "enum": ["D", "L"]},
+     }, "required": ["business_name"]}},
+    {"name": "scout", "description": "Run Lead Scout on a pasted list (one per line: name, phone, town). "
+        "Dedupes, ranks, inserts as to_call, splits across D and L. Builds the list only.",
+     "input_schema": {"type": "object", "properties": {
+         "pasted_text": {"type": "string"}, "town": {"type": "string"}, "trade": {"type": "string"},
+     }, "required": ["pasted_text"]}},
+    {"name": "prep_call", "description": "Generate + save call notes (pain, objections, demo script) "
+        "for a prospect. Use for 'prep <name>'.",
+     "input_schema": {"type": "object", "properties": {"prospect": {"type": "string"}},
+                      "required": ["prospect"]}},
+    {"name": "draft_followup", "description": "Write a short UK-tone follow-up message for a prospect "
+        "for the founder to copy & send. Drafts only — never sends.",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "mark_won", "description": "Mark a prospect as WON (closed/sold).",
+     "input_schema": {"type": "object", "properties": {"prospect": {"type": "string"}},
+                      "required": ["prospect"]}},
+    {"name": "mark_lost", "description": "Mark a prospect as LOST / not interested.",
+     "input_schema": {"type": "object", "properties": {
+         "prospect": {"type": "string"}, "reason": {"type": "string"}}, "required": ["prospect"]}},
+    {"name": "convert_to_client", "description": "Convert a won prospect into a live 14-day-trial client "
+        "and provision their capture form + dashboard links.",
+     "input_schema": {"type": "object", "properties": {
+         "prospect": {"type": "string"}, "monthly_fee": {"type": "number"}}, "required": ["prospect"]}},
+    {"name": "run_agent", "description": "Run one agent now: 'dial_manager' (build call lists), "
+        "'followup' (draft chases), or 'reporter' (revenue report).",
+     "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
 ]
 
 
@@ -172,12 +167,55 @@ def _format_context(ctx: dict, founder_code: str) -> str:
     return "\n".join(lines)
 
 
+# ── Read-tool formatters ──────────────────────────────────────────────
+def _fmt_pipeline() -> str:
+    p = trades.live_context().get("pipeline", {})
+    return ("Pipeline — "
+            f"to_call {p.get('to_call',0)} · called {p.get('called',0)} · "
+            f"interested {p.get('interested',0)} · demo_booked {p.get('demo_booked',0)} · "
+            f"won {p.get('won',0)} · not_interested {p.get('not_interested',0)}")
+
+
+def _fmt_agent_events(limit: int = 12) -> str:
+    evs = trades.get_agent_events(limit=limit)
+    if not evs:
+        return "No agent activity yet."
+    out = ["Recent agent activity:"]
+    for e in evs:
+        ts = (e.get("created_at") or "")[11:19]
+        out.append(f"[{ts}] {(e.get('agent') or '').upper()} — {e.get('message')}")
+    return "\n".join(out)
+
+
 # ── Tool dispatch ─────────────────────────────────────────────────────
-def _run_tool(name: str, args: dict):
-    """Execute a write tool. Returns (echo_text, undo_envelope_or_None)."""
+def _run_tool(name: str, args: dict, founder_code: str = "D"):
+    """Execute a tool. Reads return (formatted_answer, None); writes return
+    (echo_of_change, undo_envelope_or_None)."""
+    f = (args.get("founder") or founder_code or "D").upper()
     try:
+        # -- reads --
+        if name == "get_status":
+            return trades.revenue_report_text(), None
+        if name == "get_pipeline":
+            return _fmt_pipeline(), None
+        if name == "whos_next":
+            return trades.whos_next(f).get("message", "List's clear."), None
+        if name == "get_today":
+            return trades.format_call_list(f, trades.build_call_list(f)), None
+        if name == "search_prospect":
+            return trades.search_prospect(args.get("query", "")).get("message", "No match."), None
+        if name == "trial_check":
+            return trades.trial_check().get("message", "No trials."), None
+        if name == "get_agent_events":
+            return _fmt_agent_events(int(args.get("limit") or 12)), None
+        # -- writes --
         if name == "log_call":
-            r = trades.log_call(args.get("prospect"), args.get("outcome", ""), args.get("new_status"))
+            outcome = args.get("outcome", "")
+            if args.get("note"):
+                outcome = f"{outcome} — {args['note']}".strip(" —")
+            r = trades.log_call(args.get("prospect"), outcome, args.get("new_status"),
+                                next_action=args.get("next_action"),
+                                next_action_date=args.get("next_action_date"))
             return r.get("message", "Logged."), r.get("_undo")
         if name == "add_prospect":
             r = trades.add_prospect(args.get("business_name"), args.get("phone"),
@@ -192,15 +230,26 @@ def _run_tool(name: str, args: dict):
                     f"  {i+1}. {t['business_name']} ({t['town']}, {t['trade']}) "
                     f"→ {t['assigned_to']} [rank {t['rank']}]" for i, t in enumerate(r["top"]))
             return echo, r.get("_undo")
-        if name == "run_sales_prep":
+        if name == "prep_call":
             r = trades.sales_prep(name=args.get("prospect"))
             if not r.get("ok"):
                 return r.get("message", "Couldn't prep."), None
             return f"{r['message']}\n\n{r['call_notes']}", r.get("_undo")
+        if name == "draft_followup":
+            return trades.draft_followup(args.get("name")).get("message", "No prospect."), None
+        if name == "mark_won":
+            r = trades.mark_won(args.get("prospect"))
+            return r.get("message", "Marked won."), r.get("_undo")
+        if name == "mark_lost":
+            r = trades.mark_lost(args.get("prospect"), args.get("reason", ""))
+            return r.get("message", "Marked lost."), r.get("_undo")
         if name == "convert_to_client":
             r = trades.convert_prospect_to_client(args.get("prospect"),
                                                   monthly_fee=args.get("monthly_fee") or 49.0)
             return r.get("message", "Converted."), r.get("_undo")
+        if name == "run_agent":
+            return trades.run_agent(args.get("name"), post_to_telegram=settings.telegram_enabled).get(
+                "message", "Ran."), None
     except Exception as e:
         logger.error(f"[jarvis] tool {name} failed: {e}", exc_info=True)
         return f"⚠️ {name} failed: {e}", None
@@ -208,23 +257,69 @@ def _run_tool(name: str, args: dict):
 
 
 # ── Raw-data fallback (Claude down / no key) — command aware ───────────
+# Deterministic parsing for the core commands so the console NEVER dies.
+_TAG = "⚙️ (AI offline — raw mode)"
+
+
+def _fallback_log(text: str):
+    """Parse 'log called northern heating, gatekeeper, try after 4' deterministically."""
+    body = re.sub(r"^\s*log(ged)?\s+", "", text, flags=re.I).strip()
+    parts = [p.strip() for p in body.split(",") if p.strip()]
+    if not parts:
+        return None
+    head = parts[0]
+    m = re.match(r"^(called|call|spoke to|rang|phoned|logged)\s+(.+)$", head, flags=re.I)
+    name = (m.group(2) if m else head).strip()
+    outcome = ", ".join(parts[1:]) if len(parts) > 1 else (head if not m else "called")
+    if not name:
+        return None
+    return trades.log_call(name, outcome).get("message")
+
+
 def _raw_dump(text: str, ctx: dict, founder_code: str) -> str:
-    low = (text or "").lower()
-    out = ["⚙️ (AI offline — raw data)"]
-    if any(k in low for k in ("status", "report", "revenue", "numbers", "mrr")):
-        out.append(trades.revenue_report_text(weekly=("week" in low)))
-        return "\n".join(out)
-    if any(k in low for k in ("trial", "churn")):
-        out.append(trades.trial_check()["message"])
-        return "\n".join(out)
-    if any(k in low for k in ("today", "call list", "my calls", "who's next", "whos next", "next")):
-        f = "L" if (" l" in f" {low}" or low.strip() == "l") else founder_code
-        items = trades.build_call_list(f)
-        out.append(trades.format_call_list(f, items))
-        return "\n".join(out)
-    # Generic snapshot.
-    out.append(_format_context(ctx, founder_code))
-    return "\n".join(out)
+    low = (text or "").lower().strip()
+    f = founder_code
+    if re.search(r"\bfor l\b|\bl's\b", low) or low.endswith(" l"):
+        f = "L"
+    try:
+        if low.startswith("log"):
+            msg = _fallback_log(text)
+            if msg:
+                return f"{_TAG}\n{msg}"
+        if low.startswith("scout"):
+            chunks = text.split("\n", 1)
+            pasted = chunks[1] if len(chunks) > 1 else ""
+            return f"{_TAG}\n{trades.scout(pasted_text=pasted, source='jarvis').get('message')}"
+        if low.startswith("prep "):
+            r = trades.sales_prep(name=text[5:].strip())
+            return f"{_TAG}\n{r.get('message')}" + (f"\n\n{r.get('call_notes')}" if r.get("ok") else "")
+        if low.startswith("draft"):
+            name = re.sub(r"^draft.*?\b(for|to)\s+", "", text, flags=re.I).strip()
+            return f"{_TAG}\n{trades.draft_followup(name or text[5:].strip()).get('message')}"
+        if low.startswith("won "):
+            return f"{_TAG}\n{trades.mark_won(text[4:].strip()).get('message')}"
+        if low.startswith("lost "):
+            return f"{_TAG}\n{trades.mark_lost(text[5:].strip()).get('message')}"
+        if low.split(" ", 1)[0] in ("find", "search", "lookup") and " " in low:
+            return f"{_TAG}\n{trades.search_prospect(text.split(' ', 1)[1].strip()).get('message')}"
+        if low.startswith("add "):
+            parts = [p.strip() for p in text[4:].split(",")]
+            r = trades.add_prospect(parts[0], parts[1] if len(parts) > 1 else None,
+                                    parts[2] if len(parts) > 2 else None)
+            return f"{_TAG}\n{r.get('message')}"
+        if any(k in low for k in ("status", "report", "revenue", "numbers", "mrr", "how are we")):
+            return f"{_TAG}\n{trades.revenue_report_text(weekly=('week' in low))}"
+        if any(k in low for k in ("pipeline", "funnel")):
+            return f"{_TAG}\n{_fmt_pipeline()}"
+        if any(k in low for k in ("trial", "churn")):
+            return f"{_TAG}\n{trades.trial_check()['message']}"
+        if any(k in low for k in ("who's next", "whos next", "next up", "next call")):
+            return f"{_TAG}\n{trades.whos_next(f).get('message')}"
+        if any(k in low for k in ("today", "call list", "my calls", "dial", "next")):
+            return f"{_TAG}\n{trades.format_call_list(f, trades.build_call_list(f))}"
+    except Exception as e:
+        return f"{_TAG}\nCouldn't action that offline: {e}"
+    return f"{_TAG}\n{_format_context(ctx, founder_code)}"
 
 
 # ── Core message handler ──────────────────────────────────────────────
@@ -289,7 +384,7 @@ def _claude_turn(text: str, ctx: dict, founder_code: str):
             if btype == "text":
                 text_parts.append(block.text)
             elif btype == "tool_use":
-                echo, undo = _run_tool(block.name, block.input or {})
+                echo, undo = _run_tool(block.name, block.input or {}, founder_code)
                 echoes.append(echo)
                 tool_meta.append({"name": block.name, "input": block.input})
                 if undo:
