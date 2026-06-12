@@ -218,6 +218,12 @@ def run(target: int = None) -> dict:
         prev = build_all_previews()
         bal = balance_assignments()
 
+    if not bal.get("ok"):
+        # The 109/109 split usually survives via Scout's insert alternation, but a
+        # failed balance read must be visible in the feed, not a silent None.
+        trades.log_event("pipeline", f"D/L balance step failed: {str(bal.get('message'))[:140]}",
+                         "warn", {"metric_ok": False})
+
     took = int(time.time() - t0)
     summary = (f"pipeline done in {took}s — prospects {top.get('after')}/{target} "
                f"(+{(top.get('after') or 0) - (top.get('before') or 0)} new), "
