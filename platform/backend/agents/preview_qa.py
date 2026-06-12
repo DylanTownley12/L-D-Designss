@@ -1268,14 +1268,17 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
     reviews = details.get("reviews") or []
     address = (details.get("address") or "").strip()
     plural = _trade_plural(trade)
-    # Rating gets its own gold-marked span — the proof point should pop, not blend in.
+    headline_plain = (f"{biz} — {town}’s {rating:.1f}★ rated {plural}" if rating
+                      else f"{biz} — {town}’s trusted {plural}")
+    # Hero = the business name, HUGE, in the display font. The proof (rating) sits
+    # in its own gold row above it, and the positioning line opens the sub.
+    trustline = (f"{_esc(town)}&#8217;s {rating:.1f}★ rated {_esc(plural)}" if rating
+                 else f"{_esc(town)}&#8217;s trusted {_esc(plural)}")
+    dot = '<span class="hdot">.</span>' if (biz and biz[-1].isalnum()) else ""
+    ratrow = ""
     if rating:
-        headline = (f"{_esc(biz)} — {_esc(town)}&#8217;s "
-                    f'<span class="mark">{rating:.1f}★ rated</span> {_esc(plural)}')
-        headline_plain = f"{biz} — {town}’s {rating:.1f}★ rated {plural}"
-    else:
-        headline = f"{_esc(biz)} — {_esc(town)}&#8217;s trusted {_esc(plural)}"
-        headline_plain = f"{biz} — {town}’s trusted {plural}"
+        ratrow = (f'<div class="ratrow"><span class="st">{_stars(rating)}</span>'
+                  f'<b>{rating:.1f}</b><span class="rrc">·</span>{rcount} Google reviews</div>')
     services = (_SERVICES.get(trade.lower(), _SERVICES_DEFAULT)
                 + _SERVICES_EXTRA.get(trade.lower(), []))[:6]
     icons = _svc_icons(trade, len(services))
@@ -1295,12 +1298,20 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
         ld["aggregateRating"] = {"@type": "AggregateRating", "ratingValue": rating, "reviewCount": rcount}
     jsonld = json.dumps({k: v for k, v in ld.items() if v is not None})
 
-    quote_best = ""
+    # The single best review becomes a full-width dark statement slab — the loudest
+    # social proof on the page, in their customer's own words.
+    qslab = ""
     if reviews:
-        b = sorted(reviews, key=lambda r: (-(r.get("rating") or 0), len(r.get("text", ""))))[0]
-        q = b["text"][:110].rsplit(" ", 1)[0].rstrip(",.;:") + ("…" if len(b["text"]) > 110 else "")
-        quote_best = (f'<div class="hq"><span class="st">{_stars(b["rating"])}</span> '
-                      f'&#8220;{_esc(q)}&#8221; <b>— {_esc(b["author"])}</b></div>')
+        # Same ordering as the review cards below (rating desc, longest first) so the
+        # slab takes ordered[0] and the cards take ordered[1:] — no duplicates.
+        b = sorted(reviews, key=lambda r: (-(r.get("rating") or 0), -len(r.get("text", ""))))[0]
+        qtxt = (b["text"][:230].rsplit(" ", 1)[0].rstrip(",.;:") + "…") if len(b["text"]) > 230 else b["text"]
+        qslab = (f'<section class="qslab"><div class="grain"></div><div class="wrap">'
+                 f'<span class="qmk">&#8220;</span>'
+                 f'<p class="qt">{_esc(qtxt)}</p>'
+                 f'<div class="st">{_stars(b["rating"])}</div>'
+                 f'<div class="qw">{_esc(b["author"])} <span>· {_IC["g"]} Google review</span></div>'
+                 f'</div></section>')
 
     # Every call CTA degrades to the booking section when we have no phone number —
     # a dead tel: link on a sales demo is worse than no button.
@@ -1310,15 +1321,25 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
                 if has_phone else
                 f'<a class="ncall" href="#book">{_IC["cal"]}<span>Book online</span></a>')
 
-    badges = []
+    nearby_all = ([town] + [n for n in nearby if n != town])[:8]
+    # Stat band — big display-font numbers, honest data only.
+    stats = []
     if rating:
-        badges.append(f'<span class="bd bd-star"><span class="st">{_stars(rating)}</span> <b>{rating:.1f}</b> on Google</span>')
+        stats.append(f'<div class="stat"><b>{rating:.1f}<i class="sst">★</i></b><span>Google rating</span></div>')
     if rcount:
-        badges.append(f'<span class="bd">{_IC["g"]} {rcount} Google reviews</span>')
-    badges += [f'<span class="bd">{_IC["shield"]} Fully insured</span>',
-               f'<span class="bd">{_IC["check"]} Free quotes</span>',
-               f'<span class="bd">{_IC["pin"]} Local to {_esc(town)}</span>']
-    badges_html = "".join(badges)
+        stats.append(f'<div class="stat"><b>{rcount}</b><span>Google reviews</span></div>')
+    stats += [f'<div class="stat"><b>{len(services)}</b><span>core services</span></div>',
+              f'<div class="stat"><b>{len(nearby_all)}+</b><span>areas covered</span></div>']
+    if len(stats) < 4:
+        stats += [f'<div class="stat"><b>{_IC["shield"]}</b><span>Fully insured</span></div>',
+                  f'<div class="stat"><b>{_IC["check"]}</b><span>Free quotes</span></div>']
+    badges_html = "".join(stats[:4])
+    # Scrolling ticker — honest claims + their own service names.
+    tick_items = ([f"{rating:.1f}★ rated on Google"] if rating else []) + \
+                 ["Fully insured", "Free, no-obligation quotes", f"{town} based"] + \
+                 [t for t, _ in services[:3]]
+    tick_half = "".join(f"<span>{_esc(t)}</span>" for t in tick_items)
+    ticker = f'<div class="tickbar" aria-hidden="true"><div class="tk">{tick_half}{tick_half}</div></div>'
 
     svc = "".join(f'<div class="card fx"><span class="sic">{_IC[ic]}</span>'
                   f'<h3>{_esc(t)}</h3><p>{_esc(d)}</p></div>'
@@ -1328,7 +1349,7 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
     faqs = "".join(f'<details class="faq fx"><summary>{_esc(q)}</summary><p>{_esc(a)}</p></details>'
                    for q, a in copy["faqs"])
     areas = "".join(f'<span class="chip">{(_IC["pin"] + " ") if i == 0 else ""}{_esc(n)}</span>'
-                    for i, n in enumerate(([town] + [n for n in nearby if n != town])[:8]))
+                    for i, n in enumerate(nearby_all))
 
     # Dead Google CDN URL → swap to trade stock, never a broken-image icon.
     onerr = f'onerror="this.onerror=null;this.src=\'{stock_fb}\'"'
@@ -1340,15 +1361,10 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
                f'<p class="lead">Straight off the camera roll — actual work by {_esc(biz)}.</p>'
                f'<div class="gal">{gal}</div></div></section>') if gallery else ""
 
-    if reviews:
-        ordered = sorted(reviews, key=lambda r: (-(r.get("rating") or 0), -len(r.get("text", ""))))
-        feat, rest = ordered[0], ordered[1:6]
-        feat_html = (f'<div class="rev rev-feat fx"><span class="rq">&#8220;</span>'
-                     f'<div class="st">{_stars(feat["rating"])}</div>'
-                     f'<p class="rft">{_esc(feat["text"][:300])}</p>'
-                     f'<div class="rtop"><span class="rav">{_esc(_initials(feat["author"]))}</span>'
-                     f'<div><b>{_esc(feat["author"])}</b><div class="rm">{_esc(feat.get("when", ""))} · '
-                     f'<span class="gt">{_IC["g"]} Google review</span></div></div></div></div>')
+    # The best review lives in the qslab above; the rest become cards here.
+    rest = (sorted(reviews, key=lambda r: (-(r.get("rating") or 0), -len(r.get("text", ""))))[1:7]
+            if reviews else [])
+    if rest:
         rev_cards = "".join(
             f'<div class="rev fx"><div class="rtop"><span class="rav">{_esc(_initials(r["author"]))}</span>'
             f'<div><b>{_esc(r["author"])}</b><div class="rm">{_esc(r.get("when", ""))} · <span class="gt">{_IC["g"]} Google</span></div></div></div>'
@@ -1358,9 +1374,9 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
                    f'<h2>What {_esc(town)} says</h2>'
                    + (f'<p class="lead">Rated <b>{rating:.1f}</b> <span class="st">{_stars(rating)}</span> '
                       f'from {rcount} Google reviews — every word below is a real customer.</p>' if rating else '')
-                   + f'<div class="revs">{feat_html}{rev_cards}</div></div></section>')
+                   + f'<div class="revs">{rev_cards}</div></div></section>')
     else:
-        rev_sec = ""
+        rev_sec = '<span id="reviews"></span>' if reviews else ""
 
     # quick-quote mini form (hero) + full booking section share the same live token.
     mini = (f'<form class="mini" id="quote" data-token="{token}">'
@@ -1385,21 +1401,25 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
              f'<span>{_IC["check"]} Local to {_esc(town)}</span></div>')
     ctas = (f'<div class="ctas"><a class="b ba" href="{call_href}">{call_label}</a>'
             '<a class="b bb" href="#book">Book online — 30s</a></div>')
+    h1 = f'<h1>{_esc(biz)}{dot}</h1>'
+    hsub = f'<p class="sub"><b class="tl">{trustline}.</b> {_esc(copy["sub"])}</p>'
+    prate = (f'<div class="prate"><b>{rating:.1f}</b><span class="st">{_stars(rating)}</span>'
+             f'<span class="prc">{rcount} Google reviews</span></div>') if rating else ""
     if hero_v == 0:      # full-bleed overlay
         hero = (f'<section class="hero hv0"><div class="hbg"></div><div class="grain"></div><div class="wrap hin">'
-                f'<span class="eb ebd">{_IC["shield"]} {_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
-                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}{ctas}{ticks}{mini}</div></section>')
+                f'<span class="eb ebd">{_IC["shield"]} {_esc(trade_t)} · {_esc(town)}</span>'
+                f'{ratrow}{h1}{hsub}{ctas}{ticks}{mini}</div></section>')
     elif hero_v == 1:    # split
         hero = (f'<section class="hero hv1"><div class="grain"></div><div class="wrap split">'
-                f'<div class="hin"><span class="eb ebd">{_IC["shield"]} {_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
-                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}{ctas}{ticks}</div>'
-                f'<div class="pcol"><div class="pframe"><img class="pimg" src="{hero_img}" '
-                f'alt="{_esc(biz)}" {onerr}></div>{mini}</div>'
+                f'<div class="hin"><span class="eb ebd">{_IC["shield"]} {_esc(trade_t)} · {_esc(town)}</span>'
+                f'{ratrow}{h1}{hsub}{ctas}{ticks}</div>'
+                f'<div class="pcol"><div class="pwrap"><div class="pframe"><img class="pimg" src="{hero_img}" '
+                f'alt="{_esc(biz)}" {onerr}></div>{prate}</div>{mini}</div>'
                 f'</div></section>')
     else:                # editorial light
         hero = (f'<section class="hero hv2"><div class="wrap hin">'
-                f'<span class="eb">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
-                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}{ctas}{ticks}</div>'
+                f'<span class="eb">{_esc(trade_t)} · {_esc(town)}</span>'
+                f'{ratrow}{h1}{hsub}{ctas}{ticks}</div>'
                 f'<div class="band"></div>'
                 f'<div class="wrap minirow">{mini}</div></section>')
 
@@ -1413,7 +1433,7 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
             f'.split{{position:relative;display:grid;grid-template-columns:1.08fr .92fr;gap:44px;align-items:center;padding:80px 22px}}'
             f'.pframe{{padding:10px;border-radius:{rad_card};background:linear-gradient(135deg,{_hex_rgba(accent, .65)},rgba(255,255,255,.12));box-shadow:0 34px 80px rgba(0,0,0,.5)}}'
             f'.pimg{{width:100%;height:330px;object-fit:cover;border-radius:calc({rad_card} - 6px);display:block}}'
-            f'.pcol .mini{{margin-top:18px}}'
+            f'.pcol .mini{{margin-top:36px}}'
             f'@media(max-width:860px){{.split{{grid-template-columns:1fr;padding:62px 22px;gap:30px}}}}'),
         2: (f'.hv2{{background:#f5f2ea;color:#10151c;padding-top:74px}}'
             f'.hv2 .hin{{padding-bottom:8px}}'
@@ -1439,6 +1459,13 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
               f'<div class="mc"><a class="mca" href="#book">{_IC["cal"]} Book {_esc(biz)} online</a></div>')
     bok_call = (f'<a class="b ba" style="margin-top:16px" href="tel:{tel}">{_IC["phone"]} Or call now</a>'
                 if has_phone else "")
+    bside = (f'<aside class="bside"><div class="bsh">What happens next</div>'
+             f'<div class="bstep"><span class="n">1</span><p>Your request lands with {_esc(biz)} the second you send it.</p></div>'
+             f'<div class="bstep"><span class="n">2</span><p>They ring you back to confirm a time that suits.</p></div>'
+             f'<div class="bstep"><span class="n">3</span><p>Fixed price agreed before any work starts — then it&#8217;s sorted.</p></div>'
+             + (f'<div class="bcall"><div class="t">Prefer to talk?</div>'
+                f'<a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a></div>' if has_phone else "")
+             + '</aside>')
 
     page = f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1462,7 +1489,7 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
   --glow:{_hex_rgba(accent, .38)};--soft:{_hex_rgba(accent, .12)}}}
 *{{margin:0;padding:0;box-sizing:border-box}}html{{scroll-behavior:smooth}}
 body{{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}}
-h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
+h1,h2,h3,.b,.czb,.stat b,.qt,.prate b{{font-family:{font_stack}}}
 ::selection{{background:var(--a);color:#fff}}
 .wrap{{max-width:1120px;margin:0 auto;padding:0 22px}}a{{color:inherit}}img{{max-width:100%;display:block}}
 .fx{{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s ease}}.fx.vis{{opacity:1;transform:none}}
@@ -1494,14 +1521,15 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
 .ebd{{display:inline-flex;align-items:center;gap:8px;color:#fff;background:rgba(255,255,255,.13);backdrop-filter:blur(6px);
   border:1px solid rgba(255,255,255,.25);padding:8px 14px;border-radius:100px}}
 .ebd svg{{width:14px;height:14px;color:var(--a)}}
-.hero h1{{font-size:clamp(34px,6vw,62px);font-weight:800;line-height:1.04;letter-spacing:-.02em;margin:18px 0 14px;max-width:23ch;
-  text-shadow:0 2px 26px rgba(0,0,0,.3)}}
+.hero h1{{font-size:clamp(44px,9vw,86px);font-weight:800;line-height:.97;letter-spacing:-.028em;margin:12px 0 18px;max-width:14ch;
+  text-shadow:0 2px 28px rgba(0,0,0,.32);overflow-wrap:break-word}}
 .hv2 h1{{text-shadow:none}}
-.mark{{position:relative;z-index:0;white-space:nowrap}}
-.mark:after{{content:"";position:absolute;left:-.06em;right:-.06em;bottom:.05em;height:.32em;background:var(--glow);
-  z-index:-1;border-radius:4px;transform:skewX(-8deg)}}
-.hero .sub{{font-size:clamp(16px,2.2vw,19.5px);max-width:52ch;opacity:.94;font-weight:500}}
-.hq{{margin-top:16px;font-size:15.5px;font-weight:600;opacity:.96;max-width:54ch}}.hq b{{opacity:.78;font-weight:600}}
+.hdot{{color:var(--a)}}
+.ratrow{{display:flex;align-items:center;gap:9px;margin-top:18px;font-weight:700;font-size:15px}}
+.ratrow b{{font-size:19px}}.rrc{{opacity:.45}}
+.hero .sub{{font-size:clamp(16px,2.2vw,19.5px);max-width:54ch;opacity:.95;font-weight:500}}
+.hero .sub .tl{{display:block;font-size:1.18em;font-weight:800;margin-bottom:5px;letter-spacing:-.01em}}
+.hv2 .sub .tl{{color:#10151c}}
 .st{{color:#ffb400;letter-spacing:1.5px}}
 .ctas{{display:flex;gap:13px;flex-wrap:wrap;margin:26px 0 0}}
 .b{{display:inline-flex;align-items:center;gap:9px;font-weight:800;padding:16px 28px;border-radius:{rad_btn};text-decoration:none;
@@ -1528,15 +1556,25 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
 .mnote{{grid-column:1/-1;font-size:12px;color:var(--mut);text-align:center}}
 .mini .mok{{display:none;grid-column:1/-1;color:#0d7a48;font-weight:700;text-align:center;padding:4px}}
 @media(max-width:760px){{.mini{{grid-template-columns:1fr 1fr}}.mini input[name=job]{{grid-column:1/-1}}.mini button{{grid-column:1/-1}}}}
-.badges{{background:#0d1521;color:#fff;border-top:1px solid rgba(255,255,255,.05)}}
-.badges .wrap{{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;padding:17px 22px}}
-.bd{{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
-  border-radius:100px;padding:9px 16px;font-size:13.5px;font-weight:700}}
-.bd svg{{width:14px;height:14px;color:var(--a)}}
-.bd-star{{background:{_hex_rgba(accent, .25)};border-color:{_hex_rgba(accent, .5)}}}
-.bd-star b{{color:#ffd479}}
-.sec{{padding:80px 0}}.sec.alt{{background:#fff}}
-.sec h2{{font-size:clamp(27px,3.5vw,40px);font-weight:800;margin:10px 0 4px;letter-spacing:-.015em}}
+.tickbar{{background:#080e16;color:#fff;overflow:hidden;border-top:1px solid rgba(255,255,255,.06)}}
+.tk{{display:flex;width:max-content;animation:tickmove 30s linear infinite}}
+.tk span{{display:inline-flex;align-items:center;white-space:nowrap;padding:13px 0 13px 26px;font-weight:700;
+  font-size:13.5px;letter-spacing:.05em;text-transform:uppercase;opacity:.92}}
+.tk span:after{{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--a);margin-left:26px}}
+@keyframes tickmove{{to{{transform:translateX(-50%)}}}}
+@media(prefers-reduced-motion:reduce){{.tk{{animation:none}}}}
+.badges{{background:#0d1521;color:#fff}}
+.statband{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));padding:30px 22px}}
+.stat{{text-align:center;padding:8px 12px;border-left:1px solid rgba(255,255,255,.09)}}
+.stat:first-child{{border-left:0}}
+.stat b{{display:block;font-size:clamp(28px,3.8vw,44px);font-weight:800;line-height:1.1;color:#fff}}
+.stat b .sst{{color:#ffb400;font-style:normal;font-size:.7em;vertical-align:.12em}}
+.stat b svg{{width:30px;height:30px;color:var(--a)}}
+.stat span{{display:block;margin-top:4px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;font-weight:700}}
+@media(max-width:700px){{.statband{{grid-template-columns:1fr 1fr;gap:18px 0}}.stat:nth-child(3){{border-left:0}}}}
+.sec{{padding:84px 0}}.sec.alt{{background:#fff}}
+#services{{background:linear-gradient(180deg,var(--bg) 55%,var(--soft))}}
+.sec h2{{font-size:clamp(30px,4.2vw,46px);font-weight:800;margin:10px 0 4px;letter-spacing:-.02em}}
 .sec h2:after{{content:"";display:block;width:52px;height:4px;background:linear-gradient(90deg,var(--a),var(--ad));
   border-radius:4px;margin-top:14px}}
 .lead{{color:var(--mut);margin-top:14px;font-size:16.5px;max-width:62ch}}
@@ -1557,12 +1595,16 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
 .gi{{width:100%;height:100%;object-fit:cover;transition:transform .45s ease}}
 .gif:hover .gi{{transform:scale(1.045)}}
 @media(max-width:760px){{.gal{{grid-template-columns:1fr 1fr;grid-auto-rows:150px}}.gif:first-child{{grid-column:span 2}}}}
+.qslab{{position:relative;background:linear-gradient(150deg,#0b1220,{accent_dk} 175%);color:#fff;overflow:hidden}}
+.qslab .wrap{{position:relative;padding:76px 22px 70px;text-align:center;max-width:880px}}
+.qmk{{position:absolute;top:-30px;left:50%;transform:translateX(-50%);font-size:190px;line-height:1;font-family:Georgia,serif;
+  color:{_hex_rgba(accent, .28)};pointer-events:none}}
+.qt{{position:relative;font-size:clamp(21px,3.3vw,33px);font-weight:600;line-height:1.4;letter-spacing:-.01em}}
+.qslab .st{{margin-top:20px;font-size:17px}}
+.qw{{margin-top:8px;font-weight:800;font-size:15px}}
+.qw span{{font-weight:600;opacity:.75}}.qw svg{{width:13px;height:13px;color:#4285F4;vertical-align:-2px}}
 .revs{{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:18px;margin-top:32px}}
 .rev{{background:var(--bg);border:1px solid var(--line);border-radius:{rad_card};padding:24px}}
-.sec.alt .rev{{background:var(--bg)}}
-.rev-feat{{grid-column:1/-1;padding:32px;position:relative;background:linear-gradient(135deg,var(--soft),#fff 60%);overflow:hidden}}
-.rq{{position:absolute;top:-14px;right:18px;font-size:120px;line-height:1;color:var(--glow);font-family:Georgia,serif;font-weight:700}}
-.rft{{font-size:clamp(16.5px,2.3vw,20px);font-weight:600;color:#22303f;margin:10px 0 18px;max-width:72ch;position:relative}}
 .rtop{{display:flex;gap:12px;align-items:center;margin-bottom:8px}}
 .rav{{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;display:flex;
   align-items:center;justify-content:center;font-weight:800;flex:none}}
@@ -1591,11 +1633,29 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
 .chip{{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:100px;
   padding:10px 17px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(13,21,32,.04)}}
 .chip svg{{width:13px;height:13px;color:var(--a)}}
+.dvd{{display:block;width:100%;height:48px;margin-bottom:-1px}}
+.pwrap{{position:relative}}
+.prate{{position:absolute;bottom:-18px;left:-12px;background:#fff;color:var(--ink);border-radius:15px;padding:13px 18px;
+  box-shadow:0 20px 48px rgba(0,0,0,.4);line-height:1.2}}
+.prate b{{display:block;font-size:27px;font-weight:800}}
+.prate .st{{display:block;font-size:12px;margin:2px 0}}
+.prc{{display:block;font-size:11.5px;color:var(--mut);font-weight:700}}
 .book{{position:relative;background:linear-gradient(165deg,#0c1826,{accent_dk} 170%);color:#fff;overflow:hidden}}
 .book:before{{content:"";position:absolute;inset:0;background:radial-gradient(720px 380px at 86% 0%,{_hex_rgba(accent, .3)},transparent)}}
 .book .wrap{{position:relative}}
-.bcard{{background:#fff;color:var(--ink);border-radius:{rad_card};border-top:5px solid var(--a);padding:34px;max-width:640px;
-  margin:32px auto 0;box-shadow:0 36px 90px rgba(0,0,0,.45)}}
+.bgrid{{display:grid;grid-template-columns:1.05fr .8fr;gap:28px;align-items:start;max-width:1000px;margin:34px auto 0}}
+@media(max-width:880px){{.bgrid{{grid-template-columns:1fr}}}}
+.bcard{{background:#fff;color:var(--ink);border-radius:{rad_card};border-top:5px solid var(--a);padding:34px;
+  box-shadow:0 36px 90px rgba(0,0,0,.45)}}
+.bside{{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.13);border-radius:{rad_card};padding:28px;
+  backdrop-filter:blur(6px)}}
+.bside .bsh{{font-weight:800;font-size:17px;margin-bottom:18px}}
+.bstep{{display:flex;gap:13px;margin-bottom:16px;font-size:14.5px}}
+.bstep .n{{display:inline-flex;width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));
+  color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:center;flex:none}}
+.bstep p{{opacity:.88;line-height:1.5}}
+.bcall{{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.12)}}
+.bcall .t{{font-weight:800;font-size:14px;margin-bottom:10px;opacity:.9}}
 .lbl{{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:19px 0 8px}}
 .pills{{display:flex;flex-wrap:wrap;gap:8px}}
 .pill{{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:11px 16px;font-size:14px;font-weight:700;
@@ -1655,7 +1715,8 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
 
 {hero}
 
-<div class="badges"><div class="wrap">{badges_html}</div></div>
+{ticker}
+<div class="badges"><div class="wrap statband">{badges_html}</div></div>
 
 <section id="services" class="sec"><div class="wrap">
  <div class="eb">What we do</div><h2>{_esc(trade_t)} services in {_esc(town)}</h2>
@@ -1663,6 +1724,7 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
  <div class="g3">{svc}</div></div></section>
 
 {gal_sec}
+{qslab}
 {rev_sec}
 
 <section id="process" class="sec"><div class="wrap">
@@ -1677,11 +1739,12 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
 <section id="faq" class="sec"><div class="wrap">
  <div class="eb">Good to know</div><h2>Questions, answered straight</h2>{faqs}</div></section>
 
-<section id="book" class="sec book"><div class="wrap">
+<svg class="dvd" viewBox="0 0 1440 48" preserveAspectRatio="none"><path d="M0 48L1440 0v48z" fill="#0c1826"/></svg>
+<section id="book" class="sec book" style="padding-top:54px"><div class="wrap">
  <div style="text-align:center"><span class="ebd">{_IC["cal"]} Book in 30 seconds</span>
  <h2 style="margin-top:16px">Book {_esc(biz)}</h2>
  <p style="color:#c7d4e2;font-weight:500">Pick a day and time — we&#8217;ll ring to confirm. No account, no faff.</p></div>
- <div class="bcard"><form id="bform" data-token="{token}">
+ <div class="bgrid"><div class="bcard"><form id="bform" data-token="{token}">
   <label class="lbl">What do you need?</label>
   <select id="bsvc">{''.join(f'<option>{_esc(t)}</option>' for t, _ in services)}<option>Something else</option></select>
   <label class="lbl">Preferred day</label><div class="pills" id="bdays"></div>
@@ -1697,6 +1760,8 @@ h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
   <div class="bok" id="bok"><div class="e">✅</div><h3>Booking sent!</h3>
   <p style="color:var(--mut)">{_esc(biz)} has your request and will ring you to confirm.</p>
   {bok_call}</div>
+ </div>
+ {bside}
  </div></div></section>
 
 <section class="fin"><div class="wrap">
