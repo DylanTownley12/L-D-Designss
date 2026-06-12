@@ -56,10 +56,46 @@ def top_up_prospects(target: int) -> dict:
     return {"ok": True, "before": start, "after": have, "rounds": rounds}
 
 
+def cleanup_orphan_v3() -> int:
+    """Delete v3 preview rows whose prospect no longer exists (wipe-seed/demo
+    leftovers). They bloat the table past PostgREST's silent ~1000-row read cap
+    and poison every bulk lookup. Returns rows deleted."""
+    db = get_db()
+    try:
+        live = {p["id"] for p in (db.table("prospects").select("id")
+                                  .limit(2000).execute().data or [])}
+    except Exception as e:
+        logger.warning(f"[pipeline] orphan scan failed: {e}")
+        return 0
+    deleted = 0
+    for _ in range(10):                       # paged: each pass reads ≤1000 rows
+        try:
+            rows = (db.table("previews").select("id,prospect_id")
+                    .eq("template_version", "v3").limit(1000).execute().data or [])
+        except Exception:
+            break
+        dead = [r["id"] for r in rows if r.get("prospect_id") not in live]
+        if not dead:
+            break
+        for i in range(0, len(dead), 100):
+            try:
+                db.table("previews").delete().in_("id", dead[i:i + 100]).execute()
+                deleted += len(dead[i:i + 100])
+            except Exception as e:
+                logger.warning(f"[pipeline] orphan delete chunk failed: {e}")
+                return deleted
+    if deleted:
+        trades.log_event("pipeline", f"cleaned {deleted} orphaned v3 preview rows", "info",
+                         {"metric_ok": True})
+    return deleted
+
+
 def build_all_previews() -> dict:
-    """v3 for every queue-ready prospect that lacks one. Chunked so each chunk's
-    threads + Places calls stay polite; force=False makes re-runs free."""
+    """v3 for every queue-ready prospect that lacks one, then one retry pass over
+    QA-failed drafts (their inputs may have changed — e.g. £-quoting reviews now
+    filtered). Chunked; force=False makes re-runs free."""
     built = passed = rounds = 0
+    prev_remaining = None
     while rounds < 40:
         rounds += 1
         res = preview_qa.build_v3_batch(mode=REAL, limit=12, force=False)
@@ -72,7 +108,34 @@ def build_all_previews() -> dict:
             trades.log_event("pipeline", f"previews… {built} built so far ({passed} QA pass)",
                              "info", {"metric_ok": True})
         time.sleep(0.5)
-    return {"built": built, "passed": passed}
+
+    # Retry currently-failed drafts once, by prospect id (never name — fuzzy
+    # matching could rebuild the wrong business). Promoted/live rows untouched.
+    retried = 0
+    try:
+        db = get_db()
+        pros = (db.table("prospects").select("id,preview_id,queue_ready,data_mode")
+                .eq("data_mode", REAL).limit(2000).execute().data or [])
+        ids = [p["id"] for p in pros if p.get("queue_ready")]
+        promoted = {p["id"]: p.get("preview_id") for p in pros}
+        v3rows = []
+        for i in range(0, len(ids), 100):
+            v3rows += (db.table("previews").select("id,prospect_id,qa_status,created_at")
+                       .eq("template_version", "v3").in_("prospect_id", ids[i:i + 100])
+                       .limit(1000).execute().data or [])
+        latest = {}
+        for r in sorted(v3rows, key=lambda x: x.get("created_at") or ""):
+            latest[r["prospect_id"]] = r
+        for pid, row in latest.items():
+            if row.get("qa_status") == "qa_failed" and promoted.get(pid) != row["id"]:
+                r = preview_qa.build_v3(pid)
+                retried += 1
+                passed += 1 if r.get("passed") else 0
+                if retried >= 30:
+                    break
+    except Exception as e:
+        logger.warning(f"[pipeline] failed-draft retry pass skipped: {e}")
+    return {"built": built + retried, "passed": passed}
 
 
 def balance_assignments() -> dict:
@@ -132,13 +195,28 @@ def run(target: int = None) -> dict:
     trades.log_event("pipeline", f"pipeline run started — target {target} no-website prospects",
                      "info", {"metric_ok": True})
 
-    top = top_up_prospects(target)
-    try:
-        trades.requalify_all(mode=REAL)
-    except Exception as e:
-        logger.warning(f"[pipeline] requalify failed: {e}")
-    prev = build_all_previews()
-    bal = balance_assignments()
+    cleanup_orphan_v3()
+    if not settings.GOOGLE_PLACES_API_KEY:
+        # Without the key, builds get stock photos and no reviews — pages we'd
+        # only have to throw away. Hold previews, keep the rest of the run.
+        trades.log_event("pipeline", "GOOGLE_PLACES_API_KEY missing — lead top-up AND "
+                         "preview builds ON HOLD until it's restored in Railway", "error",
+                         {"metric_ok": False})
+        top = top_up_prospects(target)            # logs its own no-key error, exits fast
+        try:
+            trades.requalify_all(mode=REAL)
+        except Exception as e:
+            logger.warning(f"[pipeline] requalify failed: {e}")
+        prev = {"built": 0, "passed": 0}
+        bal = balance_assignments()
+    else:
+        top = top_up_prospects(target)
+        try:
+            trades.requalify_all(mode=REAL)
+        except Exception as e:
+            logger.warning(f"[pipeline] requalify failed: {e}")
+        prev = build_all_previews()
+        bal = balance_assignments()
 
     took = int(time.time() - t0)
     summary = (f"pipeline done in {took}s — prospects {top.get('after')}/{target} "

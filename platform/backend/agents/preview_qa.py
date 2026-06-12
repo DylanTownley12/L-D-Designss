@@ -115,6 +115,10 @@ def _fetch_place_details(place_id: str, trade: str = "", name: str = None,
                            or (rv.get("originalText") or {}).get("text") or "").strip()
                     if len(txt) < 12:
                         continue
+                    # Reviews quoting prices ("charged £200") would trip the
+                    # £199/£29-only QA gate — keep them off the page entirely.
+                    if re.search(r"£\s?\d", txt):
+                        continue
                     out["reviews"].append({
                         "text": txt[:320],
                         "rating": int(rv.get("rating") or 5),
@@ -1985,17 +1989,24 @@ def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True) -> di
                 .eq("data_mode", mode).limit(2000).execute().data or [])
     except Exception as e:
         return {"ok": False, "message": f"Couldn't read prospects: {e}"}
-    # One bulk fetch of v3 rows (newest per prospect) instead of a query per prospect.
-    try:
-        v3rows = (db.table("previews").select("id,prospect_id,created_at")
-                  .eq("template_version", "v3").limit(2000).execute().data or [])
-    except Exception:
-        v3rows = []
-    latest_v3 = {}
-    for r in sorted(v3rows, key=lambda x: x.get("created_at") or ""):
-        latest_v3[r["prospect_id"]] = r["id"]
-
     ready = [p for p in pros if p.get("queue_ready")]
+    # Bulk fetch of THESE prospects' v3 rows, in .in_ chunks. Scoping matters:
+    # PostgREST silently caps reads at ~1000 rows, and orphaned v3 rows (from
+    # wiped prospects) once filled that cap — every build then looked "missing"
+    # and the batch rebuilt the same prospects forever.
+    latest_v3 = {}
+    try:
+        ids = [p["id"] for p in ready]
+        v3rows = []
+        for i in range(0, len(ids), 100):
+            v3rows += (db.table("previews").select("id,prospect_id,created_at")
+                       .eq("template_version", "v3").in_("prospect_id", ids[i:i + 100])
+                       .limit(1000).execute().data or [])
+        for r in sorted(v3rows, key=lambda x: x.get("created_at") or ""):
+            latest_v3[r["prospect_id"]] = r["id"]
+    except Exception:
+        latest_v3 = {}
+
     live_skipped = sum(1 for p in ready
                        if p.get("preview_id") and latest_v3.get(p["id"]) == p["preview_id"])
     ready = [p for p in ready
@@ -2065,8 +2076,12 @@ def v3_status(mode: str = "real") -> dict:
     try:
         pros = (db.table("prospects").select("id,business_name,preview_id,queue_ready,data_mode")
                 .eq("data_mode", mode).limit(2000).execute().data or [])
-        v3rows = (db.table("previews").select("id,prospect_id,qa_status,qa_reasons,created_at")
-                  .eq("template_version", "v3").limit(2000).execute().data or [])
+        ids = [p["id"] for p in pros if p.get("queue_ready")]
+        v3rows = []
+        for i in range(0, len(ids), 100):
+            v3rows += (db.table("previews").select("id,prospect_id,qa_status,qa_reasons,created_at")
+                       .eq("template_version", "v3").in_("prospect_id", ids[i:i + 100])
+                       .limit(1000).execute().data or [])
     except Exception as e:
         return {"ok": False, "message": f"read failed: {e}"}
     latest = {}
