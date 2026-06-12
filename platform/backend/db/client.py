@@ -48,7 +48,8 @@ class _QueryBuilder:
         return self
 
     def ilike(self, column: str, pattern: str):
-        self._filters.append((column, f"ilike.{pattern}"))
+        # PostgREST's URL wildcard is * — raw % in the querystring makes Supabase 500.
+        self._filters.append((column, f"ilike.{pattern.replace('%', '*')}"))
         return self
 
     def is_(self, column: str, value: str):

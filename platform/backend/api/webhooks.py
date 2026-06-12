@@ -197,6 +197,22 @@ async def stripe_webhook(request: Request):
                                  "success", {"metric_ok": True, "prospect_id": pid})
                 trades.raise_alert("payment", f"💰 {business_name} PAID £{amount_gbp:.0f} — build their real site!",
                                    "success", entity="prospect", entity_id=pid)
+                # Onboarding: provision the client (once), mark the build paid, and
+                # drop the build task on D's list — paid customers never wait on memory.
+                pr = (get_db().table("prospects").select("converted_client_id")
+                      .eq("id", pid).single().execute().data or {})
+                cid = pr.get("converted_client_id")
+                if not cid:
+                    conv = trades.convert_prospect_to_client(pid, monthly_fee=29.0)
+                    cid = conv.get("client_id")
+                if cid:
+                    get_db().table("textback_clients").update({
+                        "build_paid": True,
+                        "build_paid_at": datetime.now(timezone.utc).isoformat(),
+                        "plan_status": "active",
+                    }).eq("id", cid).execute()
+                trades.create_task(f"Build {business_name}'s real site — PAID £{amount_gbp:.0f}",
+                                   owner="D", created_by="stripe_webhook")
             except Exception as e:
                 logger.error(f"trades payment handling failed (payment IS captured in Stripe): {e}")
             return {"status": "processed", "kind": "trades_build"}

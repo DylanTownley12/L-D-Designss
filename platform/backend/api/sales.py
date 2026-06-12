@@ -309,6 +309,36 @@ async def run_agent(agent: str = Query(...), post: bool = True, mode: str = "rea
                             detail=f"{agent} failed: {type(e).__name__}: {str(e)[:400]}")
 
 
+@router.get("/outreach/due")
+async def outreach_due(days: int = 2, limit: int = 12, _=Depends(require_ops_key)):
+    """Chase candidates for the kit-stager: still to_call, auto-kit sent ≥ `days` ago,
+    no human outcome since, and a promoted preview carrying the link message."""
+    def _sync():
+        from datetime import datetime, timezone, timedelta
+        db = get_db()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        pros = (db.table("prospects")
+                .select("id,business_name,phone,status,last_called_at,call_notes,preview_id,data_mode")
+                .eq("data_mode", "real").eq("status", "to_call")
+                .limit(2000).execute().data or [])
+        cands = [p for p in pros if p.get("last_called_at") and p["last_called_at"] <= cutoff
+                 and "kit #1 sent (auto)" in (p.get("call_notes") or "")
+                 and "kit #2" not in (p.get("call_notes") or "") and p.get("preview_id")]
+        out = []
+        for i in range(0, len(cands), 100):
+            chunk = cands[i:i + 100]
+            rows = (db.table("previews").select("id,personalization_data")
+                    .in_("id", [c["preview_id"] for c in chunk]).execute().data or [])
+            pd = {r["id"]: (r.get("personalization_data") or {}) for r in rows}
+            for c in chunk:
+                msg = pd.get(c["preview_id"], {}).get("msg_link")
+                if msg:
+                    out.append({"id": c["id"], "business_name": c["business_name"],
+                                "phone": c["phone"], "msg": msg})
+        return {"ok": True, "due": out[:limit], "count": len(out)}
+    return await run_in_threadpool(_sync)
+
+
 @router.post("/pipeline/run")
 async def run_pipeline(target: Optional[int] = None, _=Depends(require_ops_key)):
     """Fire the self-running pipeline on demand: prospect top-up → requalify →
