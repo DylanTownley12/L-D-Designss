@@ -501,12 +501,13 @@ async def resolve_alert(alert_id: str, _=Depends(require_ops_key)):
 # ── v3 preview engine (safe: new rows; live links switch only on PROMOTE) ──
 @router.post("/v3/build")
 async def v3_build(limit: int = 3, force: bool = True, mode: str = "real",
-                   _=Depends(require_ops_key)):
+                   include_promoted: bool = False, _=Depends(require_ops_key)):
     """Phase runner — limit=3 for the sample round, 999 for the rest. v2 untouched."""
     from agents import preview_qa
     try:
         return await run_in_threadpool(preview_qa.build_v3_batch,
-                                       "demo" if mode == "demo" else "real", limit, force)
+                                       "demo" if mode == "demo" else "real", limit, force,
+                                       include_promoted)
     except Exception as e:
         logger.error(f"[sales/v3-build] {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"v3 build failed: {type(e).__name__}: {e}")

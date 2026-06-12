@@ -1994,7 +1994,8 @@ def build_v3(name_or_id: str) -> dict:
             "message": f"v3 {'QA PASS' if passed else 'NEEDS REVIEW: ' + '; '.join(reasons)} → {link}"}
 
 
-def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True) -> dict:
+def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True,
+                   include_promoted: bool = False) -> dict:
     """Phase runner: limit=3 for the sample round, big limit for the rest. v2 rows
     untouched; Mission Control + queues unaffected until promotion. Candidates are
     ordered by effective_score so the sample round hits the BEST prospects first.
@@ -2028,8 +2029,9 @@ def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True) -> di
 
     live_skipped = sum(1 for p in ready
                        if p.get("preview_id") and latest_v3.get(p["id"]) == p["preview_id"])
-    ready = [p for p in ready
-             if not (p.get("preview_id") and latest_v3.get(p["id"]) == p["preview_id"])]
+    if not include_promoted:
+        ready = [p for p in ready
+                 if not (p.get("preview_id") and latest_v3.get(p["id"]) == p["preview_id"])]
     if not force:
         ready = [p for p in ready if p["id"] not in latest_v3]
     ready.sort(key=trades.effective_score, reverse=True)
