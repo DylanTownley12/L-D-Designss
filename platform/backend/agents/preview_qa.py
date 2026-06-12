@@ -234,15 +234,18 @@ def _svc_icons(trade: str, n: int) -> list:
 
 
 # Per-trade brand palette → every preview feels designed FOR that trade, not templated.
+# (accent = CTA/action colour ONLY; chrome/decoration uses the trust navy/ink —
+#  ui-ux-pro-max home-services verdict: Trust Blue + safety accent, flat + authority)
 _ACCENTS = {
-    "plumber":          ("#0284c7", "#075985"),
+    "plumber":          ("#0369a1", "#075985"),
     "heating engineer": ("#ea580c", "#9a3412"),
     "gas engineer":     ("#d97706", "#92400e"),
-    "electrician":      ("#ca8a04", "#854d0e"),
+    "electrician":      ("#b45309", "#854d0e"),
     "roofer":           ("#0f766e", "#134e4a"),
     "drainage":         ("#0e7490", "#155e75"),
 }
 _ACCENT_DEFAULT = ("#e85d04", "#9d3c0a")
+_TRUST_NAVY = "#1e3a5f"          # chrome/eyebrows/icons — never the CTA colour
 
 
 def _hex_rgba(h: str, a: float) -> str:
@@ -1281,8 +1284,8 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
     LOOKS = {
         0: dict(font_link="Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500",
                 font_stack="'Fraunces',Georgia,serif", rad_btn="100px", rad_card="18px"),
-        1: dict(font_link="Sora:wght@600;700;800",
-                font_stack="'Sora',system-ui,sans-serif", rad_btn="14px", rad_card="16px"),
+        1: dict(font_link="Lexend:wght@500;600;700",
+                font_stack="'Lexend',system-ui,sans-serif", rad_btn="14px", rad_card="16px"),
         2: dict(font_link="Space+Grotesk:wght@600;700",
                 font_stack="'Space Grotesk',system-ui,sans-serif", rad_btn="12px", rad_card="14px"),
     }
@@ -1352,7 +1355,7 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
     # Stat band (class="badges" is part of the QA contract) — honest numbers only.
     stats = []
     if rating:
-        stats.append(f'<div class="stat"><b>{rating:.1f}<i class="sst">★</i></b><span>Google rating</span></div>')
+        stats.append(f'<div class="stat"><b>{rating:.1f}<i class="sst">★</i></b><span>rating · verified on Google</span></div>')
     if rcount:
         stats.append(f'<div class="stat"><b>{rcount}</b><span>Google reviews</span></div>')
     stats += [f'<div class="stat"><b>{len(services)}</b><span>core services</span></div>',
@@ -1455,7 +1458,7 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
     if look == 0:
         look_css = f"""
 :root{{--bg:#F6F4EF;--card:#fff;--ink:#15171C;--body:#454952;--mut:#868A92;--line:rgba(21,23,28,.12);
---a:{accent};--ad:{accent_dk};--glow:{_hex_rgba(accent_dk, .25)};--soft:{_hex_rgba(accent_dk, .07)};
+--a:{accent};--ad:{accent_dk};--chrome:#1e3a5f;--glow:{_hex_rgba(accent_dk, .25)};--soft:{_hex_rgba(accent_dk, .07)};
 --btnbg:{accent_dk};--navbg:rgba(246,244,239,.92);--navink:#15171C;--statbg:#fff;--statink:#15171C;
 --statline:rgba(21,23,28,.12);--tikbg:#F6F4EF;--tikink:#454952;--slabbg:#15171C;--slabink:#F6F4EF;
 --bookbg:linear-gradient(170deg,#1a2230,{accent_dk} 175%);--finbg:#EEE9DF;--finink:#15171C}}
@@ -1493,7 +1496,7 @@ border-top:1px solid var(--line);border-bottom:4px solid {accent_dk}}}
     elif look == 1:
         look_css = f"""
 :root{{--bg:#F7F9FB;--card:#fff;--ink:#0e1520;--body:#3d4a59;--mut:#5a6878;--line:#e5eaf0;
---a:{accent};--ad:{accent_dk};--glow:{_hex_rgba(accent, .35)};--soft:{_hex_rgba(accent, .1)};
+--a:{accent};--ad:{accent_dk};--chrome:#1e3a5f;--glow:{_hex_rgba(accent, .35)};--soft:{_hex_rgba(accent, .1)};
 --btnbg:linear-gradient(135deg,{accent},{accent_dk});--navbg:rgba(10,16,24,.92);--navink:#fff;
 --statbg:#0d1521;--statink:#fff;--statline:rgba(255,255,255,.09);--tikbg:#080e16;--tikink:#fff;
 --slabbg:linear-gradient(150deg,#0b1220,{accent_dk} 175%);--slabink:#fff;
@@ -1516,7 +1519,7 @@ box-shadow:0 20px 48px rgba(0,0,0,.4);line-height:1.2}}
     else:
         look_css = f"""
 :root{{--bg:#F7F9FB;--card:#fff;--ink:#0e1520;--body:#3d4a59;--mut:#5a6878;--line:#e5eaf0;
---a:{accent};--ad:{accent_dk};--glow:{_hex_rgba(accent, .35)};--soft:{_hex_rgba(accent, .1)};
+--a:{accent};--ad:{accent_dk};--chrome:#1e3a5f;--glow:{_hex_rgba(accent, .35)};--soft:{_hex_rgba(accent, .1)};
 --btnbg:linear-gradient(135deg,{accent},{accent_dk});--navbg:rgba(10,16,24,.92);--navink:#fff;
 --statbg:#0d1521;--statink:#fff;--statline:rgba(255,255,255,.09);--tikbg:#080e16;--tikink:#fff;
 --slabbg:linear-gradient(150deg,#0b1220,{accent_dk} 175%);--slabink:#fff;
@@ -1550,7 +1553,7 @@ linear-gradient(90deg,rgba(8,14,22,.5),transparent 60%)}}
 <link href="https://fonts.googleapis.com/css2?family={font_link}&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}html{{scroll-behavior:smooth}}
-body{{font-family:Inter,system-ui,sans-serif;color:var(--ink);line-height:1.65;-webkit-font-smoothing:antialiased}}
+body{{font-family:Inter,system-ui,sans-serif;color:var(--ink);line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:clip}}
 h1,h2,h3,.b,.czb,.stat b,.qt,.prate b{{font-family:{font_stack}}}
 ::selection{{background:var(--ad);color:#fff}}
 .wrap{{max-width:1120px;margin:0 auto;padding:0 22px}}a{{color:inherit}}img{{max-width:100%;display:block}}
@@ -1572,8 +1575,8 @@ align-items:center;justify-content:center;font-weight:800;flex:none;box-shadow:0
 padding:11px 18px;border-radius:{rad_btn};text-decoration:none;font-size:14px;white-space:nowrap;transition:transform .15s}}
 .ncall:hover{{transform:translateY(-1px)}}
 .ncall svg,.b svg,.mc svg,.ticks svg,.mhead svg{{width:16px;height:16px}}
-.eb{{display:inline-block;text-transform:uppercase;letter-spacing:.17em;font-size:11.5px;font-weight:800;color:var(--ad)}}
-.sec .eb:before{{content:"";display:inline-block;width:22px;height:2px;background:var(--ad);border-radius:2px;
+.eb{{display:inline-block;text-transform:uppercase;letter-spacing:.17em;font-size:11.5px;font-weight:800;color:var(--chrome)}}
+.sec .eb:before{{content:"";display:inline-block;width:22px;height:2px;background:var(--chrome);border-radius:2px;
 vertical-align:middle;margin-right:9px}}
 .ebd{{display:inline-flex;align-items:center;gap:8px;color:#fff;background:rgba(255,255,255,.13);backdrop-filter:blur(6px);
 border:1px solid rgba(255,255,255,.25);padding:8px 14px;border-radius:100px}}
@@ -1598,9 +1601,9 @@ text-decoration:none;font-size:16.5px;border:0;cursor:pointer;transition:transfo
 padding:18px;border-radius:{rad_card};box-shadow:0 26px 64px rgba(8,14,22,.3);max-width:880px;border:1px solid var(--line)}}
 .mhead{{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:800;font-size:14.5px;color:var(--ink)}}
 .mhead svg{{color:var(--ad)}}
-.mini input{{padding:14px;border:1.5px solid var(--line);border-radius:11px;font:inherit;font-size:15px;color:var(--ink);
-min-width:0;background:#fff;outline:none;transition:border .14s}}
-.mini input:focus{{border-color:var(--ad)}}
+.mini input{{padding:13px 14px;min-height:48px;border:1.5px solid var(--line);border-radius:11px;font:inherit;font-size:16px;color:var(--ink);
+min-width:0;background:#fff;outline:none;transition:border .14s,box-shadow .14s}}
+.mini input:focus{{border-color:var(--ad);box-shadow:0 0 0 3px var(--soft)}}
 .mini button{{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--btnbg);
 color:#fff;border:0;border-radius:11px;font-weight:800;font-size:15px;padding:14px 20px;cursor:pointer;font-family:inherit;
 white-space:nowrap;box-shadow:0 8px 20px var(--glow)}}
@@ -1625,19 +1628,19 @@ font-size:13px;letter-spacing:.05em;text-transform:uppercase;opacity:.9}}
 @media(max-width:700px){{.statband{{grid-template-columns:1fr 1fr;gap:18px 0}}.stat:nth-child(3){{border-left:0}}}}
 .sec{{padding:84px 0}}.sec.alt{{background:var(--card)}}
 .sec h2{{font-size:clamp(30px,4.2vw,46px);font-weight:800;margin:10px 0 4px;letter-spacing:-.02em}}
-.sec h2:after{{content:"";display:block;width:52px;height:4px;background:linear-gradient(90deg,var(--a),var(--ad));
-border-radius:4px;margin-top:14px}}
+.sec h2:after{{content:"";display:block;width:52px;height:3px;background:var(--chrome);
+border-radius:3px;margin-top:14px}}
 .lead{{color:var(--mut);margin-top:14px;font-size:16.5px;max-width:62ch}}
 .g3{{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:18px;margin-top:34px}}
 .card{{background:var(--card);border:1px solid var(--line);border-radius:{rad_card};padding:26px;
-box-shadow:0 10px 30px rgba(13,21,32,.05);transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden}}
+box-shadow:0 4px 6px rgba(13,21,32,.07);transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden}}
 .card:before{{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--a),var(--ad));
 transform:scaleX(0);transform-origin:left;transition:transform .25s}}
-.card:hover{{transform:translateY(-4px);box-shadow:0 18px 44px rgba(13,21,32,.09)}}
+.card:hover{{transform:translateY(-3px);box-shadow:0 10px 22px rgba(13,21,32,.12)}}
 .card:hover:before{{transform:scaleX(1)}}
 .sec.alt .card{{background:var(--bg)}}
-.sic{{display:inline-flex;width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,var(--a),var(--ad));
-color:#fff;align-items:center;justify-content:center;margin-bottom:13px;box-shadow:0 8px 18px var(--glow)}}
+.sic{{display:inline-flex;width:46px;height:46px;border-radius:13px;background:transparent;border:1.5px solid var(--chrome);
+color:var(--chrome);align-items:center;justify-content:center;margin-bottom:13px}}
 .sic svg{{width:21px;height:21px}}.card h3{{font-size:17.5px;margin-bottom:5px}}.card p{{color:var(--mut);font-size:14.5px}}
 .gal{{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:180px;gap:14px;margin-top:32px}}
 .gif{{margin:0;overflow:hidden;border-radius:{rad_card};border:1px solid var(--line)}}
@@ -1667,7 +1670,7 @@ align-items:center;justify-content:center;font-weight:800;flex:none}}
 .rev .st{{font-size:14px}}
 .steps{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:34px}}
 .step{{background:var(--card);border:1px solid var(--line);border-radius:{rad_card};padding:26px;position:relative}}
-.step:after{{content:"";position:absolute;top:44px;right:-19px;width:19px;border-top:2px dashed #cdd8e2;z-index:1}}
+.steps{{overflow:hidden}}.step:after{{content:"";position:absolute;top:44px;left:100%;width:18px;border-top:2px dashed #cdd8e2}}
 .step:last-child:after{{display:none}}
 @media(max-width:990px){{.step:after{{display:none}}}}
 .step .n{{display:inline-flex;width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));
@@ -1709,9 +1712,9 @@ color:#fff;font-weight:800;font-size:13px;align-items:center;justify-content:cen
 cursor:pointer;font-family:inherit;color:var(--ink);transition:all .14s}}
 .pill:hover{{border-color:var(--ad)}}
 .pill.on{{background:var(--ad);color:#fff;border-color:var(--ad)}}
-.bcard select,.bcard input{{width:100%;font:inherit;font-size:16px;padding:14px;border:1.5px solid var(--line);border-radius:12px;
-margin-top:8px;color:var(--ink);outline:none;transition:border .14s;background:#fff}}
-.bcard select:focus,.bcard input:focus{{border-color:var(--ad)}}
+.bcard select,.bcard input{{width:100%;font:inherit;font-size:16px;padding:13px 14px;min-height:48px;border:1.5px solid var(--line);border-radius:12px;
+margin-top:8px;color:var(--ink);outline:none;transition:border .14s,box-shadow .14s;background:#fff}}
+.bcard select:focus,.bcard input:focus{{border-color:var(--ad);box-shadow:0 0 0 3px var(--soft)}}
 .bsub{{width:100%;margin-top:24px;background:var(--btnbg);color:#fff;border:0;border-radius:12px;
 padding:18px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 12px 28px var(--glow);
 transition:transform .15s}}
