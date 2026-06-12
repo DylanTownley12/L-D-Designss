@@ -4,10 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-L&D Designs — a solo web design agency targeting UK barber shops with no website. The repo contains:
+L&D Designs — a solo web design agency selling websites to UK tradespeople (plumbers, electricians, heating/gas engineers, roofers, drainage) with no website. Offer: **£199 to launch + £29/month** (hosting, updates, booking system). Pivoted from barber shops to trades in June 2026. The repo contains:
 
 1. **Root-level files** — public-facing portfolio site (`index.html`, `pricing.html`, `showcase.html`), client demo (`boys-line/`), and legacy Google Colab notebooks (old manual workflow, superseded by `platform/`)
 2. **`platform/`** — full-stack agency automation platform (FastAPI backend + React frontend)
+3. **`.claude/skills/`** — UI/UX Pro Max design-intelligence skill suite (committed; loads in every session). Use it for ALL UI work: previews, dashboard, public site.
+
+## Founder working style (Dylan)
+
+- Plain English, no jargon — he's often reading on his phone at work. Lead with the TLDR.
+- Ship fast. "Merge it" = merge to main, which auto-deploys (Railway backend, Vercel frontend).
+- He can't run code locally to review — send rendered HTML files / screenshots for visual checks.
+- The ONLY prices allowed anywhere prospect-facing: £199 and £29 (QA gate enforces this).
+- Outreach voice: a Wigan tradesman texting a mate — short, plain, "mate", zero marketing speak.
+- Another Claude session may be pushing to main concurrently — always fetch before merging.
+
+## Current state (June 2026)
+
+- **Preview engine**: v3 ("£1,500-feel", `agents/preview_qa.py`) — variant-seeded heroes, ticker, stat band, dark quote slab. Phased rollout: `POST /api/sales/v3/build?limit=3` → review → `limit=999` → per-prospect `POST /api/sales/prospects/{id}/v3/promote`. Rebuilds keep URLs stable; bulk builds skip promoted pages; a failing rebuild never overwrites a promoted page. Previews are stored HTML snapshots — design changes need a rebuild to show.
+- **Payments**: Stripe checkout for £199+£29/mo + webhooks + live-viewer intent alerts (shipped June 12).
+- **OpenClaw watchdog**: backend `openclaw_watchdog` job (30min) alerts founders via Telegram/Gmail if the team leaves no DB trace for `OPENCLAW_SILENCE_HOURS` (3h). Chief's hourly `GET /api/team/chief/health` doubles as the heartbeat; explicit pings: `POST /api/team/heartbeat`. Machine-side 24/7 setup: `platform/OPENCLAW_24x7.md`.
 
 ## Dev Commands
 
