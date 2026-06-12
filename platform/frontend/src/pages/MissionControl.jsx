@@ -172,6 +172,13 @@ export default function MissionControl() {
   const resolveAlert = (id) => act('Resolve', () => salesOps.resolveAlert(key, id))
   const promoteV3 = (id) => act('Promote v3', () => salesOps.v3Promote(key, id))
   const [copied, setCopied] = useState('')
+  const payLink = async (id) => {
+    try {
+      const r = await salesOps.tradesCheckout(key, id)
+      await copyText(id + ':pay', r.checkout_url)
+      push('jarvis', `💳 ${r.business_name}: payment link copied — paste it into WhatsApp.`)
+    } catch (e) { push('err', 'Payment link failed: ' + (e.response?.data?.detail || e.message)) }
+  }
   const copyText = async (id, text) => {
     try { await navigator.clipboard.writeText(text) } catch (e) {
       const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t)
@@ -283,7 +290,7 @@ export default function MissionControl() {
               {nextCall.call_notes && <div style={{ color: C.dim, fontSize: 13, marginTop: 4, whiteSpace: 'pre-wrap' }}>📝 {nextCall.call_notes.slice(0, 200)}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <PreviewChip p={nextCall} onBuild={() => buildPreview(nextCall.id)} onApprove={() => approve(nextCall.id)} busy={busy} />
-                <KitRow p={nextCall} copied={copied} onCopy={copyText} />
+                <KitRow p={nextCall} copied={copied} onCopy={copyText} onPayLink={payLink} />
                 <V3Chip p={nextCall} busy={busy} onPromote={() => promoteV3(nextCall.id)} />
               </div>
               <OutcomeRow p={nextCall} big picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
@@ -310,7 +317,7 @@ export default function MissionControl() {
                     <div style={{ color: C.green, fontSize: 12, marginTop: 3 }}>🎯 {p.sales_angle}</div>
                     <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <PreviewChip p={p} onBuild={() => buildPreview(p.id)} onApprove={() => approve(p.id)} busy={busy} />
-                      <KitRow p={p} copied={copied} onCopy={copyText} />
+                      <KitRow p={p} copied={copied} onCopy={copyText} onPayLink={payLink} />
                       <V3Chip p={p} busy={busy} onPromote={() => promoteV3(p.id)} />
                     </div>
                     <OutcomeRow p={p} picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
@@ -498,7 +505,7 @@ const V3Chip = ({ p, onPromote, busy }) => {
 }
 
 // WhatsApp message kit — copy-to-send buttons (drafts only; founder sends them).
-const KitRow = ({ p, copied, onCopy }) => {
+const KitRow = ({ p, copied, onCopy, onPayLink }) => {
   if (!p.msg_first && !p.msg_link) return null
   return (
     <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
@@ -506,6 +513,8 @@ const KitRow = ({ p, copied, onCopy }) => {
         {copied === p.id + ':a' ? '✓ copied' : '📋 intro msg'}</button>}
       {p.msg_link && <button style={btn(C.green)} onClick={() => onCopy(p.id + ':b', p.msg_link)}>
         {copied === p.id + ':b' ? '✓ copied' : '📋 link msg'}</button>}
+      {onPayLink && <button style={btn(C.amber)} onClick={() => onPayLink(p.id)}>
+        {copied === p.id + ':pay' ? '✓ link copied' : '💳 £199 link'}</button>}
     </span>
   )
 }

@@ -223,8 +223,9 @@ async def log_preview_view(preview_id: str):
     """Beacon endpoint — called by JS injected into every served preview HTML."""
     db = get_db()
     try:
-        row = db.table("previews").select("lead_id").eq("id", preview_id).single().execute()
-        lead_id = (row.data or {}).get("lead_id")
+        row = db.table("previews").select("lead_id,prospect_id,personalization_data").eq("id", preview_id).single().execute()
+        data = row.data or {}
+        lead_id = data.get("lead_id")
         db.table("agent_logs").insert({
             "agent_name": "preview_beacon",
             "action": "preview_viewed",
@@ -232,6 +233,29 @@ async def log_preview_view(preview_id: str):
             "details": {"preview_id": preview_id, "lead_id": lead_id},
         }).execute()
         logger.info(f"[preview_beacon] view logged: preview={preview_id} lead={lead_id}")
+
+        # TRADES intent signal: a prospect is looking at their own site RIGHT NOW.
+        # Loud event (Herald → founder WhatsApp), deduped to one alert per 2 hours.
+        if data.get("prospect_id"):
+            from datetime import datetime, timezone
+            pd = data.get("personalization_data") or {}
+            last = pd.get("last_view_alert")
+            now = datetime.now(timezone.utc)
+            stale = True
+            if last:
+                try:
+                    from datetime import datetime as _dt
+                    stale = (now - _dt.fromisoformat(last.replace("Z", "+00:00"))).total_seconds() > 7200
+                except Exception:
+                    stale = True
+            if stale:
+                pr = (db.table("prospects").select("business_name").eq("id", data["prospect_id"])
+                      .single().execute().data or {})
+                from agents import trades
+                trades.log_event("intent", f"👀 {pr.get('business_name', 'A prospect')} is looking at their site RIGHT NOW",
+                                 "warn", {"metric_ok": True, "prospect_id": data["prospect_id"]})
+                pd["last_view_alert"] = now.isoformat()
+                db.table("previews").update({"personalization_data": pd}).eq("id", preview_id).execute()
     except Exception as e:
         logger.warning(f"[preview_beacon] log failed: {e}")
     return JSONResponse({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})

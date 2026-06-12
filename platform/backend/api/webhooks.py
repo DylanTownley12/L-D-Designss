@@ -176,9 +176,30 @@ async def stripe_webhook(request: Request):
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        lead_id = session.get("metadata", {}).get("lead_id")
-        business_name = session.get("metadata", {}).get("business_name", "Unknown")
-        amount_gbp = session.get("amount_total", 7500) / 100
+        meta = session.get("metadata", {}) or {}
+        lead_id = meta.get("lead_id")
+        business_name = meta.get("business_name", "Unknown")
+        amount_gbp = (session.get("amount_total") or 7500) / 100
+
+        # TRADES: £199 build + £29/mo paid → prospect WON + loud alert (Herald
+        # relays it to Dylan's WhatsApp within minutes).
+        if meta.get("kind") == "trades_build" and meta.get("prospect_id"):
+            try:
+                from agents import trades
+                from datetime import datetime, timezone
+                pid = meta["prospect_id"]
+                get_db().table("prospects").update({
+                    "status": "won",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", pid).execute()
+                trades.log_event("payments",
+                                 f"💰 PAID — {business_name} paid £{amount_gbp:.0f} (£199 build + £29/mo live)",
+                                 "success", {"metric_ok": True, "prospect_id": pid})
+                trades.raise_alert("payment", f"💰 {business_name} PAID £{amount_gbp:.0f} — build their real site!",
+                                   "success", entity="prospect", entity_id=pid)
+            except Exception as e:
+                logger.error(f"trades payment handling failed (payment IS captured in Stripe): {e}")
+            return {"status": "processed", "kind": "trades_build"}
 
         if lead_id:
             db = get_db()

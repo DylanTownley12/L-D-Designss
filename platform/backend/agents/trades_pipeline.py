@@ -144,19 +144,19 @@ def balance_assignments() -> dict:
     to_call prospects are ever moved when one side is heavy."""
     db = get_db()
     try:
-        pros = (db.table("prospects").select("id,assigned_to,status,opportunity_score,data_mode")
+        pros = (db.table("prospects").select("id,assigned_to,status,opportunity_score,data_mode,last_called_at")
                 .eq("data_mode", REAL).limit(2000).execute().data or [])
-        logs = (db.table("activity_logs").select("prospect_id").limit(5000).execute().data or [])
     except Exception as e:
         return {"ok": False, "message": f"read failed: {e}"}
-    worked = {l.get("prospect_id") for l in logs if l.get("prospect_id")}
     counts = {"D": 0, "L": 0}
     unassigned, movable = [], {"D": [], "L": []}
     for p in pros:
         side = (p.get("assigned_to") or "").upper()
         if side in counts:
             counts[side] += 1
-            if p["id"] not in worked and p.get("status") == "to_call":
+            # "Untouched" = still to_call AND never had a call/kit logged
+            # (log_call stamps last_called_at on every outcome, auto kit sends included).
+            if p.get("status") == "to_call" and not p.get("last_called_at"):
                 movable[side].append(p)
         else:
             unassigned.append(p)

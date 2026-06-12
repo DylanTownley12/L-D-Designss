@@ -184,6 +184,7 @@ export const salesOps = {
   // v3 preview engine — new rows; live links only change on promote.
   v3Build: (key, limit = 3, mode = 'real') => api.post('/sales/v3/build', null, { params: { key, limit, force: true, mode } }),
   v3Status: (key, mode = 'real') => api.get('/sales/v3/status', { params: { key, mode } }),
+  tradesCheckout: (key, id) => api.post(`/payments/trades-checkout/${id}`, null, { params: { key } }),
   v3Promote: (key, id) => api.post(`/sales/prospects/${id}/v3/promote`, null, { params: { key } }),
   // Browser-facing JARVIS brain (same answers as the Telegram bot).
   command: (key, text, founder = 'D') => api.post('/jarvis/command', { text, founder }, { params: { key } }),
