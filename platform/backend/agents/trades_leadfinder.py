@@ -30,8 +30,14 @@ FIELD_MASK = ("places.id,places.displayName,places.formattedAddress,"
 SOCIAL_DOMAINS = ("facebook.com", "instagram.com", "twitter.com", "x.com",
                   "tiktok.com", "linkedin.com", "linktree.com", "linktr.ee", "yell.com")
 
-TRADES = ["plumber", "roofer", "heating engineer", "electrician"]
-TOWNS = ["Wigan", "Bolton", "Leigh", "St Helens", "Warrington"]
+TRADES = ["plumber", "roofer", "heating engineer", "electrician", "gas engineer", "drainage"]
+# Home patch first, then the wider NW belt — find_leads() walks this list in order
+# and stops at its cap, so successive pipeline rounds naturally widen the net.
+TOWNS = ["Wigan", "Bolton", "Leigh", "St Helens", "Warrington",
+         "Atherton", "Westhoughton", "Hindley", "Skelmersdale", "Ormskirk",
+         "Chorley", "Leyland", "Preston", "Salford", "Bury", "Rochdale",
+         "Oldham", "Ashton-under-Lyne", "Stockport", "Sale", "Stretford",
+         "Widnes", "Runcorn", "Southport", "Bootle", "Kirkby", "Blackburn", "Burnley"]
 
 
 def _has_real_website(url: str) -> bool:

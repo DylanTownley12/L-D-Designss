@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me"
     PREVIEW_BASE_URL: str = "http://localhost:8000/previews"
 
+    # Trades pipeline — how many no-website prospects the self-running pipeline
+    # keeps on the books (top-up + v3 previews + D/L balance).
+    PROSPECT_TARGET: int = 220
+
     # Limits
     MAX_EMAILS_PER_DAY: int = 50
     MAX_SMS_PER_DAY: int = 20

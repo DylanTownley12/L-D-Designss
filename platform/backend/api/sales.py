@@ -309,6 +309,15 @@ async def run_agent(agent: str = Query(...), post: bool = True, mode: str = "rea
                             detail=f"{agent} failed: {type(e).__name__}: {str(e)[:400]}")
 
 
+@router.post("/pipeline/run")
+async def run_pipeline(target: Optional[int] = None, _=Depends(require_ops_key)):
+    """Fire the self-running pipeline on demand: prospect top-up → requalify →
+    v3 for every queue-ready prospect → D/L balance. Same job the scheduler runs
+    after every deploy and daily at 07:15. Can take minutes on a fresh patch."""
+    from agents import trades_pipeline
+    return await run_in_threadpool(trades_pipeline.run, target)
+
+
 # ── Tasks (tick-to-done panel) ────────────────────────────────────────
 @router.get("/tasks")
 async def list_tasks(owner: Optional[str] = None, _=Depends(require_ops_key)):

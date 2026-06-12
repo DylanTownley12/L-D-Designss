@@ -159,6 +159,24 @@ async def health_check():
             .execute().count or 0
         )
 
+        # Trades pipeline counters (aggregates only — no business data). Lets the
+        # founder (and the pipeline's builder) verify the mission from a browser
+        # with no ops key: ~target no-website prospects, a v3 for each, D/L split.
+        trades_block = {}
+        try:
+            v3_built = (db.table("previews").select("id", count="exact")
+                        .eq("template_version", "v3").execute().count or 0)
+            trades_block = {
+                "prospects_real":   _count("prospects", data_mode="real"),
+                "no_website":       _count("prospects", data_mode="real", website_status="none"),
+                "queue_ready":      _count("prospects", data_mode="real", queue_ready=True),
+                "v3_previews":      v3_built,
+                "assigned_D":       _count("prospects", data_mode="real", assigned_to="D"),
+                "assigned_L":       _count("prospects", data_mode="real", assigned_to="L"),
+            }
+        except Exception:
+            trades_block = {"setup_needed": True}
+
         return {
             "status": "ok",
             "leads": {
@@ -172,6 +190,7 @@ async def health_check():
             "whatsapp_queued":  _count("outreach_messages", status="queued", channel="whatsapp", direction="outbound"),
             "valid_previews":   valid_previews,
             "replies_24h":      replied_24h,
+            "trades":           trades_block,
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")

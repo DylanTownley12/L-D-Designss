@@ -354,6 +354,19 @@ async def _trades_morning():
         logger.error(f"[trades_morning] Failed: {e}", exc_info=True)
 
 
+async def _trades_pipeline():
+    """Self-running pipeline: top up no-website prospects to PROSPECT_TARGET,
+    requalify, build every missing v3 preview, balance the D/L queues. Runs in a
+    worker thread — it can take minutes and must never block the event loop."""
+    try:
+        import asyncio
+        from agents import trades_pipeline
+        result = await asyncio.to_thread(trades_pipeline.run)
+        logger.info(f"[trades_pipeline] {result.get('message')}")
+    except Exception as e:
+        logger.error(f"[trades_pipeline] Failed: {e}", exc_info=True)
+
+
 # ── Scheduler setup ──────────────────────────────────────────────────────────
 
 def start_scheduler():
@@ -443,6 +456,16 @@ def start_scheduler():
     #  is available on demand via JARVIS / the RUN NOW button.)
     scheduler.add_job(**job(_trades_morning, guard=False, id="trades_morning",
         trigger=CronTrigger(hour=8, minute=0, timezone=TZ)))
+
+    # 7:15am — self-running pipeline (prospect top-up → v3 previews → D/L balance),
+    # plus a one-shot run ~2½ min after every deploy so a push makes the mission
+    # happen without anyone clicking. Idempotent: at target it's a cheap no-op.
+    scheduler.add_job(**job(_trades_pipeline, guard=False, id="trades_pipeline",
+        trigger=CronTrigger(hour=7, minute=15, timezone=TZ)))
+    from datetime import datetime as _dt, timedelta as _td
+    from apscheduler.triggers.date import DateTrigger
+    scheduler.add_job(**job(_trades_pipeline, guard=False, id="trades_pipeline_boot",
+        trigger=DateTrigger(run_date=_dt.now() + _td(seconds=150))))
 
     scheduler.start()
     logger.info("Scheduler started — night: 1am CMO, 2am Research, 3am Analyst, 3:30am cleanup | morning: 5:55am health, 6am leads, 6:05am enricher, 6:30am previews, 7am WA, 8am briefing, 9am followups, 10am Claude, 11:30am preview-refresh | continuous: 2h CEO+analyzer, 3h Dev, 6h Sales, 30min email queue")
