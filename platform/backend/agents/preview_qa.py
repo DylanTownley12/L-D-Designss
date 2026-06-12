@@ -194,7 +194,25 @@ _IC = {
     "pin": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
     "phone": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>',
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m20 6-11 11-5-5"/></svg>',
+    "wrench": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+    "bolt": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+    "flame": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+    "drop": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
+    "home": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>',
+    "cal": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    "g": '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21.35 11.1H12v2.9h5.35c-.25 1.4-1.6 4.1-5.35 4.1-3.2 0-5.85-2.65-5.85-5.95S8.8 6.2 12 6.2c1.85 0 3.05.8 3.75 1.45l2.55-2.45C16.65 3.7 14.55 2.8 12 2.8 6.9 2.8 2.8 6.9 2.8 12s4.1 9.2 9.2 9.2c5.3 0 8.85-3.75 8.85-9 0-.6-.05-1.05-.15-1.5z"/></svg>',
 }
+
+# Service-card icon rotation — trade-led first icon, then varied so the grid
+# doesn't repeat one glyph six times.
+_TRADE_ICON = {"plumber": "drop", "heating engineer": "flame", "gas engineer": "flame",
+               "electrician": "bolt", "roofer": "home", "drainage": "drop"}
+
+
+def _svc_icons(trade: str, n: int) -> list:
+    first = _TRADE_ICON.get((trade or "").lower(), "wrench")
+    cycle = [first] + [i for i in ("wrench", "shield", "clock", "home", "check", "bolt") if i != first]
+    return [(cycle * 2)[i] for i in range(n)]
 
 
 # Per-trade brand palette → every preview feels designed FOR that trade, not templated.
@@ -1205,7 +1223,7 @@ def _v3_copy(p: dict, details: dict) -> dict:
             '"about":"<2-3 sentence about paragraph>","faqs":[["q","a"]x5]}',
             f"Business: {biz}, a {trade} in {town}."
             + (f" Google rating {rating:.1f}★ from {details.get('review_count')} reviews." if rating else "")
-            + f" Sample real review: {details['reviews'][0]['text'][:140]}" if details.get("reviews") else "",
+            + (f" Sample real review: {details['reviews'][0]['text'][:140]}" if details.get("reviews") else ""),
             max_tokens=600, agent="v3_copy")
         if raw:
             m = re.search(r"\{.*\}", raw, re.S)
@@ -1228,17 +1246,18 @@ def _v3_copy(p: dict, details: dict) -> dict:
 
 
 def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
-    """The £1,500-feel page. 12 sections, variant-seeded so no two feel templated."""
+    """The £1,500-feel page. 13 sections, variant-seeded so no two feel templated."""
     seed = int(_hl.md5(str(p.get("id") or p.get("business_name")).encode()).hexdigest()[:8], 16)
     hero_v, font_v, shape_v = seed % 3, (seed // 3) % 3, (seed // 9) % 2
     font_link, font_stack = _FONT_SETS[font_v]
-    rad_btn, rad_card = ("100px", "20px") if shape_v == 0 else ("14px", "14px")
+    rad_btn, rad_card = ("100px", "22px") if shape_v == 0 else ("14px", "16px")
 
     biz = (p.get("business_name") or "Your Trade").strip()
     trade = (p.get("trade") or "tradesperson").strip()
     trade_t, town = trade.title(), (p.get("town") or "your area").strip()
     phone = (p.get("phone") or "").strip()
     tel = re.sub(r"[^\d+]", "", phone)
+    has_phone = bool(tel)
     api = settings.BACKEND_BASE_URL.rstrip("/")
     accent, accent_dk = _ACCENTS.get(trade.lower(), _ACCENT_DEFAULT)
     photos = details.get("photos") or _stock_photos(trade)
@@ -1247,17 +1266,34 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
     gallery = photos[1:4] if real else []
     rating, rcount = details.get("rating"), details.get("review_count")
     reviews = details.get("reviews") or []
+    address = (details.get("address") or "").strip()
     plural = _trade_plural(trade)
-    headline = (f"{_esc(biz)} — {_esc(town)}&#8217;s {rating:.1f}★ rated {_esc(plural)}" if rating
-                else f"{_esc(biz)} — {_esc(town)}&#8217;s trusted {_esc(plural)}")
+    # Rating gets its own gold-marked span — the proof point should pop, not blend in.
+    if rating:
+        headline = (f"{_esc(biz)} — {_esc(town)}&#8217;s "
+                    f'<span class="mark">{rating:.1f}★ rated</span> {_esc(plural)}')
+        headline_plain = f"{biz} — {town}’s {rating:.1f}★ rated {plural}"
+    else:
+        headline = f"{_esc(biz)} — {_esc(town)}&#8217;s trusted {_esc(plural)}"
+        headline_plain = f"{biz} — {town}’s trusted {plural}"
     services = (_SERVICES.get(trade.lower(), _SERVICES_DEFAULT)
                 + _SERVICES_EXTRA.get(trade.lower(), []))[:6]
+    icons = _svc_icons(trade, len(services))
     nearby = _NEARBY.get(town.lower(), []) or [town]
     og_url = f"{api}/og/{p.get('id')}.png" if p.get("id") else hero_img
     founder_wa = re.sub(r"\D", "", settings.FOUNDER_PHONE or "")
     if founder_wa.startswith("0"):
         founder_wa = "44" + founder_wa[1:]
     wa_text = _urlquote(f"Alright Dylan, it's {biz}. Seen the new website — want it live. What's next?")
+
+    # Honest JSON-LD — only fields we actually know (mirrors v2's behaviour).
+    ld = {"@context": "https://schema.org", "@type": "LocalBusiness",
+          "name": biz, "telephone": phone or None, "image": og_url,
+          "address": {"@type": "PostalAddress", "addressLocality": town, "addressCountry": "GB"},
+          "description": f"{trade_t} in {town}"}
+    if rating and rcount:
+        ld["aggregateRating"] = {"@type": "AggregateRating", "ratingValue": rating, "reviewCount": rcount}
+    jsonld = json.dumps({k: v for k, v in ld.items() if v is not None})
 
     quote_best = ""
     if reviews:
@@ -1266,180 +1302,355 @@ def _site_html_v3(p: dict, token: str, details: dict, copy: dict) -> str:
         quote_best = (f'<div class="hq"><span class="st">{_stars(b["rating"])}</span> '
                       f'&#8220;{_esc(q)}&#8221; <b>— {_esc(b["author"])}</b></div>')
 
+    # Every call CTA degrades to the booking section when we have no phone number —
+    # a dead tel: link on a sales demo is worse than no button.
+    call_href = f"tel:{tel}" if has_phone else "#book"
+    call_label = f'{_IC["phone"]} Call {_esc(phone)}' if has_phone else f'{_IC["cal"]} Book online'
+    nav_call = (f'<a class="ncall" href="tel:{tel}">{_IC["phone"]}<span>{_esc(phone)}</span></a>'
+                if has_phone else
+                f'<a class="ncall" href="#book">{_IC["cal"]}<span>Book online</span></a>')
+
     badges = []
     if rating:
-        badges.append(f'<span class="bd bd-star">{_stars(rating)} <b>{rating:.1f}</b> on Google</span>')
+        badges.append(f'<span class="bd bd-star"><span class="st">{_stars(rating)}</span> <b>{rating:.1f}</b> on Google</span>')
     if rcount:
-        badges.append(f'<span class="bd">{rcount} Google reviews</span>')
-    badges += ['<span class="bd">Fully insured</span>', '<span class="bd">Free quotes</span>',
-               f'<span class="bd">Local to {_esc(town)}</span>']
+        badges.append(f'<span class="bd">{_IC["g"]} {rcount} Google reviews</span>')
+    badges += [f'<span class="bd">{_IC["shield"]} Fully insured</span>',
+               f'<span class="bd">{_IC["check"]} Free quotes</span>',
+               f'<span class="bd">{_IC["pin"]} Local to {_esc(town)}</span>']
     badges_html = "".join(badges)
 
-    svc = "".join(f'<div class="card fx"><span class="sic">{_IC["check"]}</span>'
-                  f'<h3>{_esc(t)}</h3><p>{_esc(d)}</p></div>' for t, d in services)
+    svc = "".join(f'<div class="card fx"><span class="sic">{_IC[ic]}</span>'
+                  f'<h3>{_esc(t)}</h3><p>{_esc(d)}</p></div>'
+                  for (t, d), ic in zip(services, icons))
     steps = "".join(f'<div class="step fx"><span class="n">{i}</span><h3>{_esc(t)}</h3><p>{_esc(d)}</p></div>'
                     for i, (t, d) in enumerate(_PROCESS, 1))
     faqs = "".join(f'<details class="faq fx"><summary>{_esc(q)}</summary><p>{_esc(a)}</p></details>'
                    for q, a in copy["faqs"])
-    areas = "".join(f'<span class="chip">{_esc(n)}</span>' for n in ([town] + [n for n in nearby if n != town])[:8])
-    gal = ("".join(f'<img class="gi fx" loading="lazy" decoding="async" alt="{_esc(biz)} work" src="{g}">'
+    areas = "".join(f'<span class="chip">{(_IC["pin"] + " ") if i == 0 else ""}{_esc(n)}</span>'
+                    for i, n in enumerate(([town] + [n for n in nearby if n != town])[:8]))
+
+    # Dead Google CDN URL → swap to trade stock, never a broken-image icon.
+    onerr = f'onerror="this.onerror=null;this.src=\'{stock_fb}\'"'
+    gal = ("".join(f'<figure class="gif fx"><img class="gi" loading="lazy" decoding="async" '
+                   f'alt="{_esc(biz)} — real job photo" src="{g}" {onerr}></figure>'
                    for g in gallery))
     gal_sec = (f'<section class="sec"><div class="wrap"><div class="eb">Our work</div>'
-               f'<h2>Real jobs, real photos</h2><div class="gal">{gal}</div></div></section>') if gallery else ""
+               f'<h2>Real jobs, real photos</h2>'
+               f'<p class="lead">Straight off the camera roll — actual work by {_esc(biz)}.</p>'
+               f'<div class="gal">{gal}</div></div></section>') if gallery else ""
+
     if reviews:
+        ordered = sorted(reviews, key=lambda r: (-(r.get("rating") or 0), -len(r.get("text", ""))))
+        feat, rest = ordered[0], ordered[1:6]
+        feat_html = (f'<div class="rev rev-feat fx"><span class="rq">&#8220;</span>'
+                     f'<div class="st">{_stars(feat["rating"])}</div>'
+                     f'<p class="rft">{_esc(feat["text"][:300])}</p>'
+                     f'<div class="rtop"><span class="rav">{_esc(_initials(feat["author"]))}</span>'
+                     f'<div><b>{_esc(feat["author"])}</b><div class="rm">{_esc(feat.get("when", ""))} · '
+                     f'<span class="gt">{_IC["g"]} Google review</span></div></div></div></div>')
         rev_cards = "".join(
             f'<div class="rev fx"><div class="rtop"><span class="rav">{_esc(_initials(r["author"]))}</span>'
-            f'<div><b>{_esc(r["author"])}</b><div class="rm">{_esc(r.get("when",""))} · <span class="gt">Google</span></div></div></div>'
-            f'<div class="st">{_stars(r["rating"])}</div><p>&#8220;{_esc(r["text"][:260])}&#8221;</p></div>'
-            for r in reviews[:6])
+            f'<div><b>{_esc(r["author"])}</b><div class="rm">{_esc(r.get("when", ""))} · <span class="gt">{_IC["g"]} Google</span></div></div></div>'
+            f'<div class="st">{_stars(r["rating"])}</div><p>&#8220;{_esc(r["text"][:240])}&#8221;</p></div>'
+            for r in rest)
         rev_sec = (f'<section id="reviews" class="sec alt"><div class="wrap"><div class="eb">Reviews</div>'
                    f'<h2>What {_esc(town)} says</h2>'
-                   + (f'<p class="lead">Rated <b>{rating:.1f}</b> <span class="st">{_stars(rating)}</span> from {rcount} Google reviews</p>' if rating else '')
-                   + f'<div class="revs">{rev_cards}</div></div></section>')
+                   + (f'<p class="lead">Rated <b>{rating:.1f}</b> <span class="st">{_stars(rating)}</span> '
+                      f'from {rcount} Google reviews — every word below is a real customer.</p>' if rating else '')
+                   + f'<div class="revs">{feat_html}{rev_cards}</div></div></section>')
     else:
         rev_sec = ""
 
     # quick-quote mini form (hero) + full booking section share the same live token.
     mini = (f'<form class="mini" id="quote" data-token="{token}">'
+            f'<div class="mhead">{_IC["bolt"]} Get a free quote — takes 30 seconds</div>'
             '<input name="name" placeholder="Your name" autocomplete="name">'
-            '<input name="phone" placeholder="Mobile number" inputmode="tel" required>'
+            '<input name="phone" placeholder="Mobile number" inputmode="tel" autocomplete="tel" required>'
             '<input name="job" placeholder="What needs doing?">'
-            f'<button type="submit">Get my free quote</button>'
+            f'<button type="submit">Get my free quote {_IC["check"]}</button>'
+            f'<div class="mnote">No spam — goes straight to {_esc(biz)}.</div>'
             '<div class="mok">✓ Sent — we&#8217;ll ring you shortly.</div></form>')
 
-    hero_bg = ",".join(['linear-gradient(180deg,rgba(8,14,22,.5),rgba(8,14,22,.88))',
+    hero_bg = ",".join([f'linear-gradient(180deg,rgba(8,14,22,.46),rgba(8,14,22,.87)),'
+                        f'linear-gradient(120deg,{_hex_rgba(accent_dk, .42)},transparent 55%)',
+                        f'url("{hero_img}")'] + ([f'url("{stock_fb}")'] if hero_img != stock_fb else [])
+                       + [f'radial-gradient(900px 420px at 88% -10%,{_hex_rgba(accent, .5)},transparent)',
+                          f'linear-gradient(160deg,{accent_dk},#0a1422)'])
+    band_bg = ",".join([f'linear-gradient(180deg,{_hex_rgba(accent_dk, .18)},rgba(8,14,22,.12))',
                         f'url("{hero_img}")'] + ([f'url("{stock_fb}")'] if hero_img != stock_fb else [])
                        + [f'linear-gradient(160deg,{accent_dk},#0a1422)'])
+    ticks = (f'<div class="ticks"><span>{_IC["check"]} Fully insured</span>'
+             f'<span>{_IC["check"]} Free quotes</span>'
+             f'<span>{_IC["check"]} Local to {_esc(town)}</span></div>')
+    ctas = (f'<div class="ctas"><a class="b ba" href="{call_href}">{call_label}</a>'
+            '<a class="b bb" href="#book">Book online — 30s</a></div>')
     if hero_v == 0:      # full-bleed overlay
-        hero = (f'<section class="hero hv0"><div class="hbg"></div><div class="wrap hin">'
-                f'<span class="eb ebd">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
-                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}'
-                f'<div class="ctas"><a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>'
-                f'<a class="b bb" href="#book">Book online</a></div>{mini}</div></section>')
+        hero = (f'<section class="hero hv0"><div class="hbg"></div><div class="grain"></div><div class="wrap hin">'
+                f'<span class="eb ebd">{_IC["shield"]} {_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
+                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}{ctas}{ticks}{mini}</div></section>')
     elif hero_v == 1:    # split
-        hero = (f'<section class="hero hv1"><div class="wrap split">'
-                f'<div><span class="eb">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
-                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}'
-                f'<div class="ctas"><a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>'
-                f'<a class="b bb2" href="#book">Book online</a></div></div>'
-                f'<div class="pcol"><img class="pimg" src="{hero_img}" alt="{_esc(biz)}">{mini}</div>'
+        hero = (f'<section class="hero hv1"><div class="grain"></div><div class="wrap split">'
+                f'<div class="hin"><span class="eb ebd">{_IC["shield"]} {_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
+                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}{ctas}{ticks}</div>'
+                f'<div class="pcol"><div class="pframe"><img class="pimg" src="{hero_img}" '
+                f'alt="{_esc(biz)}" {onerr}></div>{mini}</div>'
                 f'</div></section>')
     else:                # editorial light
-        hero = (f'<section class="hero hv2"><div class="wrap">'
+        hero = (f'<section class="hero hv2"><div class="wrap hin">'
                 f'<span class="eb">{_esc(trade_t)} · {_esc(town)}</span><h1>{headline}</h1>'
-                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}'
-                f'<div class="ctas"><a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>'
-                f'<a class="b bb2" href="#book">Book online</a></div></div>'
-                f'<div class="band" style="background-image:url(\'{hero_img}\')"></div>'
-                f'<div class="wrap">{mini}</div></section>')
+                f'<p class="sub">{_esc(copy["sub"])}</p>{quote_best}{ctas}{ticks}</div>'
+                f'<div class="band"></div>'
+                f'<div class="wrap minirow">{mini}</div></section>')
 
     css_hero = {
-        0: f'.hv0{{position:relative;color:#fff}}.hv0 .hbg{{position:absolute;inset:0;background-image:{hero_bg};background-size:cover;background-position:center}}.hv0 .hin{{position:relative;padding:92px 22px 70px}}',
-        1: f'.hv1{{background:linear-gradient(170deg,#0d1b2c,{accent_dk} 140%);color:#fff}}.split{{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:74px 22px}}.pimg{{width:100%;height:340px;object-fit:cover;border-radius:{rad_card};box-shadow:0 30px 70px rgba(0,0,0,.45)}}.pcol .mini{{margin-top:18px}}@media(max-width:860px){{.split{{grid-template-columns:1fr;padding:60px 22px}}}}',
-        2: f'.hv2{{background:#f4f1ea;color:#10151c;padding-top:70px}}.hv2 .wrap{{padding-left:22px;padding-right:22px}}.hv2 .sub{{color:#4a5563}}.band{{height:300px;background-size:cover;background-position:center;margin:34px 0 26px}}.hv2 .mini{{margin:0 0 50px}}',
+        0: (f'.hv0{{position:relative;color:#fff}}'
+            f'.hv0 .hbg{{position:absolute;inset:0;background-image:{hero_bg};background-size:cover;background-position:center}}'
+            f'.hv0 .hin{{position:relative;padding:96px 22px 76px}}'
+            f'.hv0 .mini{{margin-top:30px}}'),
+        1: (f'.hv1{{position:relative;background:linear-gradient(170deg,#0d1b2c,{accent_dk} 150%);color:#fff;overflow:hidden}}'
+            f'.hv1:before{{content:"";position:absolute;inset:0;background:radial-gradient(800px 400px at 90% -5%,{_hex_rgba(accent, .35)},transparent)}}'
+            f'.split{{position:relative;display:grid;grid-template-columns:1.08fr .92fr;gap:44px;align-items:center;padding:80px 22px}}'
+            f'.pframe{{padding:10px;border-radius:{rad_card};background:linear-gradient(135deg,{_hex_rgba(accent, .65)},rgba(255,255,255,.12));box-shadow:0 34px 80px rgba(0,0,0,.5)}}'
+            f'.pimg{{width:100%;height:330px;object-fit:cover;border-radius:calc({rad_card} - 6px);display:block}}'
+            f'.pcol .mini{{margin-top:18px}}'
+            f'@media(max-width:860px){{.split{{grid-template-columns:1fr;padding:62px 22px;gap:30px}}}}'),
+        2: (f'.hv2{{background:#f5f2ea;color:#10151c;padding-top:74px}}'
+            f'.hv2 .hin{{padding-bottom:8px}}'
+            f'.hv2 .sub,.hv2 .hq{{color:#4a5563}}'
+            f'.hv2 .ticks span{{color:#3c4654}}'
+            f'.hv2 h1{{letter-spacing:-.015em}}'
+            f'.band{{height:340px;background-image:{band_bg};background-size:cover;background-position:center;margin-top:40px;'
+            f'border-top:4px solid {accent};border-bottom:4px solid {accent}}}'
+            f'.minirow{{position:relative}}.hv2 .mini{{margin:-46px 0 54px;position:relative;z-index:2}}'
+            f'@media(max-width:760px){{.band{{height:230px}}.hv2 .mini{{margin-top:-30px}}}}'),
     }[hero_v]
+
+    fav = ("data:image/svg+xml," +
+           f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
+           f"<rect width='64' height='64' rx='14' fill='{accent}'/>"
+           f"<text x='32' y='43' font-family='Arial' font-size='32' font-weight='800' "
+           f"fill='white' text-anchor='middle'>{_esc(_initials(biz)[:1])}</text></svg>").replace("#", "%23").replace('"', "'")
+    year = datetime.now(timezone.utc).year
+    foot_contact = (f'<a class="ftel" href="tel:{tel}">{_IC["phone"]} {_esc(phone)}</a>' if has_phone else "")
+    foot_addr = f'<div class="faddr">{_esc(address)}</div>' if address else ""
+    mc_bar = ((f'<div class="mc"><a class="mca" href="tel:{tel}">{_IC["phone"]} Call now</a>'
+               f'<a class="mcb" href="#book">{_IC["cal"]} Book online</a></div>') if has_phone else
+              f'<div class="mc"><a class="mca" href="#book">{_IC["cal"]} Book {_esc(biz)} online</a></div>')
+    bok_call = (f'<a class="b ba" style="margin-top:16px" href="tel:{tel}">{_IC["phone"]} Or call now</a>'
+                if has_phone else "")
 
     page = f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_esc(biz)} — {_esc(trade_t)} in {_esc(town)}</title>
 <meta name="description" content="{_esc(copy['sub'])}">
-<meta property="og:title" content="{headline.replace('&#8217;', '’')}">
+<meta name="theme-color" content="{accent_dk}">
+<meta property="og:title" content="{_esc(headline_plain)}">
 <meta property="og:description" content="Book online in 30 seconds or call now.">
-<meta property="og:image" content="{og_url}"><meta property="og:type" content="website">
+<meta property="og:image" content="{og_url}">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{og_url}">
+<link rel="icon" href="{fav}">
+<script type="application/ld+json">{jsonld}</script>
 <link rel="preload" as="image" href="{hero_img}">
 <link rel="preconnect" href="https://lh3.googleusercontent.com"><link rel="preconnect" href="https://images.unsplash.com">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family={font_link}&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{{--a:{accent};--ad:{accent_dk};--ink:#10151c;--mut:#5a6878;--bg:#f6f8fa;--line:#e5eaf0}}
+:root{{--a:{accent};--ad:{accent_dk};--ink:#0e1520;--mut:#5a6878;--bg:#f7f9fb;--line:#e5eaf0;
+  --glow:{_hex_rgba(accent, .38)};--soft:{_hex_rgba(accent, .12)}}}
 *{{margin:0;padding:0;box-sizing:border-box}}html{{scroll-behavior:smooth}}
 body{{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}}
-h1,h2,h3,.b{{font-family:{font_stack}}}
-.wrap{{max-width:1100px;margin:0 auto;padding:0 22px}}a{{color:inherit}}img{{max-width:100%;display:block}}
-.fx{{opacity:0;transform:translateY(14px);transition:.5s ease}}.fx.vis{{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){{.fx{{opacity:1;transform:none}}}}
-.nav{{position:sticky;top:0;z-index:40;background:rgba(10,16,24,.9);backdrop-filter:blur(10px);color:#fff}}
-.nav .wrap{{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px}}
-.bm{{display:flex;align-items:center;gap:10px;font-weight:800;min-width:0}}
-.bmk{{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--a),var(--ad));display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}}
-.bnm{{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}}
-.nl{{display:flex;gap:22px;font-size:13.5px;font-weight:600;opacity:.85}}.nl a{{text-decoration:none}}
-.ncall{{display:inline-flex;align-items:center;gap:8px;background:var(--a);color:#fff;font-weight:800;padding:10px 17px;border-radius:{rad_btn};text-decoration:none;font-size:14px;white-space:nowrap}}
-.ncall svg,.b svg,.mc svg{{width:16px;height:16px}}
-.eb{{display:inline-block;text-transform:uppercase;letter-spacing:.16em;font-size:11.5px;font-weight:800;color:var(--ad)}}
-.ebd{{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:7px 13px;border-radius:100px}}
-.hero h1{{font-size:clamp(33px,5.8vw,58px);font-weight:800;line-height:1.06;margin:16px 0 12px;max-width:24ch}}
-.hero .sub{{font-size:clamp(16px,2.2vw,19px);max-width:52ch;opacity:.94;font-weight:500}}
-.hq{{margin-top:14px;font-size:15.5px;font-weight:600;opacity:.95;max-width:54ch}}.hq b{{opacity:.8;font-weight:600}}
+h1,h2,h3,.b,.czb{{font-family:{font_stack}}}
+::selection{{background:var(--a);color:#fff}}
+.wrap{{max-width:1120px;margin:0 auto;padding:0 22px}}a{{color:inherit}}img{{max-width:100%;display:block}}
+.fx{{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s ease}}.fx.vis{{opacity:1;transform:none}}
+@keyframes rise{{from{{opacity:0;transform:translateY(20px)}}to{{opacity:1;transform:none}}}}
+.hin>*{{animation:rise .65s cubic-bezier(.2,.7,.3,1) both}}
+.hin>*:nth-child(2){{animation-delay:.07s}}.hin>*:nth-child(3){{animation-delay:.13s}}
+.hin>*:nth-child(4){{animation-delay:.19s}}.hin>*:nth-child(5){{animation-delay:.25s}}
+.hin>*:nth-child(6){{animation-delay:.31s}}.hin>*:nth-child(7){{animation-delay:.37s}}
+@media(prefers-reduced-motion:reduce){{.fx,.hin>*{{opacity:1;transform:none;transition:none;animation:none}}}}
+.grain{{position:absolute;inset:0;opacity:.05;pointer-events:none;background-image:
+  linear-gradient(rgba(255,255,255,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.6) 1px,transparent 1px);
+  background-size:42px 42px}}
+.nav{{position:sticky;top:0;z-index:40;background:rgba(10,16,24,.92);backdrop-filter:blur(12px);color:#fff;
+  border-bottom:1px solid rgba(255,255,255,.07)}}
+.nav .wrap{{display:flex;align-items:center;justify-content:space-between;height:66px;gap:12px}}
+.bm{{display:flex;align-items:center;gap:11px;font-weight:800;min-width:0}}
+.bmk{{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--a),var(--ad));display:flex;
+  align-items:center;justify-content:center;font-weight:800;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.12),0 5px 16px rgba(0,0,0,.35)}}
+.bnm{{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16.5px;letter-spacing:.1px}}
+.nl{{display:flex;gap:24px;font-size:13.5px;font-weight:600;opacity:.88}}.nl a{{text-decoration:none}}.nl a:hover{{color:var(--a)}}
+.ncall{{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;
+  font-weight:800;padding:11px 18px;border-radius:{rad_btn};text-decoration:none;font-size:14px;white-space:nowrap;
+  box-shadow:0 6px 18px rgba(0,0,0,.3);transition:transform .15s}}
+.ncall:hover{{transform:translateY(-1px)}}
+.ncall svg,.b svg,.mc svg,.ticks svg{{width:16px;height:16px}}
+.eb{{display:inline-block;text-transform:uppercase;letter-spacing:.17em;font-size:11.5px;font-weight:800;color:var(--ad)}}
+.sec .eb:before{{content:"";display:inline-block;width:22px;height:2px;background:var(--a);border-radius:2px;
+  vertical-align:middle;margin-right:9px}}
+.ebd{{display:inline-flex;align-items:center;gap:8px;color:#fff;background:rgba(255,255,255,.13);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.25);padding:8px 14px;border-radius:100px}}
+.ebd svg{{width:14px;height:14px;color:var(--a)}}
+.hero h1{{font-size:clamp(34px,6vw,62px);font-weight:800;line-height:1.04;letter-spacing:-.02em;margin:18px 0 14px;max-width:23ch;
+  text-shadow:0 2px 26px rgba(0,0,0,.3)}}
+.hv2 h1{{text-shadow:none}}
+.mark{{position:relative;z-index:0;white-space:nowrap}}
+.mark:after{{content:"";position:absolute;left:-.06em;right:-.06em;bottom:.05em;height:.32em;background:var(--glow);
+  z-index:-1;border-radius:4px;transform:skewX(-8deg)}}
+.hero .sub{{font-size:clamp(16px,2.2vw,19.5px);max-width:52ch;opacity:.94;font-weight:500}}
+.hq{{margin-top:16px;font-size:15.5px;font-weight:600;opacity:.96;max-width:54ch}}.hq b{{opacity:.78;font-weight:600}}
 .st{{color:#ffb400;letter-spacing:1.5px}}
-.ctas{{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}}
-.b{{display:inline-flex;align-items:center;gap:9px;font-weight:800;padding:15px 26px;border-radius:{rad_btn};text-decoration:none;font-size:16px;border:0;cursor:pointer;transition:transform .15s}}
-.b:hover{{transform:translateY(-2px)}}
-.ba{{background:var(--a);color:#fff;box-shadow:0 12px 28px {_hex_rgba(accent,.4)}}}
-.bb{{background:rgba(255,255,255,.13);color:#fff;border:1.5px solid rgba(255,255,255,.35)}}
-.bb2{{background:#10151c;color:#fff}}
-.mini{{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:9px;background:#fff;padding:12px;border-radius:{rad_card};box-shadow:0 18px 50px rgba(8,14,22,.25);max-width:860px;margin-top:8px}}
-.mini input{{padding:13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:15px;color:var(--ink);min-width:0}}
-.mini button{{background:var(--a);color:#fff;border:0;border-radius:10px;font-weight:800;font-size:15px;padding:13px 18px;cursor:pointer;font-family:inherit;white-space:nowrap}}
+.ctas{{display:flex;gap:13px;flex-wrap:wrap;margin:26px 0 0}}
+.b{{display:inline-flex;align-items:center;gap:9px;font-weight:800;padding:16px 28px;border-radius:{rad_btn};text-decoration:none;
+  font-size:16.5px;border:0;cursor:pointer;transition:transform .15s,box-shadow .15s}}
+.b:hover{{transform:translateY(-2px)}}.b:active{{transform:scale(.98)}}
+.ba{{background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;box-shadow:0 14px 32px var(--glow)}}
+.ba:hover{{box-shadow:0 18px 40px var(--glow)}}
+.bb{{background:rgba(255,255,255,.13);color:#fff;border:1.5px solid rgba(255,255,255,.35);backdrop-filter:blur(6px)}}
+.hv2 .bb{{background:#10151c;color:#fff;border-color:#10151c}}
+.ticks{{display:flex;gap:8px 20px;flex-wrap:wrap;margin-top:20px;font-size:13.5px;font-weight:700;opacity:.95}}
+.ticks span{{display:inline-flex;align-items:center;gap:7px}}.ticks svg{{width:14px;height:14px;color:#3ddc84}}
+.mini{{display:grid;grid-template-columns:1fr 1fr 1.35fr auto;gap:10px;background:rgba(255,255,255,.97);
+  padding:18px;border-radius:{rad_card};box-shadow:0 26px 64px rgba(8,14,22,.38);max-width:880px;
+  border:1px solid rgba(255,255,255,.65)}}
+.mhead{{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:800;font-size:14.5px;color:var(--ink)}}
+.mhead svg{{width:16px;height:16px;color:var(--a)}}
+.mini input{{padding:14px;border:1.5px solid var(--line);border-radius:11px;font:inherit;font-size:15px;color:var(--ink);
+  min-width:0;background:#fff;outline:none;transition:border .14s}}
+.mini input:focus{{border-color:var(--a)}}
+.mini button{{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--a),var(--ad));
+  color:#fff;border:0;border-radius:11px;font-weight:800;font-size:15px;padding:14px 20px;cursor:pointer;font-family:inherit;
+  white-space:nowrap;box-shadow:0 8px 20px var(--glow)}}
+.mini button svg{{width:15px;height:15px}}
+.mnote{{grid-column:1/-1;font-size:12px;color:var(--mut);text-align:center}}
 .mini .mok{{display:none;grid-column:1/-1;color:#0d7a48;font-weight:700;text-align:center;padding:4px}}
 @media(max-width:760px){{.mini{{grid-template-columns:1fr 1fr}}.mini input[name=job]{{grid-column:1/-1}}.mini button{{grid-column:1/-1}}}}
-.badges{{background:#0e1722;color:#fff}}.badges .wrap{{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;padding:15px 22px}}
-.bd{{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:100px;padding:8px 15px;font-size:13.5px;font-weight:700}}
-.bd-star{{background:{_hex_rgba(accent,.25)};border-color:{_hex_rgba(accent,.5)}}}
-.sec{{padding:72px 0}}.sec.alt{{background:#fff}}
-.sec h2{{font-size:clamp(26px,3.4vw,37px);font-weight:800;margin:8px 0 4px}}
-.sec h2:after{{content:"";display:block;width:50px;height:4px;background:var(--a);border-radius:4px;margin-top:13px}}
-.lead{{color:var(--mut);margin-top:12px;font-size:16.5px;max-width:60ch}}
-.g3{{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:18px;margin-top:30px}}
-.card{{background:#fff;border:1px solid var(--line);border-radius:{rad_card};padding:24px;box-shadow:0 8px 28px rgba(13,21,32,.06);transition:transform .2s}}
-.card:hover{{transform:translateY(-3px)}}
+.badges{{background:#0d1521;color:#fff;border-top:1px solid rgba(255,255,255,.05)}}
+.badges .wrap{{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;padding:17px 22px}}
+.bd{{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  border-radius:100px;padding:9px 16px;font-size:13.5px;font-weight:700}}
+.bd svg{{width:14px;height:14px;color:var(--a)}}
+.bd-star{{background:{_hex_rgba(accent, .25)};border-color:{_hex_rgba(accent, .5)}}}
+.bd-star b{{color:#ffd479}}
+.sec{{padding:80px 0}}.sec.alt{{background:#fff}}
+.sec h2{{font-size:clamp(27px,3.5vw,40px);font-weight:800;margin:10px 0 4px;letter-spacing:-.015em}}
+.sec h2:after{{content:"";display:block;width:52px;height:4px;background:linear-gradient(90deg,var(--a),var(--ad));
+  border-radius:4px;margin-top:14px}}
+.lead{{color:var(--mut);margin-top:14px;font-size:16.5px;max-width:62ch}}
+.g3{{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:18px;margin-top:34px}}
+.card{{background:#fff;border:1px solid var(--line);border-radius:{rad_card};padding:26px;
+  box-shadow:0 10px 30px rgba(13,21,32,.05);transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden}}
+.card:before{{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--a),var(--ad));
+  transform:scaleX(0);transform-origin:left;transition:transform .25s}}
+.card:hover{{transform:translateY(-4px);box-shadow:0 18px 44px rgba(13,21,32,.1)}}
+.card:hover:before{{transform:scaleX(1)}}
 .sec.alt .card{{background:var(--bg)}}
-.sic{{display:inline-flex;width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;align-items:center;justify-content:center;margin-bottom:12px}}
-.sic svg{{width:20px;height:20px}}.card h3{{font-size:17.5px;margin-bottom:5px}}.card p{{color:var(--mut);font-size:14.5px}}
-.gal{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:28px}}
-.gi{{height:225px;width:100%;object-fit:cover;border-radius:{rad_card};border:1px solid var(--line)}}
-.revs{{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:18px;margin-top:28px}}
-.rev{{background:var(--bg);border:1px solid var(--line);border-radius:{rad_card};padding:22px}}
-.rtop{{display:flex;gap:11px;align-items:center;margin-bottom:8px}}
-.rav{{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}}
-.rm{{color:var(--mut);font-size:12.5px}}.gt{{color:#1a73e8;font-weight:700}}.rev p{{font-size:14.5px;margin-top:8px;color:#2a3848}}
-.steps{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:30px;counter-reset:s}}
-.step{{background:#fff;border:1px solid var(--line);border-radius:{rad_card};padding:24px;position:relative}}
-.step .n{{display:inline-flex;width:34px;height:34px;border-radius:50%;background:var(--a);color:#fff;font-weight:800;align-items:center;justify-content:center;margin-bottom:10px}}
+.sic{{display:inline-flex;width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,var(--a),var(--ad));
+  color:#fff;align-items:center;justify-content:center;margin-bottom:13px;box-shadow:0 8px 18px var(--glow)}}
+.sic svg{{width:21px;height:21px}}.card h3{{font-size:17.5px;margin-bottom:5px}}.card p{{color:var(--mut);font-size:14.5px}}
+.gal{{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:185px;gap:14px;margin-top:32px}}
+.gif{{margin:0;overflow:hidden;border-radius:{rad_card};border:1px solid var(--line);box-shadow:0 10px 30px rgba(13,21,32,.06)}}
+.gif:first-child{{grid-column:span 2;grid-row:span 2}}
+.gi{{width:100%;height:100%;object-fit:cover;transition:transform .45s ease}}
+.gif:hover .gi{{transform:scale(1.045)}}
+@media(max-width:760px){{.gal{{grid-template-columns:1fr 1fr;grid-auto-rows:150px}}.gif:first-child{{grid-column:span 2}}}}
+.revs{{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:18px;margin-top:32px}}
+.rev{{background:var(--bg);border:1px solid var(--line);border-radius:{rad_card};padding:24px}}
+.sec.alt .rev{{background:var(--bg)}}
+.rev-feat{{grid-column:1/-1;padding:32px;position:relative;background:linear-gradient(135deg,var(--soft),#fff 60%);overflow:hidden}}
+.rq{{position:absolute;top:-14px;right:18px;font-size:120px;line-height:1;color:var(--glow);font-family:Georgia,serif;font-weight:700}}
+.rft{{font-size:clamp(16.5px,2.3vw,20px);font-weight:600;color:#22303f;margin:10px 0 18px;max-width:72ch;position:relative}}
+.rtop{{display:flex;gap:12px;align-items:center;margin-bottom:8px}}
+.rav{{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;display:flex;
+  align-items:center;justify-content:center;font-weight:800;flex:none}}
+.rm{{color:var(--mut);font-size:12.5px}}
+.gt{{color:#1a73e8;font-weight:700;display:inline-flex;align-items:center;gap:4px}}
+.gt svg{{width:12px;height:12px;color:#4285F4;vertical-align:-1px}}
+.rev p{{font-size:14.5px;margin-top:8px;color:#2a3848}}
+.rev .st{{font-size:14px}}
+.steps{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:34px}}
+.step{{background:#fff;border:1px solid var(--line);border-radius:{rad_card};padding:26px;position:relative}}
+.step:after{{content:"";position:absolute;top:44px;right:-19px;width:19px;border-top:2px dashed #cdd8e2;z-index:1}}
+.step:last-child:after{{display:none}}
+@media(max-width:990px){{.step:after{{display:none}}}}
+.step .n{{display:inline-flex;width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));
+  color:#fff;font-weight:800;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 0 0 5px var(--soft)}}
 .step h3{{font-size:16.5px}}.step p{{color:var(--mut);font-size:14px}}
-.faq{{background:#fff;border:1px solid var(--line);border-radius:14px;margin-top:12px;overflow:hidden}}
-.faq summary{{padding:17px 20px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between}}
-.faq summary:after{{content:"+";color:var(--a);font-weight:800;font-size:20px}}
+.faq{{background:#fff;border:1px solid var(--line);border-left:3px solid transparent;border-radius:14px;margin-top:12px;
+  overflow:hidden;transition:border-color .2s}}
+.faq[open]{{border-left-color:var(--a)}}
+.faq summary{{padding:18px 20px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:12px}}
+.faq summary::-webkit-details-marker{{display:none}}
+.faq summary:after{{content:"+";color:var(--a);font-weight:800;font-size:20px;line-height:1}}
 .faq[open] summary:after{{content:"–"}}
-.faq p{{padding:0 20px 17px;color:var(--mut);font-size:15px}}
-.chips{{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}}
-.chip{{background:#fff;border:1px solid var(--line);border-radius:100px;padding:9px 16px;font-size:14px;font-weight:600}}
-.book{{background:linear-gradient(165deg,#0c1826,{accent_dk} 160%);color:#fff}}
-.bcard{{background:#fff;color:var(--ink);border-radius:{rad_card};padding:32px;max-width:640px;margin:30px auto 0;box-shadow:0 34px 80px rgba(0,0,0,.4)}}
-.lbl{{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:18px 0 8px}}
+.faq p{{padding:0 20px 18px;color:var(--mut);font-size:15px}}
+.chips{{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}}
+.chip{{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:100px;
+  padding:10px 17px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(13,21,32,.04)}}
+.chip svg{{width:13px;height:13px;color:var(--a)}}
+.book{{position:relative;background:linear-gradient(165deg,#0c1826,{accent_dk} 170%);color:#fff;overflow:hidden}}
+.book:before{{content:"";position:absolute;inset:0;background:radial-gradient(720px 380px at 86% 0%,{_hex_rgba(accent, .3)},transparent)}}
+.book .wrap{{position:relative}}
+.bcard{{background:#fff;color:var(--ink);border-radius:{rad_card};border-top:5px solid var(--a);padding:34px;max-width:640px;
+  margin:32px auto 0;box-shadow:0 36px 90px rgba(0,0,0,.45)}}
+.lbl{{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:19px 0 8px}}
 .pills{{display:flex;flex-wrap:wrap;gap:8px}}
-.pill{{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:10px 15px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}}
-.pill.on{{background:var(--a);color:#fff;border-color:var(--a)}}
-.bcard select,.bcard input{{width:100%;font:inherit;font-size:16px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;margin-top:8px;color:var(--ink)}}
-.bsub{{width:100%;margin-top:22px;background:var(--a);color:#fff;border:0;border-radius:12px;padding:17px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit}}
-.bok{{display:none;text-align:center;padding:18px}}.bok .e{{font-size:44px}}
-.fin{{background:#0e1722;color:#fff;text-align:center}}.fin .wrap{{padding:64px 22px}}
+.pill{{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:11px 16px;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:inherit;color:var(--ink);transition:all .14s}}
+.pill:hover{{border-color:var(--a)}}
+.pill.on{{background:var(--a);color:#fff;border-color:var(--a);box-shadow:0 5px 14px var(--glow)}}
+.bcard select,.bcard input{{width:100%;font:inherit;font-size:16px;padding:14px;border:1.5px solid var(--line);border-radius:12px;
+  margin-top:8px;color:var(--ink);outline:none;transition:border .14s;background:#fff}}
+.bcard select:focus,.bcard input:focus{{border-color:var(--a)}}
+.bsub{{width:100%;margin-top:24px;background:linear-gradient(135deg,var(--a),var(--ad));color:#fff;border:0;border-radius:12px;
+  padding:18px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 12px 28px var(--glow);
+  transition:transform .15s}}
+.bsub:hover{{transform:translateY(-1px)}}
+.bnote{{text-align:center;color:var(--mut);font-size:12.5px;margin-top:14px}}
+.bok{{display:none;text-align:center;padding:18px}}.bok .e{{font-size:46px}}.bok h3{{font-size:22px;margin:8px 0 6px}}
+.fin{{background:#0d1521;color:#fff;text-align:center}}.fin .wrap{{padding:70px 22px}}
 .fin h2:after{{margin-left:auto;margin-right:auto}}
-.closer{{background:linear-gradient(135deg,var(--ad),var(--a));color:#fff}}
-.cz{{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:42px 22px}}
-.czb{{font-size:clamp(22px,3.2vw,32px);font-weight:800;font-family:{font_stack}}}
-.czs{{opacity:.95;max-width:46ch}}
-.czbtn{{display:inline-flex;align-items:center;gap:9px;background:#fff;color:var(--ad);font-weight:800;padding:15px 24px;border-radius:{rad_btn};text-decoration:none;box-shadow:0 14px 32px rgba(0,0,0,.3);white-space:nowrap}}
-.foot{{background:#0a1118;color:#c6d2de;text-align:center;padding:38px 22px;font-size:14px}}
-.mc{{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;align-items:center;justify-content:center;gap:9px;background:var(--a);color:#fff;padding:15px;font-weight:800;text-decoration:none;font-size:16px}}
-@media(max-width:760px){{.mc{{display:flex}}.nl{{display:none}}body{{padding-bottom:0}}.sec{{padding:56px 0}}}}
+.fin .lead{{margin-left:auto;margin-right:auto;color:#aebccb}}
+.closer{{position:relative;background:linear-gradient(135deg,var(--ad),var(--a));color:#fff;overflow:hidden}}
+.closer .grain{{opacity:.07}}
+.cz{{position:relative;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:48px 22px}}
+.czb{{font-size:clamp(23px,3.4vw,34px);font-weight:800;margin:6px 0 8px}}
+.czs{{opacity:.96;max-width:48ch}}
+.pz{{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}}
+.pt{{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:100px;padding:9px 17px;
+  font-size:14px;font-weight:700}}
+.pt b{{font-size:17px}}
+.czbtn{{display:inline-flex;align-items:center;gap:10px;background:#fff;color:var(--ad);font-weight:800;padding:17px 27px;
+  border-radius:{rad_btn};text-decoration:none;font-size:16px;box-shadow:0 16px 38px rgba(0,0,0,.32);white-space:nowrap;
+  transition:transform .15s}}
+.czbtn:hover{{transform:translateY(-2px)}}.czbtn svg{{width:17px;height:17px}}
+.foot{{background:#0a1118;color:#9fb0c0;padding:56px 22px 26px;font-size:14px}}
+.fgrid{{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:36px}}
+.foot .bm{{color:#fff}}
+.fabout{{margin-top:12px;max-width:34ch;font-size:13.5px;opacity:.85}}
+.fh{{color:#fff;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px}}
+.foot ul{{list-style:none}}.foot li{{margin-bottom:9px}}.foot li a{{text-decoration:none}}.foot li a:hover{{color:#fff}}
+.ftel{{display:inline-flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-decoration:none;margin-bottom:10px}}
+.ftel svg{{width:15px;height:15px;color:var(--a)}}
+.faddr{{font-size:13px;opacity:.75;max-width:30ch}}
+.fbot{{max-width:1120px;margin:38px auto 0;padding-top:20px;border-top:1px solid rgba(255,255,255,.08);display:flex;
+  justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;opacity:.6}}
+@media(max-width:760px){{.fgrid{{grid-template-columns:1fr;gap:28px}}}}
+.mc{{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;box-shadow:0 -8px 24px rgba(0,0,0,.22)}}
+.mc a{{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:16px;font-weight:800;
+  text-decoration:none;font-size:15.5px;color:#fff}}
+.mca{{background:linear-gradient(135deg,var(--a),var(--ad))}}
+.mcb{{background:#0d1521}}
+@media(max-width:760px){{.mc{{display:flex}}.nl{{display:none}}.sec{{padding:58px 0}}body{{padding-bottom:56px}}}}
 </style></head><body>
 
 <header class="nav"><div class="wrap">
  <div class="bm"><span class="bmk">{_esc(_initials(biz))}</span><span class="bnm">{_esc(biz)}</span></div>
  <nav class="nl"><a href="#services">Services</a><a href="#reviews">Reviews</a><a href="#faq">FAQs</a><a href="#book">Book</a></nav>
- <a class="ncall" href="tel:{tel}">{_IC["phone"]}<span>{_esc(phone)}</span></a>
+ {nav_call}
 </div></header>
 
 {hero}
@@ -1467,54 +1678,67 @@ h1,h2,h3,.b{{font-family:{font_stack}}}
  <div class="eb">Good to know</div><h2>Questions, answered straight</h2>{faqs}</div></section>
 
 <section id="book" class="sec book"><div class="wrap">
- <div style="text-align:center"><span class="eb" style="color:#ffc89e">Book in 30 seconds</span>
- <h2 style="margin-top:14px">Book {_esc(biz)}</h2>
- <p style="color:#c7d4e2">Pick a day and time — we&#8217;ll ring to confirm. No account, no faff.</p></div>
+ <div style="text-align:center"><span class="ebd">{_IC["cal"]} Book in 30 seconds</span>
+ <h2 style="margin-top:16px">Book {_esc(biz)}</h2>
+ <p style="color:#c7d4e2;font-weight:500">Pick a day and time — we&#8217;ll ring to confirm. No account, no faff.</p></div>
  <div class="bcard"><form id="bform" data-token="{token}">
   <label class="lbl">What do you need?</label>
-  <select id="bsvc">{''.join(f'<option>{_esc(t)}</option>' for t,_ in services)}<option>Something else</option></select>
+  <select id="bsvc">{''.join(f'<option>{_esc(t)}</option>' for t, _ in services)}<option>Something else</option></select>
   <label class="lbl">Preferred day</label><div class="pills" id="bdays"></div>
   <label class="lbl">Time</label><div class="pills" id="btimes">
    <button type="button" class="pill" data-v="Morning">Morning</button>
    <button type="button" class="pill" data-v="Afternoon">Afternoon</button>
    <button type="button" class="pill" data-v="Evening">Evening</button>
-   <button type="button" class="pill" data-v="ASAP / emergency">ASAP</button></div>
+   <button type="button" class="pill" data-v="ASAP / emergency">ASAP 🚨</button></div>
   <label class="lbl">Your name</label><input name="name" autocomplete="name">
-  <label class="lbl">Mobile number</label><input name="phone" inputmode="tel" required>
-  <button class="bsub" type="submit">Request this booking →</button></form>
+  <label class="lbl">Mobile number</label><input name="phone" inputmode="tel" autocomplete="tel" required>
+  <button class="bsub" type="submit">Request this booking →</button>
+  <p class="bnote">No spam — your details go straight to {_esc(biz)}.</p></form>
   <div class="bok" id="bok"><div class="e">✅</div><h3>Booking sent!</h3>
-  <p style="color:var(--mut)">{_esc(biz)} will ring you to confirm.</p>
-  <a class="b ba" style="margin-top:16px" href="tel:{tel}">{_IC["phone"]} Or call now</a></div>
+  <p style="color:var(--mut)">{_esc(biz)} has your request and will ring you to confirm.</p>
+  {bok_call}</div>
  </div></div></section>
 
 <section class="fin"><div class="wrap">
  <div class="eb" style="color:{accent}">Ready when you are</div>
  <h2>Need a {_esc(trade)} in {_esc(town)}?</h2>
- <div class="ctas" style="justify-content:center;margin-top:22px">
-  <a class="b ba" href="tel:{tel}">{_IC["phone"]} Call {_esc(phone)}</a>
+ <p class="lead">Free quotes, fixed prices, and a local team that turns up.</p>
+ <div class="ctas" style="justify-content:center;margin-top:24px">
+  <a class="b ba" href="{call_href}">{call_label}</a>
   <a class="b bb" href="#book">Book online</a></div></div></section>
 
-<section class="closer"><div class="wrap cz">
+<section class="closer"><div class="grain"></div><div class="wrap cz">
  <div><div class="eb" style="color:#fff;opacity:.85">This site is already built</div>
  <div class="czb">Built for {_esc(biz)}</div>
- <div class="czs">Want it live this week? <b>£199</b> to launch, then <b>£29/month</b> — hosting, updates and the booking system, all done for you.</div></div>
+ <div class="czs">Want it live this week? Hosting, updates and the booking system — all done for you.</div>
+ <div class="pz"><span class="pt"><b>£199</b> to launch</span><span class="pt"><b>£29</b>/month all-in</span></div></div>
  <a class="czbtn" href="https://wa.me/{founder_wa}?text={wa_text}">{_IC["phone"]} WhatsApp Dylan — make it live</a>
 </div></section>
 
-<footer class="foot"><b>{_esc(biz)}</b><br>{_esc(trade_t)} · {_esc(town)} ·
- <a href="tel:{tel}" style="color:#fff;font-weight:700">{_esc(phone)}</a>
- <div style="opacity:.5;margin-top:10px">Website by L&amp;D Designs</div></footer>
+<footer class="foot"><div class="fgrid">
+ <div><div class="bm"><span class="bmk">{_esc(_initials(biz))}</span><span class="bnm">{_esc(biz)}</span></div>
+  <p class="fabout">{_esc(trade_t)} serving {_esc(town)} and the surrounding area. Fixed prices, tidy work, local.</p></div>
+ <div><div class="fh">Quick links</div><ul>
+  <li><a href="#services">Services</a></li><li><a href="#reviews">Reviews</a></li>
+  <li><a href="#faq">FAQs</a></li><li><a href="#book">Book online</a></li></ul></div>
+ <div><div class="fh">Get in touch</div>{foot_contact}{foot_addr}
+  <div style="margin-top:8px;font-size:13px;opacity:.75">{_esc(town)} &amp; nearby</div></div>
+</div>
+<div class="fbot"><span>© {year} {_esc(biz)}</span><span>Website by L&amp;D Designs</span></div></footer>
 
-<a class="mc" href="tel:{tel}">{_IC["phone"]} Call {_esc(biz)} now</a>
+{mc_bar}
 
 <script>
 (function(){{var API="{api}",T="{token}";
+function val(f,n){{var el=f.querySelector('[name='+n+']');return el?el.value:'';}}
 function send(body,done){{fetch(API+'/api/capture/'+T,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}}).then(function(r){{return r.json()}}).then(done).catch(done);}}
 var mini=document.getElementById('quote');
 if(mini){{mini.addEventListener('submit',function(e){{e.preventDefault();var f=this;
- if(!f.phone.value){{f.phone.focus();return}}
- send({{name:f.name.value,phone:f.phone.value,job_description:'💬 Quote request: '+(f.job.value||'general enquiry')}},
- function(){{f.querySelector('.mok').style.display='block';f.name.value=f.phone.value=f.job.value='';}});}});}}
+ if(!val(f,'phone')){{f.querySelector('[name=phone]').focus();return}}
+ var bt=f.querySelector('button');bt.textContent='Sending…';
+ send({{name:val(f,'name'),phone:val(f,'phone'),job_description:'💬 Quote request: '+(val(f,'job')||'general enquiry')}},
+ function(){{f.querySelector('.mok').style.display='block';bt.textContent='Sent ✓';
+  ['name','phone','job'].forEach(function(n){{var el=f.querySelector('[name='+n+']');if(el)el.value='';}});}});}});}}
 var sel={{s:document.getElementById('bsvc').value,d:'',t:''}};
 document.getElementById('bsvc').addEventListener('change',function(){{sel.s=this.value}});
 function grp(id,k){{var b=document.getElementById(id);b.addEventListener('click',function(e){{var p=e.target.closest('.pill');if(!p)return;[].forEach.call(b.querySelectorAll('.pill'),function(x){{x.classList.remove('on')}});p.classList.add('on');sel[k]=p.getAttribute('data-v');}});}}
@@ -1522,10 +1746,12 @@ var dd=document.getElementById('bdays'),N=['Sun','Mon','Tue','Wed','Thu','Fri','
 for(var i=0;i<7;i++){{var d=new Date(td);d.setDate(td.getDate()+i);var b=document.createElement('button');b.type='button';b.className='pill';b.textContent=i===0?'Today':(i===1?'Tomorrow':N[d.getDay()]+' '+d.getDate());b.setAttribute('data-v',d.toDateString());dd.appendChild(b);}}
 grp('bdays','d');grp('btimes','t');
 document.getElementById('bform').addEventListener('submit',function(e){{e.preventDefault();var f=this;
- if(!f.phone.value){{f.phone.focus();return}}
- send({{name:f.name.value,phone:f.phone.value,job_description:'📅 Booking request: '+sel.s+(sel.d?' — '+sel.d:'')+(sel.t?' ('+sel.t+')':'')}},
+ if(!val(f,'phone')){{f.querySelector('[name=phone]').focus();return}}
+ f.querySelector('.bsub').textContent='Sending…';
+ send({{name:val(f,'name'),phone:val(f,'phone'),job_description:'📅 Booking request: '+sel.s+(sel.d?' — '+sel.d:'')+(sel.t?' ('+sel.t+')':'')}},
  function(){{f.style.display='none';document.getElementById('bok').style.display='block';}});}});
 if('IntersectionObserver' in window){{var io=new IntersectionObserver(function(es){{es.forEach(function(en){{if(en.isIntersecting){{en.target.classList.add('vis');io.unobserve(en.target)}}}})}},{{threshold:.1}});[].forEach.call(document.querySelectorAll('.fx'),function(el){{io.observe(el)}});}}else{{[].forEach.call(document.querySelectorAll('.fx'),function(el){{el.classList.add('vis')}});}}
+}})();
 </script>
 """
     page += "</body></html>"
@@ -1560,7 +1786,9 @@ def _find_v3_row(prospect_id: str):
 
 def build_v3(name_or_id: str) -> dict:
     """Build a v3 as a NEW preview row. The prospect's live link (preview_id) is NOT
-    touched — v2 keeps serving until promote_v3. Re-running replaces the v3 draft."""
+    touched — v2 keeps serving until promote_v3. Re-running replaces the v3 draft.
+    QA runs BEFORE any write: a rebuild that fails QA never overwrites a PROMOTED
+    (live) v3 — the live page keeps serving and we report what failed."""
     db = get_db()
     p = trades.find_prospect(name_or_id)
     if not p:
@@ -1575,12 +1803,24 @@ def build_v3(name_or_id: str) -> dict:
     copy = _v3_copy(p, details)
     html = _site_html_v3(p, token, details, copy)
     base_url = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"
+    passed, reasons = qa_v3(html, p.get("business_name") or "", token)
 
     existing = _find_v3_row(p["id"])
+    promoted = bool(existing and p.get("preview_id") == existing["id"])
+    if promoted and not passed:
+        trades.log_event("preview_qa", f"v3 rebuild REFUSED for {p.get('business_name')} — "
+                         f"new build fails QA, live page kept ({'; '.join(reasons)[:80]})",
+                         "warn", {"metric_ok": False, "v3_id": existing["id"]})
+        return {"ok": True, "passed": False, "reasons": reasons, "v3_id": existing["id"],
+                "v3_link": base_url + existing["id"], "business_name": p.get("business_name"),
+                "message": ("v3 rebuild failed QA — the PROMOTED live page was kept untouched: "
+                            + "; ".join(reasons))}
+
     if existing:
         pid = existing["id"]
         db.table("previews").update({"html_content": html, "qa_status": "pending",
-                                     "qa_reasons": []}).eq("id", pid).execute()
+                                     "qa_reasons": [], "preview_url": base_url + pid}
+                                    ).eq("id", pid).execute()
     else:
         res = db.table("previews").insert({"html_content": html, "prospect_id": p["id"],
                                            "template_version": "v3",
@@ -1593,10 +1833,11 @@ def build_v3(name_or_id: str) -> dict:
                 "reasons": ["couldn't store row"], "message": "Couldn't store the v3 preview."}
 
     link = base_url + pid
-    passed, reasons = qa_v3(html, p.get("business_name") or "", token)
+    # A promoted row that passes QA stays READY — a rebuild must not demote the live page.
+    status = "ready" if (passed and promoted) else ("qa_passed" if passed else "qa_failed")
     msgs = _gen_messages(p, link, details.get("rating"), details.get("review_count"))
     db.table("previews").update({
-        "qa_status": "qa_passed" if passed else "qa_failed",
+        "qa_status": status,
         "qa_reasons": reasons, "qa_checked_at": _now_iso(),
         "personalization_data": {
             "og": {"biz": p.get("business_name"), "town": p.get("town"),
@@ -1605,6 +1846,7 @@ def build_v3(name_or_id: str) -> dict:
             "msg_first": msgs["first"], "msg_link": msgs["link_msg"],
             "preview_link": link,
         }}).eq("id", pid).execute()
+    og_card_png.cache_clear()        # rating/review inputs may have changed
     trades.log_event("preview_qa", f"v3 {'PASS' if passed else 'NEEDS REVIEW'} — "
                      f"{p.get('business_name')}" + (f" ({'; '.join(reasons)[:70]})" if reasons else ""),
                      "success" if passed else "warn", {"metric_ok": passed, "v3_id": pid})
@@ -1615,20 +1857,41 @@ def build_v3(name_or_id: str) -> dict:
 
 def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True) -> dict:
     """Phase runner: limit=3 for the sample round, big limit for the rest. v2 rows
-    untouched; Mission Control + queues unaffected until promotion."""
+    untouched; Mission Control + queues unaffected until promotion. Candidates are
+    ordered by effective_score so the sample round hits the BEST prospects first.
+    PROMOTED (live) v3s are skipped — bulk rebuilds never churn a page the founder
+    already approved (rebuild those one at a time, by name)."""
     db = get_db()
     try:
-        pros = (db.table("prospects").select("id,business_name,queue_ready,data_mode")
+        pros = (db.table("prospects")
+                .select("id,business_name,preview_id,queue_ready,data_mode,"
+                        "opportunity_score,score_override")
                 .eq("data_mode", mode).limit(2000).execute().data or [])
     except Exception as e:
         return {"ok": False, "message": f"Couldn't read prospects: {e}"}
+    # One bulk fetch of v3 rows (newest per prospect) instead of a query per prospect.
+    try:
+        v3rows = (db.table("previews").select("id,prospect_id,created_at")
+                  .eq("template_version", "v3").limit(2000).execute().data or [])
+    except Exception:
+        v3rows = []
+    latest_v3 = {}
+    for r in sorted(v3rows, key=lambda x: x.get("created_at") or ""):
+        latest_v3[r["prospect_id"]] = r["id"]
+
     ready = [p for p in pros if p.get("queue_ready")]
+    live_skipped = sum(1 for p in ready
+                       if p.get("preview_id") and latest_v3.get(p["id"]) == p["preview_id"])
+    ready = [p for p in ready
+             if not (p.get("preview_id") and latest_v3.get(p["id"]) == p["preview_id"])]
     if not force:
-        ready = [p for p in ready if not _find_v3_row(p["id"])]
+        ready = [p for p in ready if p["id"] not in latest_v3]
+    ready.sort(key=trades.effective_score, reverse=True)
     todo = ready[:limit]
     if not todo:
         return {"ok": True, "built": 0,
-                "message": "Nothing to build — every queue-ready prospect already has a v3."}
+                "message": "Nothing to build — every queue-ready prospect already has a v3."
+                           + (f" ({live_skipped} promoted/live, left untouched.)" if live_skipped else "")}
 
     def _one(p):
         try:
@@ -1646,7 +1909,8 @@ def build_v3_batch(mode: str = "real", limit: int = 3, force: bool = True) -> di
             rows.append(f"{'✓ PASS        ' if ok else '⚠ NEEDS REVIEW'}  "
                         f"{r.get('business_name')}  →  {r.get('v3_link') or 'build failed'}"
                         + (f"   [{'; '.join(r.get('reasons') or [])[:60]}]" if not ok else ""))
-    msg = (f"v3 built for {len(todo)}: {passed_n} PASS / {len(todo)-passed_n} need review.\n"
+    msg = (f"v3 built for {len(todo)}: {passed_n} PASS / {len(todo)-passed_n} need review."
+           + (f" ({live_skipped} promoted/live skipped.)" if live_skipped else "") + "\n"
            + "\n".join(rows)
            + "\n\nv2 links untouched. Open the v3 links, compare, then promote the ones you approve.")
     trades.log_event("preview_qa", f"v3 batch: {passed_n}/{len(todo)} pass", "success",
