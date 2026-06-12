@@ -605,7 +605,7 @@ async def team_heartbeat(body: HeartbeatIn):
         raise HTTPException(400, f"unknown agent '{body.agent}'")
     note = f" — {body.note.strip()[:80]}" if (body.note or "").strip() else ""
     get_db().table("agent_logs").insert({
-        "agent_name": agent, "action": f"heartbeat{note}", "status": "running",
+        "agent_name": agent, "action": f"heartbeat{note}", "status": "success",
     }).execute()
     return {"ok": True, "agent": agent}
 
