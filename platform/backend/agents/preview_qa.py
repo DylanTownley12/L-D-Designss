@@ -99,12 +99,24 @@ def _fetch_place_details(place_id: str, trade: str = "", name: str = None,
                 pass
     if place_id and settings.GOOGLE_PLACES_API_KEY:
         try:
-            with httpx.Client(timeout=20.0) as client:
-                r = client.get(_DETAILS_URL.format(pid=place_id), headers={
-                    "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
-                    "X-Goog-FieldMask": _DETAILS_MASK,
-                })
-            if r.status_code == 200:
+            # Graduated field masks: rating/userRatingCount and reviews are
+            # higher-SKU fields in Places API (New) — a key restricted to the
+            # basic SKU 403s the whole request. Retry with slimmer masks so a
+            # restricted key still gets us real photos, and keep the exact
+            # Google error for the build log.
+            r = None
+            for mask in (_DETAILS_MASK,
+                         "id,displayName,photos,rating,userRatingCount,formattedAddress,nationalPhoneNumber",
+                         "id,displayName,photos,formattedAddress,nationalPhoneNumber"):
+                with httpx.Client(timeout=20.0) as client:
+                    r = client.get(_DETAILS_URL.format(pid=place_id), headers={
+                        "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
+                        "X-Goog-FieldMask": mask,
+                    })
+                if r.status_code == 200:
+                    break
+                out["fetch_error"] = f"details {r.status_code} [{mask.split(',')[2][:7]}…]: {r.text[:160]}"
+            if r is not None and r.status_code == 200:
                 d = r.json()
                 out["rating"] = d.get("rating")
                 out["review_count"] = d.get("userRatingCount")
@@ -136,8 +148,9 @@ def _fetch_place_details(place_id: str, trade: str = "", name: str = None,
                             lambda nw: resolve_photo_uri(nw[0], max_w=nw[1]), jobs) if u]
                 out["real_photos"] = bool(out["photos"])
             else:
-                logger.warning(f"[preview_qa] details {r.status_code}: {r.text[:140]}")
+                logger.warning(f"[preview_qa] {out.get('fetch_error')}")
         except Exception as e:
+            out["fetch_error"] = f"details exception: {type(e).__name__}: {str(e)[:140]}"
             logger.warning(f"[preview_qa] details fetch failed for {place_id}: {e}")
     if not out["photos"]:
         out["photos"] = _stock_photos(trade)
@@ -1920,6 +1933,9 @@ def build_v3(name_or_id: str) -> dict:
     details = _fetch_place_details(p.get("place_id"), p.get("trade"),
                                    name=p.get("business_name"), town=p.get("town"),
                                    prospect_id=p["id"])
+    if not details.get("real_photos") and details.get("fetch_error"):
+        trades.log_event("preview_qa", f"DEGRADED (stock photos) {p.get('business_name')}: "
+                         f"{details['fetch_error'][:150]}", "warn", {"metric_ok": False})
     copy = _v3_copy(p, details)
     html = _site_html_v3(p, token, details, copy)
     base_url = f"{settings.BACKEND_BASE_URL.rstrip('/')}/previews/serve/"
