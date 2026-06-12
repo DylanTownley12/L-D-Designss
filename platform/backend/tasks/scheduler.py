@@ -340,6 +340,68 @@ async def _cleanup_old_logs():
         logger.error(f"[log_cleanup] Failed: {e}", exc_info=True)
 
 
+# ── OpenClaw dead-man's switch ───────────────────────────────────────────────
+
+async def _openclaw_watchdog():
+    """The OpenClaw side (Baz + the 9-agent team) runs on the founder's machine,
+    NOT on Railway — so when that machine dies, chief dies with it and nothing
+    reports the outage. This always-on job is the dead-man's switch: if the team
+    leaves no DB trace (heartbeats, chief health pings, completed tasks) for
+    OPENCLAW_SILENCE_HOURS, alert the founders via notify_founders — whose
+    fallback chain (OpenClaw → Telegram → Gmail) routes around the dead channel.
+    Alerts only 07:00–22:00 London; auto-resolves (and says so) on recovery."""
+    try:
+        from datetime import datetime, timedelta, timezone as dt_tz
+        import pytz
+        from db.client import get_db
+        from config import settings
+        from agents import trades
+        from utils.notify import notify_founders
+
+        # Only true OpenClaw-side actors — backend jobs (e.g. team_seeder) must NOT
+        # count as liveness, or a dead machine would look alive after every seed.
+        team = ["scout", "gap", "judge", "maker", "reach", "executor",
+                "closer", "profit", "chief", "baz"]
+        silence_h = max(1, int(getattr(settings, "OPENCLAW_SILENCE_HOURS", 3) or 3))
+        db = get_db()
+        cutoff = (datetime.now(dt_tz.utc) - timedelta(hours=silence_h)).isoformat()
+
+        alive = (db.table("agent_logs").select("id").in_("agent_name", team)
+                 .gte("created_at", cutoff).limit(1).execute().data or [])
+        if not alive:
+            alive = (db.table("agent_tasks").select("id")
+                     .gte("completed_at", cutoff).limit(1).execute().data or [])
+
+        open_alert = (db.table("alerts").select("id").eq("kind", "openclaw_down")
+                      .eq("entity_id", "openclaw").eq("resolved", False)
+                      .limit(1).execute().data or [])
+
+        if alive:
+            if open_alert:
+                trades.resolve_alert(kind="openclaw_down", entity_id="openclaw")
+                notify_founders("✅ OpenClaw is back — team activity detected again.",
+                                kind="openclaw_up")
+                logger.info("[openclaw_watchdog] recovered — alert resolved")
+            return
+
+        hour = datetime.now(pytz.timezone(TZ)).hour
+        if not (7 <= hour < 22):
+            return                       # don't wake anyone for a sleeping team
+        if open_alert:
+            return                       # already shouted about this outage
+
+        msg = (f"🔴 OpenClaw looks DOWN — no Baz/team activity for {silence_h}h+. "
+               "WhatsApp and the 9-agent team are NOT running. On the machine run: "
+               "systemctl --user restart openclaw-gateway.service "
+               "(if WhatsApp shows 440: openclaw channels login --channel whatsapp)")
+        trades.raise_alert("openclaw_down", msg, severity="error",
+                           entity="system", entity_id="openclaw")
+        notify_founders(msg, kind="openclaw_down")
+        logger.error(f"[openclaw_watchdog] {msg}")
+    except Exception as e:
+        logger.error(f"[openclaw_watchdog] Failed: {e}", exc_info=True)
+
+
 # ── Trades / JARVIS jobs ─────────────────────────────────────────────────────
 
 async def _trades_morning():
@@ -449,6 +511,11 @@ def start_scheduler():
     # 3:30am — Delete agent_logs older than 30 days
     scheduler.add_job(**job(_cleanup_old_logs, guard=False, id="log_cleanup",
         trigger=CronTrigger(hour=3, minute=30, timezone=TZ)))
+
+    # Every 30 mins — OpenClaw dead-man's switch (the team runs on the founder's
+    # machine; this always-on job is what notices when that machine dies).
+    scheduler.add_job(**job(_openclaw_watchdog, guard=False, id="openclaw_watchdog",
+        trigger=IntervalTrigger(minutes=30)))
 
     # ── TRADES / JARVIS (Europe/London) ──────────────────────────────────────
     # 8:00am — THE single daily run: all five agents + one founders' briefing.

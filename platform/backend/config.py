@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # fallback only. Set this in Railway to the OpenClaw inbound webhook URL.
     # NOTHING here ever contacts a prospect or client — founders only.
     OPENCLAW_WEBHOOK_URL: Optional[str] = None
+    # Backend watchdog: alert founders if the OpenClaw team leaves no DB trace for
+    # this many hours (checked every 30min, alerts 07:00–22:00 London only).
+    OPENCLAW_SILENCE_HOURS: int = 3
 
     # Internal ops board gate (founders only). Falls back to SECRET_KEY if unset.
     OPS_KEY: Optional[str] = None

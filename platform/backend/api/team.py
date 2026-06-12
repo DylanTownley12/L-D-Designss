@@ -590,11 +590,39 @@ async def executor_queue_message(body: ExecutorQueueIn):
 
 # ── Chief: health snapshot + fix trigger ──────────────────────────────────────
 
+class HeartbeatIn(BaseModel):
+    agent: str
+    note: Optional[str] = None
+
+
+@router.post("/heartbeat")
+async def team_heartbeat(body: HeartbeatIn):
+    """Liveness ping from an OpenClaw agent (cheap one-liner for HEARTBEAT.md /
+    cron). Feeds the backend's openclaw_watchdog dead-man's switch — if no team
+    trace appears for OPENCLAW_SILENCE_HOURS, the founders get alerted."""
+    agent = (body.agent or "").strip().lower()
+    if agent not in VALID_AGENTS and agent != "baz":
+        raise HTTPException(400, f"unknown agent '{body.agent}'")
+    note = f" — {body.note.strip()[:80]}" if (body.note or "").strip() else ""
+    get_db().table("agent_logs").insert({
+        "agent_name": agent, "action": f"heartbeat{note}", "status": "running",
+    }).execute()
+    return {"ok": True, "agent": agent}
+
+
 @router.get("/chief/health")
 async def chief_health():
     """Chief's hourly health check — what's broken, what's fixable, what to tell Dylan."""
     from datetime import timedelta
     db = get_db()
+    # Chief calling this hourly IS the team's pulse — record it so the backend's
+    # openclaw_watchdog can tell a sleeping team from a dead machine.
+    try:
+        db.table("agent_logs").insert({"agent_name": "chief",
+                                       "action": "heartbeat (health check)",
+                                       "status": "running"}).execute()
+    except Exception:
+        pass
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
     today_str = datetime.now(timezone.utc).date().isoformat()
 

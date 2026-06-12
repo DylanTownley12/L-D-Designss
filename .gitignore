@@ -1,4 +1,8 @@
-.claude/
+# Claude Code: keep local session state out, but COMMIT project skills —
+# cloud sessions only get skills that live in the repo.
+.claude/*
+!.claude/skills/
+!.claude/settings.json
 
 # Environment files — NEVER commit these
 .env
