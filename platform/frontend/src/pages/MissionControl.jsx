@@ -19,18 +19,31 @@ const btn = (c = C.cyan) => ({ background: 'transparent', border: `1px solid ${c
 
 const PREVIEW_BASE = (import.meta.env.VITE_API_URL || 'https://l-d-designss-production.up.railway.app/api').replace(/\/api\/?$/, '')
 
-// One-tap outcomes → (label, outcome text, new_status, terminal?)
+// One-tap outcomes → [label, outcome text, new_status, terminal?, default follow-up days]
+// Each logs INSTANTLY with a sensible default follow-up; the confirmation toast
+// then lets you change the day or undo. No more two-tap "nothing happened".
 const OUTCOMES = [
-  ['ANSWERED', 'answered', 'called', false],
-  ['NO ANSWER', 'no answer', 'called', false],
-  ['GATEKEEPER', 'gatekeeper', 'called', false],
-  ['INTERESTED', 'interested', 'interested', false],
-  ['DEMO BOOKED', 'demo booked', 'demo_booked', false],
-  ['NOT INTERESTED', 'not interested', 'not_interested', true],
+  ['NO ANSWER', 'no answer', 'called', false, 1],
+  ['ANSWERED', 'answered', 'called', false, 2],
+  ['GATEKEEPER', 'gatekeeper', 'called', false, 1],
+  ['INTERESTED', 'interested', 'interested', false, 1],
+  ['DEMO BOOKED', 'demo booked', 'demo_booked', false, 1],
+  ['NOT INTERESTED', 'not interested', 'not_interested', true, null],
 ]
 const OUTCOME_COLOR = { ANSWERED: C.cyan, 'NO ANSWER': C.faint, GATEKEEPER: C.amber, INTERESTED: C.green, 'DEMO BOOKED': C.green, 'NOT INTERESTED': C.red }
-// 2-tap picker: WHEN to follow up → days from today
+// Quick re-schedule chips shown in the confirmation toast → days from today.
 const WHENS = [['Tomorrow', 1], ['3 days', 3], ['Next week', 7]]
+const STATUS_COLOR = (s) => ({ interested: C.green, demo_booked: C.green, won: C.green, not_interested: C.red, lost: C.red, called: C.cyan }[s] || C.dim)
+
+// wa.me deep link — opens WhatsApp to this number with the message pre-typed, so
+// the founder just hits SEND. Normalises a UK 07…/+44 number to wa.me intl format.
+const waUrl = (phone, text) => {
+  let n = (phone || '').replace(/[^\d+]/g, '')
+  if (n.startsWith('+')) n = n.slice(1)
+  else if (n.startsWith('0')) n = '44' + n.slice(1)
+  if (!n) return null
+  return `https://wa.me/${n}${text ? `?text=${encodeURIComponent(text)}` : ''}`
+}
 const CHIPS = ['what should D do now?', "who's next", 'hottest prospects', 'follow-ups due', 'brief me', 'at risk', 'summarise today']
 const AGENT_LABELS = { lead_finder: 'LEAD FINDER', dial_manager: 'LEAD PRIORITISER', qualifier: 'QUALIFIER', preview_qa: 'PREVIEW QA', followup: 'FOLLOW-UP', reporter: 'REVENUE', ceo: 'CEO' }
 
@@ -67,7 +80,8 @@ export default function MissionControl() {
   const [history, setHistory] = useState([])
   const [histIdx, setHistIdx] = useState(-1)
   const [busy, setBusy] = useState('')
-  const [picker, setPicker] = useState(null)   // {id, outcome, status, label}
+  const [toast, setToast] = useState(null)      // confirmation banner after logging a call
+  const toastTimer = useRef(null)
   const [seenLeadIds, setSeenLeadIds] = useState(null)
   const [flashLeads, setFlashLeads] = useState({})
 
@@ -133,25 +147,46 @@ export default function MissionControl() {
     if (e.key === 'ArrowDown' && histIdx >= 0) { e.preventDefault(); const i = histIdx - 1; setHistIdx(i); setInput(i < 0 ? '' : history[i]) }
   }
 
-  // Outcome → terminal logs straight away; non-terminal opens the 2-tap WHEN picker.
+  // ONE TAP = log immediately with a smart default follow-up. The toast confirms
+  // what happened, lets you change the follow-up day, and shows where it went —
+  // so a logged call is never silent and you can always track who you've worked.
   const tapOutcome = (p, o) => {
-    const [label, outcome, status, terminal] = o
-    if (terminal) return saveLog(p.id, outcome, status, null, null)
-    setPicker({ id: p.id, outcome, status, label })
+    const [label, outcome, status, terminal, days] = o
+    saveLog({ id: p.id, business: p.business_name, label, color: OUTCOME_COLOR[label],
+              outcome, status, days, terminal })
   }
-  const saveLog = async (id, outcome, status, whenDays, whenLabel) => {
-    setPicker(null)
-    if (!id) return
+  const saveLog = async (m) => {
+    if (!m?.id) return
+    const action = m.terminal ? null : (m.action || `${m.outcome} → follow up`)
+    const when = (!m.terminal && m.days != null) ? isoIn(m.days) : null
     try {
-      await salesOps.log(key, id, {
-        outcome, new_status: status,
-        next_action: whenLabel ? `${outcome} → follow up` : undefined,
-        next_action_date: whenDays != null ? isoIn(whenDays) : undefined,
-        reason: outcome,
+      await salesOps.log(key, m.id, {
+        outcome: m.outcome, new_status: m.status,
+        next_action: action || undefined,
+        next_action_date: when || undefined,
+        reason: m.outcome,
       })
+      setToast({ ...m, action, when })                 // the confirmation that was missing
+      clearTimeout(toastTimer.current)
+      toastTimer.current = setTimeout(() => setToast(null), 7000)
       refresh()
-    } catch (e) { push('err', 'Log failed: ' + e.message) }
+    } catch (e) {
+      setToast({ err: true, business: m.business, msg: e.message })
+      push('err', 'Log failed: ' + e.message)
+    }
   }
+  // Re-schedule the follow-up straight from the toast.
+  const reschedule = (days) => { if (toast && !toast.terminal) saveLog({ ...toast, days }) }
+
+  // Send the personalised PREVIEW message on WhatsApp (opens WA pre-typed) AND logs
+  // it so "sent preview" is tracked + a chase is scheduled. Answers "what happens
+  // when I send a preview" — it's recorded and shows up in CALLED TODAY.
+  const sentPreview = (p) => saveLog({
+    id: p.id, business: p.business_name, label: 'PREVIEW SENT', color: C.green,
+    outcome: 'sent preview link on WhatsApp',
+    status: ['interested', 'demo_booked', 'won'].includes(p.status) ? p.status : 'called',
+    days: 2, action: 'Chase the preview', terminal: false,
+  })
 
   const act = async (label, fn) => {
     setBusy(label)
@@ -172,11 +207,18 @@ export default function MissionControl() {
   const resolveAlert = (id) => act('Resolve', () => salesOps.resolveAlert(key, id))
   const promoteV3 = (id) => act('Promote v3', () => salesOps.v3Promote(key, id))
   const [copied, setCopied] = useState('')
-  const payLink = async (id) => {
+  const payLink = async (p) => {
     try {
-      const r = await salesOps.tradesCheckout(key, id)
-      await copyText(id + ':pay', r.checkout_url)
-      push('jarvis', `💳 ${r.business_name}: payment link copied — paste it into WhatsApp.`)
+      const r = await salesOps.tradesCheckout(key, p.id)
+      await copyText(p.id + ':pay', r.checkout_url)        // clipboard fallback
+      const msg = `Sound — here's the link to get your site live (£199 to launch, then £29/mo): ${r.checkout_url}\nAny bother just message me. — Dylan`
+      const wa = waUrl(p.phone, msg)
+      if (wa) window.open(wa, '_blank')
+      else push('jarvis', `💳 ${r.business_name}: payment link copied (no phone on file) — paste it into WhatsApp.`)
+      saveLog({ id: p.id, business: p.business_name, label: 'PAY LINK SENT', color: C.amber,
+                outcome: 'payment link sent on WhatsApp', days: 1, action: 'Chase the payment link',
+                status: ['interested', 'demo_booked', 'won'].includes(p.status) ? p.status : 'interested',
+                terminal: false })
     } catch (e) { push('err', 'Payment link failed: ' + (e.response?.data?.detail || e.message)) }
   }
   const copyText = async (id, text) => {
@@ -217,6 +259,7 @@ export default function MissionControl() {
   const needs = board?.needs_data || []
   const atRisk = board?.at_risk || []
   const overdue = board?.overdue || []
+  const calledToday = board?.called_today || []
   const health = board?.agent_health || []
   const briefing = board?.briefing || {}
   const bottleneck = board?.bottleneck || {}
@@ -228,6 +271,7 @@ export default function MissionControl() {
     <div style={{ ...shell, border: demo ? `2px solid ${C.amber}` : 'none' }}>
       <style>{FX}</style>
       {booting && <Boot onSkip={() => setBooting(false)} />}
+      {toast && <ConfirmToast toast={toast} onClose={() => setToast(null)} onReschedule={reschedule} />}
       <div style={{ padding: '12px 16px 48px', fontFamily: ui, color: C.text, maxWidth: 1500, margin: '0 auto' }}>
 
         {/* TOP BAR */}
@@ -243,6 +287,7 @@ export default function MissionControl() {
             <Metric label="Builds £" value={`£${Math.round(r.build_revenue ?? 0)}`} big color={C.green} />
             <Metric label="MRR" value={`£${Math.round(r.mrr ?? 0)}`} color={C.green} />
             <Metric label="Queued" value={pipe.to_call ?? 0} color={C.cyan} />
+            <Metric label="Called today" value={calledToday.length} color={C.amber} />
             <Metric label="Won" value={pipe.won ?? 0} color={C.amber} />
             <div style={{ display: 'flex', border: `1px solid ${C.line}`, borderRadius: 7, overflow: 'hidden' }}>
               {['D', 'L'].map(f => <button key={f} onClick={() => setFounder(f)} style={{ background: founder === f ? C.cyan : 'transparent', color: founder === f ? '#000' : C.dim, border: 'none', padding: '6px 13px', fontWeight: 800, cursor: 'pointer', fontFamily: mono }}>{f}</button>)}
@@ -290,10 +335,10 @@ export default function MissionControl() {
               {nextCall.call_notes && <div style={{ color: C.dim, fontSize: 13, marginTop: 4, whiteSpace: 'pre-wrap' }}>📝 {nextCall.call_notes.slice(0, 200)}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <PreviewChip p={nextCall} onBuild={() => buildPreview(nextCall.id)} onApprove={() => approve(nextCall.id)} busy={busy} />
-                <KitRow p={nextCall} copied={copied} onCopy={copyText} onPayLink={payLink} />
+                <KitRow p={nextCall} copied={copied} onCopy={copyText} onPayLink={payLink} onSentPreview={sentPreview} />
                 <V3Chip p={nextCall} busy={busy} onPromote={() => promoteV3(nextCall.id)} />
               </div>
-              <OutcomeRow p={nextCall} big picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
+              <OutcomeRow p={nextCall} big onOutcome={tapOutcome} />
             </>
           )}
         </div>
@@ -317,14 +362,33 @@ export default function MissionControl() {
                     <div style={{ color: C.green, fontSize: 12, marginTop: 3 }}>🎯 {p.sales_angle}</div>
                     <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <PreviewChip p={p} onBuild={() => buildPreview(p.id)} onApprove={() => approve(p.id)} busy={busy} />
-                      <KitRow p={p} copied={copied} onCopy={copyText} onPayLink={payLink} />
+                      <KitRow p={p} copied={copied} onCopy={copyText} onPayLink={payLink} onSentPreview={sentPreview} />
                       <V3Chip p={p} busy={busy} onPromote={() => promoteV3(p.id)} />
                     </div>
-                    <OutcomeRow p={p} picker={picker} onOutcome={tapOutcome} onWhen={saveLog} onCancel={() => setPicker(null)} />
+                    <OutcomeRow p={p} onOutcome={tapOutcome} />
                   </div>
                 ))}
               </Section>
             ))}
+
+            {/* CALLED TODAY — who you've already worked, so you never double-dial */}
+            <Section title="CALLED TODAY" count={calledToday.length}>
+              {calledToday.length === 0 && <Empty>No calls logged yet today — your outcomes land here.</Empty>}
+              {calledToday.slice(0, 30).map(c => (
+                <div key={c.id} style={{ borderTop: `1px solid ${C.lineSoft}`, padding: '7px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{c.business_name}
+                      <span style={{ color: C.faint, fontWeight: 400 }}> · {c.assigned_to || '·'}</span></span>
+                    <span style={{ color: STATUS_COLOR(c.status), fontFamily: mono, fontSize: 11, whiteSpace: 'nowrap' }}>{(c.status || '').replace(/_/g, ' ')}</span>
+                  </div>
+                  {c.last_outcome && <div style={{ color: C.dim, fontSize: 12, marginTop: 2 }}>{c.last_outcome}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 3, alignItems: 'center' }}>
+                    {c.phone ? <a href={`tel:${c.phone}`} style={{ color: C.cyan, fontFamily: mono, fontSize: 12, textDecoration: 'none' }}>📞 {c.phone}</a> : <span />}
+                    {c.next_action_date && <span style={{ color: C.amber, fontFamily: mono, fontSize: 11 }} title={c.next_action || ''}>↻ follow up {c.next_action_date}</span>}
+                  </div>
+                </div>
+              ))}
+            </Section>
 
             {/* (4) Follow-ups due */}
             <Section title="FOLLOW-UPS DUE" count={overdue.length}>
@@ -470,24 +534,46 @@ export default function MissionControl() {
 const shell = { minHeight: '100vh', background: C.bg, position: 'relative', boxSizing: 'border-box' }
 const chip = { background: '#0c0f13', border: `1px solid ${C.line}`, color: C.cyan, borderRadius: 99, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: mono }
 
-const OutcomeRow = ({ p, big, picker, onOutcome, onWhen, onCancel }) => {
-  const open = picker && picker.id === p.id
-  if (open) return (
-    <div className="jln" style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-      <span style={{ color: C.amber, fontFamily: mono, fontSize: 11 }}>{picker.label} → follow up when?</span>
-      {WHENS.map(([lbl, d]) => <button key={lbl} style={btn(C.amber)} onClick={() => onWhen(p.id, picker.outcome, picker.status, d, lbl)}>{lbl}</button>)}
-      <button style={btn(C.faint)} onClick={onCancel}>cancel</button>
-    </div>
+// One tap logs the outcome instantly (with a default follow-up) — the confirmation
+// toast handles "when" and lets you change it. No second tap, no dead-end.
+const OutcomeRow = ({ p, big, onOutcome }) => (
+  <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+    {OUTCOMES.map(o => (
+      <button key={o[0]} style={{ ...btn(OUTCOME_COLOR[o[0]]), padding: big ? '6px 11px' : '4px 8px', fontSize: big ? 11 : 10 }}
+        onClick={() => onOutcome(p, o)}>{o[0]}</button>
+    ))}
+  </div>
+)
+
+// Confirmation banner after every logged call — the visible feedback that was missing.
+const fmtDay = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }) } catch { return iso } }
+const ConfirmToast = ({ toast, onClose, onReschedule }) => {
+  if (toast.err) return (
+    <div style={toastWrap}><div style={{ ...toastCard, borderColor: C.red }}>
+      <span style={{ color: C.red, fontWeight: 800 }}>✕ Couldn't log {toast.business}</span>
+      <span style={{ color: C.dim }}>{toast.msg}</span>
+      <button style={{ ...btn(C.faint), marginLeft: 6 }} onClick={onClose}>dismiss</button>
+    </div></div>
   )
   return (
-    <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
-      {OUTCOMES.map(o => (
-        <button key={o[0]} style={{ ...btn(OUTCOME_COLOR[o[0]]), padding: big ? '6px 11px' : '4px 8px', fontSize: big ? 11 : 10 }}
-          onClick={() => onOutcome(p, o)}>{o[0]}</button>
-      ))}
-    </div>
+    <div style={toastWrap}><div className="jflash" style={{ ...toastCard, borderColor: toast.color || C.green }}>
+      <span style={{ color: toast.color || C.green, fontWeight: 800, fontFamily: mono }}>✓ {toast.label}</span>
+      <span style={{ color: C.text, fontWeight: 600 }}>{toast.business}</span>
+      {toast.terminal
+        ? <span style={{ color: C.faint }}>· done, removed from your queue</span>
+        : toast.when && <span style={{ color: C.dim }}>· follow up <b style={{ color: C.amber }}>{fmtDay(toast.when)}</b></span>}
+      {!toast.terminal && (
+        <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center', marginLeft: 2 }}>
+          <span style={{ color: C.faint, fontFamily: mono, fontSize: 10 }}>change:</span>
+          {WHENS.map(([lbl, d]) => <button key={lbl} style={{ ...btn(C.faint), padding: '4px 8px' }} onClick={() => onReschedule(d)}>{lbl}</button>)}
+        </span>
+      )}
+      <button style={{ ...btn(C.faint), marginLeft: 6 }} onClick={onClose}>✕</button>
+    </div></div>
   )
 }
+const toastWrap = { position: 'fixed', top: 12, left: 0, right: 0, zIndex: 60, display: 'flex', justifyContent: 'center', pointerEvents: 'none', padding: '0 12px' }
+const toastCard = { ...card, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', boxShadow: '0 10px 34px rgba(0,0,0,.55)', background: '#0c1014', borderWidth: 2, fontSize: 13, maxWidth: 820 }
 
 // v3 chip — view the v3 draft, promote it (switches the LIVE link; v2 URL keeps serving).
 const V3Chip = ({ p, onPromote, busy }) => {
@@ -504,17 +590,20 @@ const V3Chip = ({ p, onPromote, busy }) => {
   )
 }
 
-// WhatsApp message kit — copy-to-send buttons (drafts only; founder sends them).
-const KitRow = ({ p, copied, onCopy, onPayLink }) => {
-  if (!p.msg_first && !p.msg_link) return null
+// WhatsApp SEND kit — opens WhatsApp to the prospect with the message pre-typed so
+// you just hit SEND. "Send preview" also logs it (tracked + chase scheduled).
+// 📋 = copy fallback if the WhatsApp link is ever blocked.
+const KitRow = ({ p, copied, onCopy, onPayLink, onSentPreview }) => {
+  const wa = (text) => { const u = waUrl(p.phone, text); if (u) window.open(u, '_blank') }
+  const canWa = !!waUrl(p.phone)
+  if (!p.msg_first && !p.msg_link && !onPayLink) return null
   return (
-    <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
-      {p.msg_first && <button style={btn(C.green)} onClick={() => onCopy(p.id + ':a', p.msg_first)}>
-        {copied === p.id + ':a' ? '✓ copied' : '📋 intro msg'}</button>}
-      {p.msg_link && <button style={btn(C.green)} onClick={() => onCopy(p.id + ':b', p.msg_link)}>
-        {copied === p.id + ':b' ? '✓ copied' : '📋 link msg'}</button>}
-      {onPayLink && <button style={btn(C.amber)} onClick={() => onPayLink(p.id)}>
-        {copied === p.id + ':pay' ? '✓ link copied' : '💳 £199 link'}</button>}
+    <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+      {p.msg_first && canWa && <button style={btn(C.green)} onClick={() => wa(p.msg_first)}>💬 Send intro (WA)</button>}
+      {p.msg_link && canWa && <button style={btn(C.green)} onClick={() => { wa(p.msg_link); onSentPreview && onSentPreview(p) }}>🔗 Send preview (WA)</button>}
+      {p.msg_first && <button title="copy intro message" style={{ ...btn(C.faint), padding: '5px 8px' }} onClick={() => onCopy(p.id + ':a', p.msg_first)}>{copied === p.id + ':a' ? '✓' : '📋'}</button>}
+      {p.msg_link && <button title="copy preview/link message" style={{ ...btn(C.faint), padding: '5px 8px' }} onClick={() => onCopy(p.id + ':b', p.msg_link)}>{copied === p.id + ':b' ? '✓' : '📋'}</button>}
+      {onPayLink && <button style={btn(C.amber)} onClick={() => onPayLink(p)}>{copied === p.id + ':pay' ? '✓ sent' : '💳 Send £199 link (WA)'}</button>}
     </span>
   )
 }

@@ -1463,6 +1463,50 @@ def get_overdue_followups(mode: str = REAL) -> list:
     return acts[:50]
 
 
+def get_called_today(mode: str = REAL) -> list:
+    """Every prospect logged TODAY (this data_mode), newest first, with the open
+    next action attached. Powers Mission Control's CALLED TODAY panel so the
+    founder can SEE who they've already worked and never double-dials."""
+    db = get_db()
+    today = _today().isoformat()          # ISO timestamps sort lexically after the date
+    try:
+        pros = (db.table("prospects")
+                .select("id,business_name,phone,town,trade,status,assigned_to,"
+                        "call_notes,last_called_at,data_mode")
+                .gte("last_called_at", today)
+                .order("last_called_at", desc=True)
+                .limit(200).execute().data or [])
+    except Exception as e:
+        logger.debug(f"[called_today] query skipped: {e}")
+        return []
+    pros = [p for p in pros if (p.get("data_mode") or REAL) == mode]
+    if not pros:
+        return []
+    # Attach each prospect's soonest open next action (the "where to next" line).
+    nxt = {}
+    try:
+        acts = (db.table("next_actions").select("prospect_id,action,due_date,done")
+                .in_("prospect_id", [p["id"] for p in pros]).eq("done", False)
+                .order("due_date", desc=False).limit(400).execute().data or [])
+        for a in acts:
+            nxt.setdefault(a.get("prospect_id"), a)
+    except Exception:
+        pass
+    out = []
+    for p in pros:
+        lines = [ln for ln in (p.get("call_notes") or "").strip().splitlines() if ln.strip()]
+        a = nxt.get(p["id"]) or {}
+        out.append({
+            "id": p["id"], "business_name": p.get("business_name"),
+            "phone": p.get("phone"), "town": p.get("town"), "trade": p.get("trade"),
+            "status": p.get("status"), "assigned_to": p.get("assigned_to"),
+            "last_called_at": p.get("last_called_at"),
+            "last_outcome": lines[-1] if lines else "",
+            "next_action": a.get("action"), "next_action_date": a.get("due_date"),
+        })
+    return out[:60]
+
+
 def overdue_followups_text() -> str:
     acts = get_overdue_followups()
     if not acts:

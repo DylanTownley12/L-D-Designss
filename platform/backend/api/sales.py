@@ -222,6 +222,7 @@ def _board_sync(mode: str) -> dict:
             "needs_data": needs,
             "at_risk": trades.find_dead_pipeline(mode=mode),
             "overdue": trades.get_overdue_followups(mode=mode),
+            "called_today": trades.get_called_today(mode=mode),
             "alerts": trades.get_open_alerts(mode=mode),
             "briefing": trades.get_latest_briefing(mode=mode),
             "agent_health": _agent_health(mode),
