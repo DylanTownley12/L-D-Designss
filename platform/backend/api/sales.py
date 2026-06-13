@@ -6,6 +6,7 @@ FOUNDERS ONLY: every route requires the ops key (OPS_KEY, or SECRET_KEY) passed
 as ?key=… or the X-Ops-Key header. Nothing here contacts a prospect or client.
 """
 import logging
+import re
 
 from fastapi import APIRouter, Depends, Header, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -74,6 +75,22 @@ class OverrideBody(BaseModel):
 
 
 _TERMINAL = ("won", "lost", "not_interested")
+
+
+def _is_whatsappable(phone: str) -> bool:
+    """True only for UK mobiles (07… / +447…) — the only numbers WhatsApp reaches.
+    Landlines (01/02/03), 08/09 and missing numbers are NOT on WhatsApp."""
+    n = re.sub(r"[^\d+]", "", phone or "")
+    if n.startswith("+"):
+        n = n[1:]
+    return n.startswith("07") or n.startswith("447")
+
+
+class CullBody(BaseModel):
+    apply: bool = False              # DRY RUN unless True
+    hard: bool = False               # True = delete rows; False = mark not_interested (reversible)
+    include_no_number: bool = True   # also remove prospects with no phone at all
+    mode: str = "real"
 
 
 class ConvertBody(BaseModel):
@@ -402,6 +419,59 @@ async def log_call(prospect_id: str, body: LogBody, _=Depends(require_ops_key)):
     return await run_in_threadpool(trades.log_call, prospect_id, outcome, body.new_status,
                                    next_action=body.next_action,
                                    next_action_date=body.next_action_date)
+
+
+@router.post("/prospects/cull-non-whatsapp")
+async def cull_non_whatsapp(body: CullBody, _=Depends(require_ops_key)):
+    """Remove prospects that can't be reached on WhatsApp (landlines + no number).
+    DRY RUN by default → returns the count + a sample. apply=true performs it;
+    hard=true deletes the rows, otherwise they're marked not_interested (reversible).
+    Never touches won deals or rows already not_interested/lost."""
+    def _sync():
+        db = get_db()
+        mode = "demo" if body.mode == "demo" else "real"
+        rows = (db.table("prospects").select("id,business_name,phone,status,data_mode")
+                .limit(5000).execute().data or [])
+        targets = []
+        for p in rows:
+            if (p.get("data_mode") or "real") != mode:
+                continue
+            if p.get("status") in _TERMINAL:          # already won/lost/not_interested
+                continue
+            phone = (p.get("phone") or "").strip()
+            if _is_whatsappable(phone):
+                continue                              # keep mobiles
+            if not phone and not body.include_no_number:
+                continue
+            targets.append(p)
+
+        sample = [{"business_name": t.get("business_name"), "phone": t.get("phone") or "(none)",
+                   "status": t.get("status")} for t in targets[:15]]
+        n = len(targets)
+        if not body.apply:
+            return {"dry_run": True, "would_remove": n, "sample": sample,
+                    "hint": "Pass apply=true to remove. hard=true deletes; else marked not_interested."}
+
+        ids = [t["id"] for t in targets]
+        removed = 0
+        for i in range(0, len(ids), 100):
+            chunk = ids[i:i + 100]
+            try:
+                if body.hard:
+                    db.table("prospects").delete().in_("id", chunk).execute()
+                else:
+                    db.table("prospects").update({"status": "not_interested"}).in_("id", chunk).execute()
+                removed += len(chunk)
+            except Exception as e:
+                logger.error(f"[cull-non-whatsapp] chunk failed: {e}")
+        trades.log_event("dial_manager",
+                          f"🧹 culled {removed} non-WhatsApp prospects "
+                          f"({'deleted' if body.hard else 'marked not_interested'})",
+                          "success", {"removed": removed, "hard": body.hard})
+        return {"ok": True, "removed": removed, "hard": body.hard,
+                "method": "deleted" if body.hard else "marked not_interested", "sample": sample}
+
+    return await run_in_threadpool(_sync)
 
 
 @router.get("/needs-data")
