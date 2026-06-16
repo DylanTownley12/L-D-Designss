@@ -195,9 +195,9 @@ def _build_context(lead: dict) -> dict:
         "dylan_whatsapp_url": dylan_whatsapp_url,
         "accent_hex": accent_hex,
         "accent_rgb": accent_rgb,
-        "price_build": "150",
-        "price_monthly": "15",
-        "price_deposit": "75",
+        "price_build": "199",
+        "price_monthly": "29",
+        "price_deposit": "199",
         "about_heading": f"The Barbers {city} Trusts",
         "about_text": _pick(about_texts, seed, offset=2),
         "highlights": [

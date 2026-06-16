@@ -64,7 +64,7 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
     result = (
         db.table("leads")
         .select("id, business_name, phone, city, address, notes, status, quality_score, "
-                "google_rating, google_reviews, analysis_data, created_at, updated_at")
+                "website_status, google_rating, google_reviews, analysis_data, created_at, updated_at")
         .in_("status", statuses)
         .order("quality_score", desc=True)
         .limit(600)
@@ -109,6 +109,7 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
 
         # Strip heavy analysis_data from the row we return
         row = {k: v for k, v in lead.items() if k != "analysis_data"}
+        website_status = lead.get("website_status")
         row.update({
             "preview_url": preview_url,
             "preview_working": preview_working,
@@ -116,6 +117,10 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
             "image_source": image_source,
             "template_version": template_version,
             "has_real_photos": image_source == "google_places",
+            "website_status": website_status,
+            "no_website": website_status in ("none", "weak"),
+            "call_ready": bool(phone and preview_working and quality >= min_quality),
+            "trade": "Barber",
             "whatsapp_url": f"https://wa.me/{wa_num}" if wa_num else None,
             "call_url": f"tel:{phone}" if phone else None,
             "next_action": _next_action(lead["status"]),
@@ -155,9 +160,9 @@ def _next_action(status: str) -> str:
         "preview_ready":      "Call — introduce yourself and offer to send the preview link",
         "outreach_sent":      "Call — follow up on the WhatsApp message you already sent",
         "called":             "Send preview link, or follow up if already sent",
-        "interested":         "Send Stripe payment link (£75 deposit to start)",
+        "interested":         "Send the £199 + £29/mo payment link",
         "follow_up_required": "Call again — they asked you to call back",
-        "payment_link_sent":  "Chase payment — ask if they have questions about the deposit",
+        "payment_link_sent":  "Chase payment — £199 to build, then £29/mo",
         "replied":            "Respond to their message and move them to Interested or Dead",
         "converted":          "Build the site — collect content, images, booking link",
     }.get(status, "Review and decide next step")

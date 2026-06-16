@@ -33,9 +33,9 @@ export default function App() {
             <Sidebar />
             <main className="flex-1 overflow-y-auto">
               <Routes>
-                {/* ONE founder interface: everything funnels to /mission-control */}
-                <Route path="/" element={<Navigate to="/mission-control" replace />} />
-                <Route path="/dashboard" element={<Navigate to="/mission-control" replace />} />
+                {/* Call-readiness: the barber call list is the live home for calling. */}
+                <Route path="/" element={<Navigate to="/calls" replace />} />
+                <Route path="/dashboard" element={<Navigate to="/calls" replace />} />
                 <Route path="/missed-call" element={<Navigate to="/mission-control" replace />} />
                 <Route path="/plan" element={<Navigate to="/mission-control" replace />} />
                 <Route path="/live" element={<Navigate to="/mission-control" replace />} />
