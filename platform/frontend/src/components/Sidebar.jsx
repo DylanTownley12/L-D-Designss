@@ -1,17 +1,15 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { agents as agentsApi, team as teamApi } from '../api/client'
-import { Zap, Network, Users, Database, Crosshair, Globe, Settings, Phone, Cpu } from 'lucide-react'
+import { Users, Globe, Settings, Phone } from 'lucide-react'
 
+// Call-readiness: trimmed to what makes calls + collects payment. Other pages
+// (Mission Control, War Room, Do-Next, Leads, Outreach) still exist by URL but
+// are kept off the sidebar so the cockpit stays focused on tomorrow's calls.
 const nav = [
-  { to: '/mission-control', Icon: Cpu, label: 'MISSION CTRL', highlight: true },
-  { to: '/do-next',  Icon: Zap,       label: 'DO NEXT',  highlight: true,  badge: 'action' },
   { to: '/calls',    Icon: Phone,     label: 'CALLS',    highlight: true },
-  { to: '/hub',      Icon: Network,   label: 'WAR ROOM',                   badge: 'approvals' },
-  { to: '/agents',   Icon: Users,     label: 'AGENTS',                     badge: 'stale' },
-  { to: '/leads',    Icon: Database,  label: 'LEADS' },
-  { to: '/outreach', Icon: Crosshair, label: 'OUTREACH' },
   { to: '/previews', Icon: Globe,     label: 'PREVIEWS' },
+  { to: '/agents',   Icon: Users,     label: 'AGENTS',                     badge: 'stale' },
   { to: '/settings', Icon: Settings,  label: 'CONFIG' },
 ]
 

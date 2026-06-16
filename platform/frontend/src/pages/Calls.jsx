@@ -106,6 +106,20 @@ function LeadCard({ lead, onUpdate }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{lead.business_name}</span>
             <StatusBadge status={lead.status} />
+            {lead.call_ready && (
+              <span title="Has a phone, a working preview and a presentable preview score — good to call now" style={{
+                fontSize: 10, fontWeight: 800, color: C.green,
+                background: `${C.green}1f`, border: `1px solid ${C.green}66`,
+                borderRadius: 5, padding: '1px 7px', letterSpacing: '0.06em',
+              }}>● READY</span>
+            )}
+            {lead.no_website && (
+              <span title="No proper website found — prime lead" style={{
+                fontSize: 10, fontWeight: 700, color: C.cyan,
+                background: `${C.cyan}14`, border: `1px solid ${C.cyan}40`,
+                borderRadius: 5, padding: '1px 6px', letterSpacing: '0.04em',
+              }}>NO WEBSITE ✓</span>
+            )}
             {lead.google_rating && (
               <span style={{ fontSize: 11, color: C.gold }}>★ {lead.google_rating}</span>
             )}
@@ -118,7 +132,13 @@ function LeadCard({ lead, onUpdate }) {
             )}
           </div>
           <div style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>
-            {lead.city} · {lead.phone}
+            {lead.trade || 'Barber'} · {lead.city} · {lead.phone}
+            {lead.status === 'converted'
+              ? <span style={{ color: C.green, fontWeight: 600 }}> · 💷 Paid</span>
+              : lead.status === 'payment_link_sent'
+              ? <span style={{ color: C.gold }}> · 💷 Link sent</span>
+              : null}
+            {!lead.preview_working && <span style={{ color: C.orange }}> · ⚠ needs preview</span>}
             {lead.notes && <span style={{ color: C.textDim }}> · has notes</span>}
           </div>
         </div>
@@ -234,7 +254,7 @@ function LeadCard({ lead, onUpdate }) {
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                 }}
               >
-                <CreditCard size={12} /> Send £175 Payment Link
+                <CreditCard size={12} /> Send £199 + £29/mo Link
               </button>
             )}
           </div>
@@ -274,7 +294,9 @@ export default function Calls() {
   }
 
   const filtered = leads.filter(l => {
-    if (filter !== 'all' && l.status !== filter) return false
+    if (filter === 'ready') {
+      if (!l.call_ready) return false
+    } else if (filter !== 'all' && l.status !== filter) return false
     if (search && !l.business_name.toLowerCase().includes(search.toLowerCase()) && !l.city.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
@@ -322,17 +344,21 @@ export default function Calls() {
               width: 220,
             }}
           />
-          {['all', 'interested', 'follow_up_required', 'called', 'outreach_sent', 'preview_ready', 'not_interested'].map(s => (
-            <button key={s} onClick={() => setFilter(s)} style={{
-              background: filter === s ? `${C.cyan}20` : 'rgba(255,255,255,0.03)',
-              border: filter === s ? `1px solid ${C.cyan}60` : `1px solid ${C.border}`,
-              borderRadius: 8, padding: '6px 12px', color: filter === s ? C.cyan : C.textMid,
-              fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em',
-              cursor: 'pointer',
-            }}>
-              {s === 'all' ? 'All' : STATUS_CFG[s]?.label || s}
-            </button>
-          ))}
+          {['all', 'ready', 'interested', 'follow_up_required', 'called', 'outreach_sent', 'preview_ready', 'not_interested'].map(s => {
+            const accent = s === 'ready' ? C.green : C.cyan
+            const label = s === 'all' ? 'All' : s === 'ready' ? '● Ready to call' : STATUS_CFG[s]?.label || s
+            return (
+              <button key={s} onClick={() => setFilter(s)} style={{
+                background: filter === s ? `${accent}20` : 'rgba(255,255,255,0.03)',
+                border: filter === s ? `1px solid ${accent}60` : `1px solid ${C.border}`,
+                borderRadius: 8, padding: '6px 12px', color: filter === s ? accent : C.textMid,
+                fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em',
+                cursor: 'pointer',
+              }}>
+                {label}
+              </button>
+            )
+          })}
         </div>
       </div>
 

@@ -112,7 +112,7 @@ function PaymentBlock({ lead }) {
     <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderDim}`, background: isPaid ? 'rgba(0,255,136,0.03)' : 'rgba(212,168,67,0.03)' }}>
       <div style={{ ...lbl({ color: isPaid ? C.green : C.gold, marginBottom: 7, fontSize: 8 }) }}>PAYMENT</div>
       {loading ? <div style={{ fontSize: 11, color: C.textDim }}>Checking Stripe...</div>
-        : isPaid ? <div style={{ fontSize: 12, fontWeight: 700, color: C.green }}>£75 DEPOSIT PAID ✓</div>
+        : isPaid ? <div style={{ fontSize: 12, fontWeight: 700, color: C.green }}>£199 + £29/MO PAID ✓</div>
         : isAwaiting ? (
           <div>
             <div style={{ fontSize: 11, color: '#fbbf24', marginBottom: 8 }}>Link sent — awaiting payment</div>
@@ -123,7 +123,7 @@ function PaymentBlock({ lead }) {
         ) : (
           <button onClick={sendLink} disabled={sending} style={{ width: '100%', padding: '10px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.gold}, #F0C96A)`, color: '#000', fontWeight: 700, fontSize: 13, cursor: sending ? 'wait' : 'pointer', opacity: sending ? 0.7 : 1 }}>
             <CreditCard size={13} style={{ marginRight: 7, verticalAlign: 'middle' }} />
-            {sending ? 'Creating...' : 'Send £75 Deposit Link'}
+            {sending ? 'Creating...' : 'Send £199 + £29/mo Link'}
           </button>
         )
       }

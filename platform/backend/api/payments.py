@@ -1,6 +1,6 @@
 """
 Stripe payment endpoints
-POST /api/payments/create-checkout/{lead_id} — creates a £75 deposit checkout session
+POST /api/payments/create-checkout/{lead_id} — creates the £199 build + £29/mo checkout session
 GET  /api/payments/link/{lead_id}            — returns a shareable checkout URL
 """
 import logging
@@ -25,7 +25,10 @@ def _stripe():
 
 @router.post("/create-checkout/{lead_id}")
 async def create_checkout(lead_id: str):
-    """Create a Stripe Checkout session for the £75 deposit for a specific lead."""
+    """Create a Stripe Checkout session for a lead: £199 one-off build + £29/month
+    (hosting, updates, booking). One subscription session — the £199 build lands on the
+    first invoice alongside the first £29, then £29/month recurs on the saved card.
+    This is the ONLY allowed offer (£199 + £29); never the old £75/£175 deposit."""
     if not settings.STRIPE_SECRET_KEY:
         raise HTTPException(status_code=503, detail="STRIPE_SECRET_KEY not configured — add it to Railway Variables")
 
@@ -35,41 +38,43 @@ async def create_checkout(lead_id: str):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     lead = lead.data
+    biz = lead.get("business_name") or "your business"
     stripe = _stripe()
 
     try:
-        session_params = {
-            "mode": "payment",
-            "success_url": settings.STRIPE_SUCCESS_URL + f"&lead={lead_id}",
-            "cancel_url": settings.STRIPE_CANCEL_URL,
-            "metadata": {
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            success_url=settings.STRIPE_SUCCESS_URL + f"&lead={lead_id}",
+            cancel_url=settings.STRIPE_CANCEL_URL,
+            metadata={
                 "lead_id": lead_id,
                 "business_name": lead.get("business_name", ""),
                 "city": lead.get("city", ""),
             },
-            "payment_method_types": ["card"],
-            "billing_address_collection": "auto",
-        }
-
-        if settings.STRIPE_PRICE_ID:
-            session_params["line_items"] = [{"price": settings.STRIPE_PRICE_ID, "quantity": 1}]
-        else:
-            # Fallback: ad-hoc £175 deposit
-            session_params["line_items"] = [{
-                "price_data": {
-                    "currency": "gbp",
-                    "unit_amount": 17500,
+            subscription_data={"metadata": {"lead_id": lead_id}},
+            billing_address_collection="auto",
+            line_items=[
+                {"price_data": {
+                    "currency": "gbp", "unit_amount": 19900,  # £199 one-off build
                     "product_data": {
-                        "name": "Website Deposit — L&D Designs",
-                        "description": f"£175 deposit for {lead.get('business_name', 'your barber website')} — full build starts immediately",
-                    },
-                },
-                "quantity": 1,
-            }]
+                        "name": f"Website build — {biz}",
+                        "description": "One-off build of your live website by L&D Designs",
+                    }}, "quantity": 1},
+                {"price_data": {
+                    "currency": "gbp", "unit_amount": 2900,  # £29/month recurring
+                    "recurring": {"interval": "month"},
+                    "product_data": {
+                        "name": f"Hosting, updates & booking system — {biz}",
+                        "description": "All-in monthly: hosting, changes, online booking. Cancel any time.",
+                    }}, "quantity": 1},
+            ],
+        )
 
-        session = stripe.checkout.Session.create(**session_params)
-
-        db.table("leads").update({"notes": f"stripe_session:{session.id}"}).eq("id", lead_id).execute()
+        # Append the session id without clobbering existing call notes — get_payment_status
+        # splits notes on ";" looking for "stripe_session:".
+        existing = (lead.get("notes") or "").strip()
+        notes = f"{existing}; stripe_session:{session.id}" if existing else f"stripe_session:{session.id}"
+        db.table("leads").update({"notes": notes}).eq("id", lead_id).execute()
         log_agent_action(db, "payments", "checkout_created", lead_id, "success", {"session_id": session.id})
 
         return {
