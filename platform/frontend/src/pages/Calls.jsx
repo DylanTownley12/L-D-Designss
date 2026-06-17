@@ -292,22 +292,37 @@ export default function Calls() {
   useEffect(() => { load() }, [])
 
   // One tap: pull each call-list barber's real Google photos, then rebuild their
-  // previews so they show those photos + the correct £199 price. Takes ~1-2 min.
+  // previews so they show those photos + the correct £199 price. Done in small
+  // batches so Railway's request gateway never times out on a big synchronous run.
   const prepPreviews = async () => {
     if (prepping) return
     setPrepping(true)
-    setPrepMsg('Pulling real Google photos…')
+    let checked = 0, photos = 0, regen = 0
     try {
-      await ax.post('/previews/backfill-photos?limit=25')
-      setPrepMsg('Rebuilding previews with the photos…')
-      await ax.post('/previews/regenerate-call-board?limit=25')
-      setPrepMsg('✓ Previews refreshed — reloading list')
+      for (let round = 0; round < 5; round++) {
+        setPrepMsg(`Pulling real Google photos… (${checked} done)`)
+        const bf = await ax.post('/previews/backfill-photos?limit=6')
+        checked += bf.data?.checked || 0
+        photos += bf.data?.with_photos || 0
+        setPrepMsg(`Rebuilding previews… (${regen} done)`)
+        const rg = await ax.post('/previews/regenerate-call-board?limit=6')
+        regen += rg.data?.regenerated || 0
+        if ((bf.data?.remaining || 0) === 0 && (rg.data?.remaining || 0) === 0) break
+      }
+      if (checked > 0 && photos === 0) {
+        setPrepMsg('⚠ Previews rebuilt, but no real photos found — GOOGLE_PLACES_API_KEY may be missing in Railway')
+      } else {
+        setPrepMsg(`✓ ${photos} got real photos · ${regen} previews rebuilt`)
+      }
       await load()
-      setTimeout(() => setPrepMsg(''), 4000)
+      setTimeout(() => setPrepMsg(''), 9000)
     } catch (e) {
       console.error(e)
-      setPrepMsg('⚠ Prep failed — check Google Places / Stripe config')
-      setTimeout(() => setPrepMsg(''), 6000)
+      const code = e?.response?.status
+      setPrepMsg(code
+        ? `⚠ Server error ${code} — backend likely timed out, tap again to continue`
+        : '⚠ Network error — is the backend up?')
+      setTimeout(() => setPrepMsg(''), 9000)
     } finally {
       setPrepping(false)
     }
