@@ -49,6 +49,8 @@ export const previews = {
   logView: (preview_id) => api.post(`/previews/view/${preview_id}`),
   backfillPhotos: (limit = 25) => api.post(`/previews/backfill-photos?limit=${limit}`),
   regenerateCallBoard: (limit = 25) => api.post(`/previews/regenerate-call-board?limit=${limit}`),
+  // Rebuild ONE lead's preview (auto-fetches real Google photos first).
+  rebuild: (lead_id) => api.post(`/previews/rebuild/${lead_id}`),
 }
 
 export const n8n = {

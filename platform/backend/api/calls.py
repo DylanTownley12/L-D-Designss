@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from db.client import get_db
+from agents.preview_generator import MIN_REAL_PREVIEW_BYTES
 
 router = APIRouter(prefix="/calls", tags=["calls"])
 
@@ -81,7 +82,7 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
     for i in range(0, len(lead_ids), 100):
         chunk = lead_ids[i:i + 100]
         try:
-            prs = (db.table("previews").select("lead_id, preview_url, template_version, created_at")
+            prs = (db.table("previews").select("lead_id, preview_url, template_version, created_at, personalization_data")
                    .in_("lead_id", chunk).order("created_at", desc=True).limit(1000).execute().data or [])
             for p in prs:
                 lid = p.get("lead_id")
@@ -100,7 +101,13 @@ async def call_board(limit: int = 250, status: Optional[str] = None,
         preview_url = p.get("preview_url")
         template_version = p.get("template_version") or "v1"
 
-        preview_working = bool(preview_url and "/previews/serve/" in preview_url)
+        # A stub (head-only ~5KB render) shouldn't count as a working preview. We know
+        # the rendered size from personalization_data.html_len (written on every build).
+        # Older rows have no html_len → don't regress them (assume working by URL).
+        pdata = p.get("personalization_data") or {}
+        html_len = pdata.get("html_len")
+        is_real_size = html_len is None or html_len >= MIN_REAL_PREVIEW_BYTES
+        preview_working = bool(preview_url and "/previews/serve/" in preview_url and is_real_size)
         quality = _preview_quality(lead, preview_url or "", template_version, image_source)
 
         wa_num = phone.replace(" ", "").replace("-", "").replace("+", "")

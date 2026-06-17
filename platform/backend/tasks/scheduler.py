@@ -86,6 +86,28 @@ async def _generate_previews():
         logger.error(f"[preview_generator] Failed: {e}", exc_info=True)
 
 
+async def _build_call_ready_previews():
+    """Daily safety net: make sure every call-ready lead has a real, photo-backed
+    preview, so 'preview_ready' on the call board actually means 'preview built'.
+    Step 1 backfills real Google photos for newly-qualified leads; step 2 (re)builds
+    their previews (preview_generator.run creates the row if missing and picks up the
+    photos). Building HTML is free; Places spend is bounded by the call-ready set."""
+    try:
+        from api.previews import backfill_photos, regenerate_call_board
+
+        for _ in range(24):  # ~600 leads at 25/batch
+            res = await backfill_photos(limit=25, force=False)
+            if res.get("checked", 0) == 0 or res.get("remaining", 0) <= 0:
+                break
+        for _ in range(24):
+            res = await regenerate_call_board(limit=25, force=False)
+            if res.get("regenerated", 0) == 0 or res.get("remaining", 0) <= 0:
+                break
+        logger.info("[build_call_ready_previews] photo backfill + preview build complete")
+    except Exception as e:
+        logger.error(f"[build_call_ready_previews] Failed: {e}", exc_info=True)
+
+
 async def _whatsapp_campaign():
     try:
         from agents.outreach_writer import generate_whatsapp_campaign
@@ -449,6 +471,10 @@ def start_scheduler():
     # 6:30am — generate previews for new leads
     scheduler.add_job(**job(_generate_previews, id="generate_previews",
         trigger=CronTrigger(hour=6, minute=30, timezone=TZ)))
+
+    # 6:45am — backfill real Google photos + build/repair call-ready previews
+    scheduler.add_job(**job(_build_call_ready_previews, id="build_call_ready_previews",
+        trigger=CronTrigger(hour=6, minute=45, timezone=TZ)))
 
     # 7:00am — generate WhatsApp messages
     scheduler.add_job(**job(_whatsapp_campaign, id="whatsapp_campaign",

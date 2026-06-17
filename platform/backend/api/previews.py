@@ -201,6 +201,26 @@ async def generate_preview(lead_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=result.get("message", "Preview generation failed"))
 
 
+@router.post("/rebuild/{lead_id}")
+async def rebuild_preview(lead_id: str):
+    """Rebuild ONE lead's preview from scratch. Fetches the business's real Google
+    photos first (once, via preview_generator._ensure_photos), then force-renders the
+    current v3 template. Powers the call-board per-lead 'Rebuild' button. Returns the
+    fresh preview_url."""
+    db = get_db()
+    lead = db.table("leads").select("id").eq("id", lead_id).single().execute()
+    if not lead.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    result = preview_generator.run(lead_id, force=True)
+    if result.get("status") != "success":
+        raise HTTPException(status_code=500, detail=result.get("message", "Rebuild failed"))
+    # Tell the UI whether the rebuild used the barber's real Google photos.
+    fresh = db.table("leads").select("analysis_data").eq("id", lead_id).single().execute().data or {}
+    ad = fresh.get("analysis_data") or {}
+    result["has_real_photos"] = ad.get("image_source") == "google_places"
+    return result
+
+
 @router.post("/generate-batch")
 async def generate_batch(limit: int = 10, background_tasks: BackgroundTasks = None):
     db = get_db()
@@ -417,15 +437,18 @@ async def serve_preview(preview_id: str):
     html = result.data.get("html_content") or ""
     lead_id = result.data.get("lead_id")
 
-    if len(html) < 1000:
+    # A real v3 page is ~50KB; anything below MIN_REAL_PREVIEW_BYTES is a failed/legacy
+    # stub. Auto-repair it on view (force rebuild) instead of serving a blank page.
+    from agents.preview_generator import MIN_REAL_PREVIEW_BYTES
+    if len(html) < MIN_REAL_PREVIEW_BYTES:
         if lead_id:
             try:
-                preview_generator.run(lead_id)
+                preview_generator.run(lead_id, force=True)
                 result2 = db.table("previews").select("html_content").eq("id", preview_id).single().execute()
                 html = (result2.data or {}).get("html_content") or ""
             except Exception:
                 pass
-        if len(html) < 1000:
+        if len(html) < MIN_REAL_PREVIEW_BYTES:
             return HTMLResponse(content=_missing_page("This preview is being regenerated. Check back in a moment."))
 
     # Inject beacon before </body>

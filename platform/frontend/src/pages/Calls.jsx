@@ -61,11 +61,24 @@ function StatCard({ label, value, color }) {
   )
 }
 
-function LeadCard({ lead, onUpdate }) {
+function LeadCard({ lead, onUpdate, onPreviewBuilt }) {
   const [expanded, setExpanded] = useState(false)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
+
+  const rebuild = async () => {
+    setRebuilding(true)
+    try {
+      const r = await ax.post(`/previews/rebuild/${lead.id}`)
+      if (r.data?.preview_url) onPreviewBuilt(lead.id, r.data.preview_url, !!r.data.has_real_photos)
+    } catch (e) {
+      alert('Rebuild failed — ' + (e?.response?.data?.detail || 'try again'))
+    } finally {
+      setRebuilding(false)
+    }
+  }
 
   const logCall = async (status) => {
     setSaving(true)
@@ -184,6 +197,20 @@ function LeadCard({ lead, onUpdate }) {
               No Preview
             </span>
           )}
+          <button
+            onClick={rebuild}
+            disabled={rebuilding}
+            title="Rebuild this preview using the barber's real Google photos"
+            style={{
+              background: `${C.cyan}12`, border: `1px solid ${C.cyan}40`, borderRadius: 8,
+              padding: '6px 12px', color: C.cyan, fontSize: 12, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+              opacity: rebuilding ? 0.5 : 1,
+            }}
+          >
+            <RefreshCcw size={12} style={{ animation: rebuilding ? 'spin 1s linear infinite' : 'none' }} />
+            {rebuilding ? 'Building…' : (lead.preview_url ? 'Rebuild' : 'Build')}
+          </button>
         </div>
         <div style={{ color: C.textDim, marginLeft: 8 }}>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -317,6 +344,12 @@ export default function Calls() {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))
   }
 
+  const handlePreviewBuilt = (leadId, url, hasRealPhotos) => {
+    setLeads(prev => prev.map(l => l.id === leadId
+      ? { ...l, preview_url: url, preview_working: true, has_real_photos: hasRealPhotos }
+      : l))
+  }
+
   const filtered = leads.filter(l => {
     if (filter === 'ready') {
       if (!l.call_ready) return false
@@ -407,7 +440,7 @@ export default function Calls() {
         <div>
           <div style={lbl({ marginBottom: 10 })}>{filtered.length} leads</div>
           {filtered.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onUpdate={handleUpdate} />
+            <LeadCard key={lead.id} lead={lead} onUpdate={handleUpdate} onPreviewBuilt={handlePreviewBuilt} />
           ))}
         </div>
       )}

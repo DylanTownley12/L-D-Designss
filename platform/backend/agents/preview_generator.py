@@ -6,7 +6,7 @@ The preview URL is what we send in outreach — "here's what your site could loo
 """
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from db.client import get_db
@@ -16,6 +16,12 @@ from utils.helpers import log_agent_action
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+
+# A successfully rendered v3 page is ~50KB. Anything well below this is a failed/
+# legacy stub (head-only, no hero/gallery) — treat it as "not a real preview" so it
+# gets rebuilt instead of served, and so the call board doesn't count it as working.
+# Shared by api/previews.serve_preview and api/calls.call_board.
+MIN_REAL_PREVIEW_BYTES = 8000
 
 # Real Places photos are fetched by the standalone backfill (agents/places_photos.py)
 # and stored on the lead as analysis_data.place_photos (resolved CDN urls). The
@@ -228,9 +234,36 @@ def _build_context(lead: dict) -> dict:
     }
 
 
+def _ensure_photos(db, lead: dict) -> None:
+    """Fetch the lead's REAL Google Places photos before rendering, if we haven't
+    already. Mirrors the /previews/backfill-photos endpoint: store the resolved CDN
+    urls on analysis_data so _build_context picks them up. Idempotent (skips once
+    checked) and never raises — preview generation must survive any photo failure.
+    """
+    ad = lead.get("analysis_data") or {}
+    if ad.get("place_photos") or ad.get("photos_checked_at"):
+        return  # already have real photos, or already checked and Google had none
+    name = lead.get("business_name") or ""
+    if not name:
+        return
+    try:
+        from agents import places_photos
+        res = places_photos.fetch_photos_for_lead(name, lead.get("city") or "", want=6, max_w=1280)
+        ad["place_photos"] = res["photo_urls"]
+        ad["google_place_id"] = res["place_id"]
+        ad["place_match_name"] = res["matched_name"]
+        ad["image_source"] = "google_places" if res["photo_urls"] else "fallback"
+        ad["photos_checked_at"] = datetime.now(timezone.utc).isoformat()
+        lead["analysis_data"] = ad  # so _build_context sees them this run
+        db.table("leads").update({"analysis_data": ad}).eq("id", lead["id"]).execute()
+    except Exception as e:
+        logger.warning(f"[preview_generator] photo fetch failed for {name}: {e}")
+
+
 def run(lead_id: str, force: bool = False) -> dict:
     """Generate a preview website for a lead and save it.
     force=True overwrites existing html_content even if it looks complete.
+    Real Google photos are fetched automatically (once) before rendering.
     """
     try:
         get_db().table("agent_logs").insert({"agent_name": "preview_generator", "action": "heartbeat", "status": "running"}).execute()
@@ -256,7 +289,7 @@ def run(lead_id: str, force: bool = False) -> dict:
     if existing.data:
         html_stored = existing.data[0].get("html_content") or ""
         existing_url = existing.data[0].get("preview_url") or ""
-        if not force and len(html_stored) > 10000 and "/previews/serve/" in existing_url:
+        if not force and len(html_stored) >= MIN_REAL_PREVIEW_BYTES and "/previews/serve/" in existing_url:
             # Full HTML already stored — skip unless force=True
             logger.info(f"Full preview already exists for lead {lead_id} — skipping")
             return {
@@ -269,6 +302,7 @@ def run(lead_id: str, force: bool = False) -> dict:
         existing_id = None
 
     try:
+        _ensure_photos(db, lead)
         context = _build_context(lead)
         template = jinja_env.get_template("barber_site.html")
         html = template.render(**context)
@@ -278,6 +312,9 @@ def run(lead_id: str, force: bool = False) -> dict:
             "business_name": lead.get("business_name"),
             "city": lead.get("city"),
             "phone": lead.get("phone"),
+            # Rendered size — lets the call board flag stubs without re-downloading HTML.
+            "html_len": len(html),
+            "image_source": context.get("image_source"),
         }
 
         if existing_id:
