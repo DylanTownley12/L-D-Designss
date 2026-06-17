@@ -270,6 +270,8 @@ export default function Calls() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [prepping, setPrepping] = useState(false)
+  const [prepMsg, setPrepMsg] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -288,6 +290,28 @@ export default function Calls() {
   }
 
   useEffect(() => { load() }, [])
+
+  // One tap: pull each call-list barber's real Google photos, then rebuild their
+  // previews so they show those photos + the correct £199 price. Takes ~1-2 min.
+  const prepPreviews = async () => {
+    if (prepping) return
+    setPrepping(true)
+    setPrepMsg('Pulling real Google photos…')
+    try {
+      await ax.post('/previews/backfill-photos?limit=25')
+      setPrepMsg('Rebuilding previews with the photos…')
+      await ax.post('/previews/regenerate-call-board?limit=25')
+      setPrepMsg('✓ Previews refreshed — reloading list')
+      await load()
+      setTimeout(() => setPrepMsg(''), 4000)
+    } catch (e) {
+      console.error(e)
+      setPrepMsg('⚠ Prep failed — check Google Places / Stripe config')
+      setTimeout(() => setPrepMsg(''), 6000)
+    } finally {
+      setPrepping(false)
+    }
+  }
 
   const handleUpdate = (leadId, newStatus, _notes) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))
@@ -310,13 +334,25 @@ export default function Calls() {
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: C.text }}>Call Board</h1>
             <div style={{ fontSize: 13, color: C.textMid, marginTop: 4 }}>Tomorrow's 100 calls — track every conversation</div>
           </div>
-          <button onClick={load} disabled={loading} style={{
-            background: `${C.cyan}12`, border: `1px solid ${C.border}`, borderRadius: 8,
-            padding: '8px 14px', color: C.cyan, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <RefreshCcw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-            Refresh
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {prepMsg && <span style={{ fontSize: 12, color: prepMsg.startsWith('⚠') ? C.red : C.textMid }}>{prepMsg}</span>}
+            <button onClick={prepPreviews} disabled={prepping} title="Pull each barber's real Google photos and rebuild their previews with the correct £199 price" style={{
+              background: prepping ? 'rgba(0,255,136,0.08)' : `linear-gradient(135deg, ${C.green}, #34d399)`,
+              border: 'none', borderRadius: 8, padding: '8px 14px',
+              color: prepping ? C.green : '#001b10', fontWeight: 700, fontSize: 12,
+              cursor: prepping ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <RefreshCcw size={13} style={{ animation: prepping ? 'spin 1s linear infinite' : 'none' }} />
+              {prepping ? 'Prepping…' : 'Real photos + rebuild'}
+            </button>
+            <button onClick={load} disabled={loading} style={{
+              background: `${C.cyan}12`, border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: '8px 14px', color: C.cyan, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <RefreshCcw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Stats */}

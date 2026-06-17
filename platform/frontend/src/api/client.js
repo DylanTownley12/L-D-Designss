@@ -47,6 +47,8 @@ export const previews = {
   generate: (lead_id) => api.post(`/previews/generate/${lead_id}`),
   list: (params) => api.get('/previews/', { params }),
   logView: (preview_id) => api.post(`/previews/view/${preview_id}`),
+  backfillPhotos: (limit = 25) => api.post(`/previews/backfill-photos?limit=${limit}`),
+  regenerateCallBoard: (limit = 25) => api.post(`/previews/regenerate-call-board?limit=${limit}`),
 }
 
 export const n8n = {
