@@ -8,7 +8,7 @@ L&D Designs — a solo web design agency selling websites to UK tradespeople (pl
 
 1. **Root-level files** — public-facing portfolio site (`index.html`, `pricing.html`, `showcase.html`), client demo (`boys-line/`), and legacy Google Colab notebooks (old manual workflow, superseded by `platform/`)
 2. **`platform/`** — full-stack agency automation platform (FastAPI backend + React frontend)
-3. **`.claude/skills/`** — UI/UX Pro Max design-intelligence skill suite (committed; loads in every session). Use it for ALL UI work: previews, dashboard, public site.
+3. **`.claude/skills/`** — UI/UX Pro Max design-intelligence skill suite (committed; loads in every session). Use it for ALL UI work: previews, dashboard, public site. Shopify store work (side-hustle stores, client stores) MUST go through `shopify-store-standards` — the anti-slop quality contract. The Shopify MCP connector (claude.ai web sessions) gives direct access to Dylan's store for products, collections, pages, and unpublished-theme edits.
 
 ## Founder working style (Dylan)
 
