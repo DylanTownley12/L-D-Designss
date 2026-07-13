@@ -316,3 +316,52 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_topic ON knowledge_base(topic);
+
+-- ══════════════════════════════════════════════
+--  HOLIDAY HQ — personal holiday finder (Dylan + girlfriend)
+--  Not part of the barber pipeline. Additive, safe to run on a live DB.
+-- ══════════════════════════════════════════════
+
+-- One row per trip being planned. The Concierge agent fills `preferences`
+-- by interviewing Dylan; the full Q&A lives in `conversation`.
+CREATE TABLE IF NOT EXISTS holiday_trips (
+    id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    title           TEXT DEFAULT 'Our Next Holiday',
+    status          TEXT DEFAULT 'interviewing'
+                    CHECK (status IN ('interviewing','ready','searched','booked','archived')),
+    preferences     JSONB DEFAULT '{}',    -- structured profile: budget, dates, vibe, ...
+    conversation    JSONB DEFAULT '[]',    -- [{role, content, quick_replies?}]
+    questions_asked INTEGER DEFAULT 0,
+    scout_overview  TEXT,                  -- Scout's one-paragraph strategy note
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_holiday_trips_status ON holiday_trips(status, created_at DESC);
+
+-- Scout output — ranked destination suggestions for a trip
+CREATE TABLE IF NOT EXISTS holiday_recommendations (
+    id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    trip_id         UUID REFERENCES holiday_trips(id) ON DELETE CASCADE,
+    rank            INTEGER DEFAULT 0,
+    destination     TEXT NOT NULL,
+    country         TEXT,
+    match_score     INTEGER DEFAULT 0 CHECK (match_score BETWEEN 0 AND 100),
+    summary         TEXT,                  -- why it fits their answers
+    best_time       TEXT,
+    flight_time     TEXT,
+    est_cost_pp     NUMERIC(10,2),
+    est_cost_total  NUMERIC(10,2),         -- for both travellers
+    highlights      JSONB DEFAULT '[]',
+    stay_area       TEXT,                  -- specific resort/area to stay
+    tips            TEXT,
+    status          TEXT DEFAULT 'suggested'
+                    CHECK (status IN ('suggested','shortlisted','dismissed','booked')),
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_holiday_recs_trip ON holiday_recommendations(trip_id, rank);
+
+DO $$ BEGIN
+    CREATE TRIGGER holiday_trips_updated_at
+        BEFORE UPDATE ON holiday_trips
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

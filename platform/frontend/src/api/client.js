@@ -132,4 +132,15 @@ export const strategy = {
   runBrief: () => api.post('/strategy/brief/run'),
 }
 
+// Holiday HQ — personal holiday finder (Dylan + girlfriend)
+export const holidays = {
+  getTrip: () => api.get('/holidays/trip'),
+  newTrip: () => api.post('/holidays/trip/new'),
+  answer: (answer) => api.post('/holidays/answer', { answer }),
+  // Scout can take a while on a full 5-destination search
+  search: () => api.post('/holidays/search', null, { timeout: 120000 }),
+  recommendations: (status) => api.get('/holidays/recommendations', { params: { status } }),
+  setRecStatus: (id, status) => api.post(`/holidays/recommendations/${id}/status`, { status }),
+}
+
 export default api

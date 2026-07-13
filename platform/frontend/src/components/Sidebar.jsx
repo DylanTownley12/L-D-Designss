@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { agents as agentsApi, team as teamApi } from '../api/client'
-import { Zap, Network, Users, Database, Crosshair, Globe, Settings } from 'lucide-react'
+import { Zap, Network, Users, Database, Crosshair, Globe, Settings, Plane } from 'lucide-react'
 
 const nav = [
   { to: '/command',  Icon: Zap,       label: 'DO NEXT',  highlight: true,  badge: 'action' },
@@ -10,6 +10,7 @@ const nav = [
   { to: '/leads',    Icon: Database,  label: 'LEADS' },
   { to: '/outreach', Icon: Crosshair, label: 'OUTREACH' },
   { to: '/previews', Icon: Globe,     label: 'PREVIEWS' },
+  { to: '/holidays', Icon: Plane,     label: 'HOLIDAYS' },
   { to: '/settings', Icon: Settings,  label: 'CONFIG' },
 ]
 

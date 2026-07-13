@@ -7,6 +7,7 @@ import Settings from './pages/Settings'
 import Agents from './pages/Agents'
 import Command from './pages/Command'
 import Hub from './pages/Hub'
+import Holidays from './pages/Holidays'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/outreach" element={<Outreach />} />
                 <Route path="/previews" element={<Previews />} />
+                <Route path="/holidays" element={<Holidays />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>
             </main>
